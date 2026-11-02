@@ -67,13 +67,27 @@ Moves to one story are sent one at a time. Picking again while a move is saving 
 
 Moving needs a read-write token. With a read-only token (`sct_r_...`, whose whoami scopes are only `read`) `m` opens a notice explaining that and sends nothing.
 
+## Auto-refresh
+
+The app refreshes on its own every 5 minutes, the same as pressing `r`, so pull request badges keep up with CI and reviews. The selected story stays selected. A refresh is skipped while you edit the query, pick a state, or read help or the read-only notice, and while a search or pull request status is still loading. The next interval tries again. Any search, including `r` and a new query, restarts the countdown.
+
+To change the interval, set `SHORTCUT_TUI_REFRESH_SECONDS` in the environment or in `.env.local`. Set it to `0` to turn auto-refresh off.
+
+```sh
+SHORTCUT_TUI_REFRESH_SECONDS=120 bun start
+```
+
+The value must be a whole number of seconds from 0 to 2147483, about 24 days. Any other value stops the app at startup with a message.
+
+The status bar ends with how long ago the results loaded, such as `↻ 2m ago`. The age updates once a minute. It is hidden while results load, and in a terminal too narrow to show it after every key hint.
+
 ## Keys
 
 | Key | Action |
 | --- | --- |
 | `j` / `k`, arrows | Move the selection |
 | `/` | Edit the search query. `enter` searches, `esc` cancels |
-| `r` | Refresh the results, the selected story, and pull request status |
+| `r` | Refresh the results, the selected story, and pull request status. Also restarts the auto-refresh countdown |
 | `o` | Open the selected story in the browser |
 | `p` | Open the pull request that sets the story's badge: the least ready open one, otherwise the newest merged or closed one. Does nothing until pull request status has loaded |
 | `m` | Move the selected story to another state. `j` / `k` choose, `enter` moves, `esc` cancels |
@@ -92,7 +106,7 @@ The default query is `owner:<you> is:started !is:archived`, which shows your in-
 | `bun run lint` | oxlint (type-aware) and oxfmt, including the project rules in `lint/` |
 | `bun run type-check` | TypeScript 7 |
 | `bun test` | Unit, frame, and interleaving tests, plus a fixture test for each project lint rule |
-| `bun run tlc` | TLA+ model checks in `spec/`: the story-browser state machine (`StoryBrowser.tla`) and the story-move protocol (`StoryMoves.tla`), each with a deliberately broken configuration that TLC must reject |
+| `bun run tlc` | TLA+ model checks in `spec/`: the story-browser state machine with its auto-refresh guard (`StoryBrowser.tla`) and the story-move protocol (`StoryMoves.tla`), each with a deliberately broken configuration that TLC must reject |
 | `bun run tlc:big` | A larger TLA+ model, with no pull request links so it stays at about 14 minutes |
 | `bun run smoke` | Read-only calls to the live API with your token |
 
