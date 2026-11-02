@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { defaultQueryFor } from "../app/update.ts";
 import { createFakeShortcutClient } from "./fake.ts";
 import { storyId } from "./schemas.ts";
 
@@ -14,16 +15,16 @@ test("stories span every progress and carry owner and state names", async () => 
   }
 });
 
-test("the app's default query returns only my open stories", async () => {
+test("the app's default query returns only my in-progress stories", async () => {
   const client = createFakeShortcutClient();
   const { me } = await client.loadWorkspace();
   const all = await client.searchStories("");
-  const mine = await client.searchStories(`owner:${me.mentionName} !is:done !is:archived`);
+  const mine = await client.searchStories(defaultQueryFor(me.mentionName));
   expect(mine.length).toBeGreaterThan(0);
   expect(mine.length).toBeLessThan(all.length);
   for (const story of mine) {
     expect(story.owners.map((owner) => owner.id)).toContain(me.id);
-    expect(story.state.progress).not.toBe("done");
+    expect(story.state.progress).toBe("started");
   }
 });
 

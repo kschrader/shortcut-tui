@@ -67,10 +67,10 @@ describe("startup", () => {
     expect(model.selectedStoryId).toBeNull();
   });
 
-  test("a loaded workspace searches for my open stories", () => {
+  test("a loaded workspace searches for my in-progress stories", () => {
     const [model, search] = loggedIn();
-    expect(search.query).toBe("owner:kurt !is:done !is:archived");
-    expect(model.query).toBe("owner:kurt !is:done !is:archived");
+    expect(search.query).toBe("owner:kurt is:started !is:archived");
+    expect(model.query).toBe("owner:kurt is:started !is:archived");
     expect(model.results.status).toBe("loading");
   });
 
@@ -215,7 +215,7 @@ describe("selection and detail", () => {
     const [refreshing, refreshEffects] = update(model, { type: "refreshRequested" });
     expect(first(refreshEffects, "getStory").storyId).toBe(storyId(1));
     expect(ofType(refreshEffects, "searchStories").map((effect) => effect.query)).toEqual([
-      "owner:kurt !is:done !is:archived",
+      "owner:kurt is:started !is:archived",
     ]);
 
     const [afterStale] = update(refreshing, {

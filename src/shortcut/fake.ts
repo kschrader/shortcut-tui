@@ -231,6 +231,7 @@ const matchesQuery = (story: StoryDetail, query: string): boolean =>
       if (term === "owner:me" || term === `owner:${workspace.me.mentionName}`)
         return story.owners.some((owner) => owner.id === me.id);
       if (term === "!is:done") return story.state.progress !== "done";
+      if (term === "is:started") return story.state.progress === "started";
       if (term.includes(":")) return true;
       return story.name.toLowerCase().includes(term.toLowerCase());
     });

@@ -48,6 +48,9 @@ const select = (model: Model, storyId: StoryId | null): Step => {
   return [selected, []];
 };
 
+export const defaultQueryFor = (mentionName: string) =>
+  `owner:${mentionName} is:started !is:archived`;
+
 const progressRank: Record<Progress, number> = { unstarted: 0, started: 1, done: 2 };
 
 const furthestAlongFirst = (a: StorySummary, b: StorySummary) =>
@@ -102,7 +105,7 @@ export const update = (model: Model, msg: Msg): Step => {
     case "workspaceLoaded": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
       const loaded: Model = { ...model, workspace: { status: "loaded", value: msg.workspace } };
-      return search(loaded, `owner:${msg.workspace.me.mentionName} !is:done !is:archived`);
+      return search(loaded, defaultQueryFor(msg.workspace.me.mentionName));
     }
     case "workspaceFailed": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
