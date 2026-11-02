@@ -26,25 +26,19 @@ const workflowStateId = (n: number): WorkflowStateId => {
   return n;
 };
 
-export const workspaceFor = (mentionName: string): Workspace => {
-  const me = { id: memberId("me"), name: "Me", mentionName };
-  return {
-    me,
-    members: new Map([[me.id, me]]),
-    workflowStates: new Map([
-      [workflowStateId(1), { id: workflowStateId(1), name: "To Do", kind: "unstarted" }],
-    ]),
-  };
-};
+export const workspaceFor = (mentionName: string): Workspace => ({
+  me: { id: memberId("me"), name: "Me", mentionName },
+  slug: "acme",
+});
 
 export const summary = (id: number, name = `Story ${String(id)}`): StorySummary => ({
   id: storyId(id),
   name,
   storyType: "feature",
-  workflowStateId: workflowStateId(1),
+  state: { id: workflowStateId(1), name: "To Do", progress: "unstarted" },
   estimate: null,
-  ownerIds: [memberId("me")],
-  epicId: null,
+  owners: [{ id: memberId("me"), name: "Me" }],
+  epic: null,
   appUrl: `https://app.shortcut.com/story/${String(id)}`,
   updatedAt: new Date(0),
 });

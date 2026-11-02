@@ -1,7 +1,7 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useEffect, useRef } from "react";
-import type { StoryId, StorySummary, Workspace } from "../shortcut/types.ts";
-import { estimateLabel, fit, stateName, typeStyle } from "./format.ts";
+import type { StoryId, StorySummary } from "../shortcut/types.ts";
+import { estimateLabel, fit, typeStyle } from "./format.ts";
 import { colors } from "./theme.ts";
 
 const STATE_WIDTH = 13;
@@ -9,11 +9,10 @@ const STATE_WIDTH = 13;
 type Props = {
   stories: readonly StorySummary[];
   selectedId: StoryId | null;
-  workspace: Workspace | null;
   width: number;
 };
 
-export const StoryList = ({ stories, selectedId, workspace, width }: Props) => {
+export const StoryList = ({ stories, selectedId, width }: Props) => {
   const scroll = useRef<ScrollBoxRenderable>(null);
   useEffect(() => {
     if (selectedId !== null) scroll.current?.scrollChildIntoView(`story-${selectedId}`);
@@ -38,9 +37,7 @@ export const StoryList = ({ stories, selectedId, workspace, width }: Props) => {
               <span fg={color}>{glyph}</span>
               <span fg={colors.dim}>{` ${idLabel} `}</span>
               {selected ? <b>{fit(story.name, nameWidth)}</b> : fit(story.name, nameWidth)}
-              <span fg={colors.dim}>
-                {` ${fit(stateName(workspace, story.workflowStateId), STATE_WIDTH)} `}
-              </span>
+              <span fg={colors.dim}>{` ${fit(story.state.name, STATE_WIDTH)} `}</span>
               <span fg={colors.dim}>{estimateLabel(story.estimate).padStart(2)}</span>
             </text>
           </box>

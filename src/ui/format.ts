@@ -1,10 +1,4 @@
-import type {
-  MemberId,
-  StorySummary,
-  StoryType,
-  Workspace,
-  WorkflowStateId,
-} from "../shortcut/types.ts";
+import type { MemberRef, StorySummary, StoryType } from "../shortcut/types.ts";
 
 export const fit = (text: string, width: number): string => {
   if (width <= 0) return "";
@@ -18,16 +12,10 @@ export const typeStyle: Record<StoryType, { glyph: string; color: string }> = {
   chore: { glyph: "■", color: "#7aa2f7" },
 };
 
-export const stateName = (workspace: Workspace | null, id: WorkflowStateId): string =>
-  workspace?.workflowStates.get(id)?.name ?? "…";
+export const ownerNames = (owners: readonly MemberRef[]): string =>
+  owners.length === 0 ? "Unassigned" : owners.map((owner) => owner.name).join(", ");
 
-export const memberName = (workspace: Workspace | null, id: MemberId | null): string =>
-  (id === null ? null : workspace?.members.get(id)?.name) ?? "Unknown";
-
-export const ownerNames = (workspace: Workspace | null, story: StorySummary): string =>
-  story.ownerIds.length === 0
-    ? "Unassigned"
-    : story.ownerIds.map((id) => memberName(workspace, id)).join(", ");
+export const epicName = (epic: StorySummary["epic"]): string => epic?.name ?? "None";
 
 export const estimateLabel = (estimate: number | null): string =>
   estimate === null ? "–" : String(estimate);

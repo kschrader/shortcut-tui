@@ -27,11 +27,7 @@ const main = async () => {
   const client: ShortcutClient =
     tokenResult === null
       ? createFakeShortcutClient()
-      : createShortcutClient({
-          token: tokenResult.token,
-          baseUrl: "https://api.app.shortcut.com",
-          fetch,
-        });
+      : createShortcutClient({ token: tokenResult.token });
   const renderer = await createCliRenderer({ exitOnCtrlC: false });
   const Root = () => {
     const { model, dispatch } = useStoryBrowser(client);

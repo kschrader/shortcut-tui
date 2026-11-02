@@ -1,21 +1,13 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { Ref } from "react";
 import type { Remote } from "../app/model.ts";
-import type { StoryDetail, StorySummary, Workspace } from "../shortcut/types.ts";
-import {
-  dateLabel,
-  estimateLabel,
-  memberName,
-  ownerNames,
-  stateName,
-  typeStyle,
-} from "./format.ts";
+import type { StoryDetail, StorySummary } from "../shortcut/types.ts";
+import { dateLabel, epicName, estimateLabel, ownerNames, typeStyle } from "./format.ts";
 import { colors } from "./theme.ts";
 
 type Props = {
   summary: StorySummary;
   detail: Remote<StoryDetail> | undefined;
-  workspace: Workspace | null;
   scrollRef: Ref<ScrollBoxRenderable>;
 };
 
@@ -26,7 +18,7 @@ const Field = ({ label, value }: { label: string; value: string }) => (
   </text>
 );
 
-const Body = ({ detail, workspace }: { detail: StoryDetail; workspace: Workspace | null }) => (
+const Body = ({ detail }: { detail: StoryDetail }) => (
   <box flexDirection="column">
     <Field label="Labels" value={detail.labels.length === 0 ? "None" : detail.labels.join(", ")} />
     <box marginTop={1} flexDirection="column">
@@ -44,7 +36,7 @@ const Body = ({ detail, workspace }: { detail: StoryDetail; workspace: Workspace
       {detail.comments.map((comment) => (
         <box key={comment.id} marginTop={1} flexDirection="column">
           <text>
-            <b>{memberName(workspace, comment.authorId)}</b>
+            <b>{comment.author?.name ?? "Unknown"}</b>
             <span fg={colors.dim}>{`  ${dateLabel(comment.createdAt)}`}</span>
           </text>
           <text wrapMode="word">{comment.text}</text>
@@ -54,7 +46,7 @@ const Body = ({ detail, workspace }: { detail: StoryDetail; workspace: Workspace
   </box>
 );
 
-export const StoryDetailPane = ({ summary, detail, workspace, scrollRef }: Props) => {
+export const StoryDetailPane = ({ summary, detail, scrollRef }: Props) => {
   const { glyph, color } = typeStyle[summary.storyType];
   return (
     <scrollbox ref={scrollRef} flexGrow={1} scrollY paddingLeft={1} paddingRight={1}>
@@ -66,12 +58,13 @@ export const StoryDetailPane = ({ summary, detail, workspace, scrollRef }: Props
           <span fg={colors.dim}>{"Type".padEnd(10)}</span>
           <span fg={color}>{`${glyph} ${summary.storyType}`}</span>
         </text>
-        <Field label="State" value={stateName(workspace, summary.workflowStateId)} />
+        <Field label="State" value={summary.state.name} />
         <Field label="Estimate" value={estimateLabel(summary.estimate)} />
-        <Field label="Owners" value={ownerNames(workspace, summary)} />
+        <Field label="Owners" value={ownerNames(summary.owners)} />
+        <Field label="Epic" value={epicName(summary.epic)} />
         <Field label="URL" value={summary.appUrl} />
       </box>
-      {detail?.status === "loaded" ? <Body detail={detail.value} workspace={workspace} /> : null}
+      {detail?.status === "loaded" ? <Body detail={detail.value} /> : null}
       {detail === undefined || detail.status === "loading" ? (
         <box marginTop={1}>
           <text fg={colors.dim}>Loading details…</text>

@@ -1,75 +1,107 @@
-import type { ZodType } from "zod";
 import {
-  MeSchema,
-  MembersSchema,
-  SearchStoriesSchema,
-  StoryDetailSchema,
-  WorkflowsSchema,
+  ShortcutV4Client,
+  summarizeShortcutV4Error,
+  type ShortcutWorkspaceApi,
+} from "@shortcut/client/v4";
+import { z } from "zod";
+import {
+  COMMENT_FIELDS,
+  DETAIL_FIELDS,
+  StoryBodySchema,
+  StoryCommentSchema,
+  StorySummarySchema,
+  SUMMARY_FIELDS,
+  WhoamiSchema,
 } from "./schemas.ts";
-import type {
-  Member,
-  MemberId,
-  ShortcutClient,
-  StoryId,
-  WorkflowState,
-  WorkflowStateId,
-} from "./types.ts";
-
-export type Fetch = (url: string, init: { headers: Record<string, string> }) => Promise<Response>;
+import type { ApiToken } from "./token.ts";
+import type { ShortcutClient, StoryComment, StoryId, StorySummary, Workspace } from "./types.ts";
 
 export type ClientOptions = {
-  token: string;
+  token: ApiToken;
   baseUrl?: string;
-  fetch?: Fetch;
+  fetch?: typeof fetch;
 };
 
-const DEFAULT_BASE_URL = "https://api.app.shortcut.com";
-const SEARCH_PAGE_SIZE = "25";
+const SEARCH_LIMIT = 500;
+const PAGE_SIZE = 100;
 
-const indexBy = <K, V>(items: readonly V[], key: (item: V) => K): ReadonlyMap<K, V> =>
-  new Map(items.map((item) => [key(item), item]));
+type Session = { workspace: Workspace; api: ShortcutWorkspaceApi };
 
-export const createShortcutClient = ({
-  token,
-  baseUrl = DEFAULT_BASE_URL,
-  fetch: fetchImpl = fetch,
-}: ClientOptions): ShortcutClient => {
-  const get = async <T>(path: string, schema: ZodType<T>, query?: URLSearchParams): Promise<T> => {
-    const search = query === undefined ? "" : `?${query.toString()}`;
-    const response = await fetchImpl(`${baseUrl}${path}${search}`, {
-      headers: { "Shortcut-Token": token, Accept: "application/json" },
-    });
-    if (!response.ok) {
-      throw new Error(`Shortcut API ${response.status} ${response.statusText} for GET ${path}`);
+const describeFailure = (error: unknown): Error => {
+  if (error instanceof z.ZodError) {
+    const issues = error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
+    return new Error(`Shortcut sent an unexpected response (${issues.join("; ")})`);
+  }
+  const summary = summarizeShortcutV4Error(error);
+  if (summary === null)
+    return error instanceof Error ? error : new Error("Shortcut request failed");
+  const tag = summary.tag === undefined ? "" : ` (${summary.tag})`;
+  return new Error(`Shortcut API ${summary.status} for ${summary.method} ${summary.path}${tag}`);
+};
+
+const attempt = async <T>(run: () => Promise<T>): Promise<T> => {
+  try {
+    return await run();
+  } catch (error) {
+    throw describeFailure(error);
+  }
+};
+
+export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): ShortcutClient => {
+  const client = new ShortcutV4Client({ token, baseUrl, fetch });
+  let session: Promise<Session> | null = null;
+
+  const openSession = async (): Promise<Session> => {
+    const workspace = WhoamiSchema.parse(await client.getWhoami());
+    return { workspace, api: client.workspace(workspace.slug) };
+  };
+
+  const connect = async (): Promise<Session> => {
+    const pending = session ?? openSession();
+    session = pending;
+    try {
+      return await pending;
+    } catch (error) {
+      if (session === pending) session = null;
+      throw error;
     }
-    return schema.parse(await response.json());
+  };
+
+  const listComments = async (api: ShortcutWorkspaceApi, id: StoryId) => {
+    const comments: StoryComment[] = [];
+    for await (const raw of client.paginate(
+      api.listStoryComments(id, { fields: COMMENT_FIELDS, limit: PAGE_SIZE }),
+    )) {
+      const comment = StoryCommentSchema.parse(raw);
+      if (comment !== null) comments.push(comment);
+    }
+    return comments;
   };
 
   return {
-    async loadWorkspace() {
-      const [me, members, states] = await Promise.all([
-        get("/api/v3/member", MeSchema),
-        get("/api/v3/members", MembersSchema),
-        get("/api/v3/workflows", WorkflowsSchema),
-      ]);
-      const memberMap: ReadonlyMap<MemberId, Member> = indexBy(members, (member) => member.id);
-      const stateMap: ReadonlyMap<WorkflowStateId, WorkflowState> = indexBy(
-        states,
-        (state) => state.id,
-      );
-      return { me, members: memberMap, workflowStates: stateMap };
-    },
+    loadWorkspace: () => attempt(async () => (await connect()).workspace),
 
-    searchStories(query: string) {
-      return get(
-        "/api/v3/search/stories",
-        SearchStoriesSchema,
-        new URLSearchParams({ query, page_size: SEARCH_PAGE_SIZE, detail: "full" }),
-      );
-    },
+    searchStories: (query) =>
+      attempt(async () => {
+        const { api } = await connect();
+        const stories: StorySummary[] = [];
+        for await (const raw of client.paginate(
+          api.searchStories({ query, limit: PAGE_SIZE, fields: SUMMARY_FIELDS }),
+        )) {
+          stories.push(StorySummarySchema.parse(raw));
+          if (stories.length === SEARCH_LIMIT) break;
+        }
+        return stories;
+      }),
 
-    getStory(id: StoryId) {
-      return get(`/api/v3/stories/${id}`, StoryDetailSchema);
-    },
+    getStory: (id) =>
+      attempt(async () => {
+        const { api } = await connect();
+        const [{ entity }, comments] = await Promise.all([
+          api.getStory(id, { fields: DETAIL_FIELDS }),
+          listComments(api, id),
+        ]);
+        return { ...StoryBodySchema.parse(entity), comments };
+      }),
   };
 };

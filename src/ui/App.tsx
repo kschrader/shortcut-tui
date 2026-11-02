@@ -2,7 +2,7 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef } from "react";
 import type { Model, Msg } from "../app/model.ts";
-import type { StorySummary, Workspace } from "../shortcut/types.ts";
+import type { StorySummary } from "../shortcut/types.ts";
 import { storyCount } from "./format.ts";
 import { StoryDetailPane } from "./StoryDetailPane.tsx";
 import { StoryList } from "./StoryList.tsx";
@@ -30,13 +30,11 @@ const Centered = ({ headline, hint, color }: { headline: string; hint: string; c
 const Browser = ({
   model,
   stories,
-  workspace,
   scrollRef,
   listWidth,
 }: {
   model: Model;
   stories: readonly StorySummary[];
-  workspace: Workspace | null;
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
   listWidth: number;
 }) => {
@@ -44,12 +42,7 @@ const Browser = ({
   return (
     <box flexGrow={1} flexDirection="row">
       <box width={listWidth} flexDirection="column" backgroundColor={colors.background}>
-        <StoryList
-          stories={stories}
-          selectedId={model.selectedStoryId}
-          workspace={workspace}
-          width={listWidth}
-        />
+        <StoryList stories={stories} selectedId={model.selectedStoryId} width={listWidth} />
       </box>
       <box
         flexGrow={1}
@@ -64,7 +57,6 @@ const Browser = ({
           <StoryDetailPane
             summary={selected}
             detail={model.details.get(selected.id)}
-            workspace={workspace}
             scrollRef={scrollRef}
           />
         )}
@@ -79,7 +71,6 @@ const Body = (props: {
   listWidth: number;
 }) => {
   const { model } = props;
-  const workspace = model.workspace.status === "loaded" ? model.workspace.value : null;
   if (model.workspace.status === "failed") {
     return (
       <Centered
@@ -109,7 +100,7 @@ const Body = (props: {
       color={colors.dim}
     />
   ) : (
-    <Browser {...props} stories={results.value.stories} workspace={workspace} />
+    <Browser {...props} stories={results.value.stories} />
   );
 };
 

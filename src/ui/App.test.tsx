@@ -3,8 +3,9 @@ import { z } from "zod";
 import { testRender } from "@opentui/react/test-utils";
 import type { Model, Msg, RequestId, Remote, SearchResults } from "../app/model.ts";
 import type {
-  Member,
+  EpicId,
   MemberId,
+  MemberRef,
   StoryDetail,
   StoryId,
   StorySummary,
@@ -17,30 +18,28 @@ const memberId = (id: string) => z.custom<MemberId>().parse(id);
 const stateId = (id: number) => z.custom<WorkflowStateId>().parse(id);
 const storyId = (id: number) => z.custom<StoryId>().parse(id);
 const requestId = (id: number) => z.custom<RequestId>().parse(id);
+const epicId = (id: number) => z.custom<EpicId>().parse(id);
 
-const ada: Member = { id: memberId("ada"), name: "Ada Lovelace", mentionName: "ada" };
-const grace: Member = { id: memberId("grace"), name: "Grace Hopper", mentionName: "grace" };
+const ada: MemberRef = { id: memberId("ada"), name: "Ada Lovelace" };
+const grace: MemberRef = { id: memberId("grace"), name: "Grace Hopper" };
 
-const workspace: Workspace = {
-  me: ada,
-  members: new Map([
-    [ada.id, ada],
-    [grace.id, grace],
-  ]),
-  workflowStates: new Map([
-    [stateId(1), { id: stateId(1), name: "Ready", kind: "unstarted" }],
-    [stateId(2), { id: stateId(2), name: "In Progress", kind: "started" }],
-  ]),
+const workspace: Workspace = { me: { ...ada, mentionName: "ada" }, slug: "acme" };
+
+const ready: StorySummary["state"] = { id: stateId(1), name: "Ready", progress: "unstarted" };
+const inProgress: StorySummary["state"] = {
+  id: stateId(2),
+  name: "In Progress",
+  progress: "started",
 };
 
 const summary = (id: number, overrides: Partial<StorySummary> = {}): StorySummary => ({
   id: storyId(id),
   name: `Story number ${id}`,
   storyType: "feature",
-  workflowStateId: stateId(1),
+  state: ready,
   estimate: 3,
-  ownerIds: [ada.id],
-  epicId: null,
+  owners: [ada],
+  epic: null,
   appUrl: `https://app.shortcut.com/acme/story/${id}`,
   updatedAt: new Date("2026-10-01T00:00:00Z"),
   ...overrides,
@@ -60,8 +59,12 @@ const modelWith = (overrides: Partial<Model>): Model => ({
 });
 
 const stories = [
-  summary(101, { name: "Fix login redirect", storyType: "bug", workflowStateId: stateId(2) }),
-  summary(102, { name: "Add dark mode", ownerIds: [ada.id, grace.id] }),
+  summary(101, { name: "Fix login redirect", storyType: "bug", state: inProgress }),
+  summary(102, {
+    name: "Add dark mode",
+    owners: [ada, grace],
+    epic: { id: epicId(7), name: "Theming" },
+  }),
   summary(103, { name: "Rotate API keys", storyType: "chore", estimate: null }),
 ];
 
@@ -72,9 +75,15 @@ const detail: StoryDetail = {
   comments: [
     {
       id: 1,
-      authorId: grace.id,
+      author: grace,
       text: "Let us ship it behind a flag.",
       createdAt: new Date("2026-10-05T12:00:00Z"),
+    },
+    {
+      id: 2,
+      author: null,
+      text: "Linked a pull request.",
+      createdAt: new Date("2026-10-06T12:00:00Z"),
     },
   ],
 };
@@ -133,12 +142,14 @@ test("marks the selected row and shows its detail", async () => {
   expect(selectedRow).toContain("▌");
   expect(text.split("\n").find((line) => line.includes(" 101 "))).not.toContain("▌");
   expect(text).toContain("Ada Lovelace, Grace Hopper");
+  expect(text).toContain("Theming");
   expect(text).toContain("design, frontend");
   expect(text).toContain("https://app.shortcut.com/acme/story/102");
   expect(text).toContain("Users want a dark theme.");
-  expect(text).toContain("Comments (1)");
+  expect(text).toContain("Comments (2)");
   expect(text).toContain("Grace Hopper  2026-10-05");
   expect(text).toContain("Let us ship it behind a flag.");
+  expect(text).toContain("Unknown  2026-10-06");
 });
 
 test("shows a loading note while the selected story detail is loading", async () => {

@@ -1,16 +1,16 @@
 import { z } from "zod";
 import type {
   EpicId,
-  Member,
   MemberId,
+  MemberRef,
+  Progress,
   StoryComment,
   StoryDetail,
   StoryId,
   StorySummary,
   StoryType,
-  WorkflowState,
   WorkflowStateId,
-  WorkflowStateKind,
+  Workspace,
 } from "./types.ts";
 
 export const storyId = z.custom<StoryId>((value) => typeof value === "number");
@@ -18,68 +18,49 @@ export const memberId = z.custom<MemberId>((value) => typeof value === "string")
 export const workflowStateId = z.custom<WorkflowStateId>((value) => typeof value === "number");
 export const epicId = z.custom<EpicId>((value) => typeof value === "number");
 
+const timestamp = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
+
 const storyType = z.enum(["feature", "bug", "chore"]) satisfies z.ZodType<StoryType>;
 
-const stateKinds: Record<string, WorkflowStateKind> = {
-  backlog: "unstarted",
-  unstarted: "unstarted",
-  started: "started",
-  done: "done",
+const memberRef = z.object({ id: memberId, name: z.string() }) satisfies z.ZodType<MemberRef>;
+
+const nestedList = <T extends z.ZodType>(item: T) =>
+  z.object({ entities: z.array(item) }).transform((list) => list.entities);
+
+const progressOf = (started: boolean, completed: boolean): Progress => {
+  if (completed) return "done";
+  return started ? "started" : "unstarted";
 };
 
-const stateKind = z.string().transform((type, ctx): WorkflowStateKind => {
-  const kind = stateKinds[type];
-  if (kind === undefined) {
-    ctx.issues.push({
-      code: "custom",
-      message: `unknown workflow state type "${type}"`,
-      input: type,
-    });
-    return z.NEVER;
-  }
-  return kind;
-});
-
-export const MeSchema = z
-  .object({ id: memberId, mention_name: z.string(), name: z.string() })
-  .transform(({ id, mention_name, name }): Member => ({ id, name, mentionName: mention_name }));
-
-export const MembersSchema = z.array(
-  z
-    .object({
-      id: memberId,
-      profile: z.object({ name: z.string().nullable(), mention_name: z.string() }),
-    })
-    .transform(({ id, profile }): Member => ({
-      id,
-      name: profile.name ?? profile.mention_name,
-      mentionName: profile.mention_name,
-    })),
-);
-
-export const WorkflowsSchema = z
-  .array(
-    z.object({
-      states: z.array(
-        z
-          .object({ id: workflowStateId, name: z.string(), type: stateKind })
-          .transform(({ id, name, type }): WorkflowState => ({ id, name, kind: type })),
-      ),
+export const WhoamiSchema = z
+  .object({
+    entity: z.object({
+      member: z.object({ id: memberId, name: z.string(), mention_name: z.string() }),
+      workspace: z.object({ slug: z.string().min(1) }),
     }),
-  )
-  .transform((workflows) => workflows.flatMap((workflow) => workflow.states));
+  })
+  .transform(({ entity }): Workspace => ({
+    me: { id: entity.member.id, name: entity.member.name, mentionName: entity.member.mention_name },
+    slug: entity.workspace.slug,
+  }));
+
+export const SUMMARY_FIELDS =
+  "id,name,story_type,workflow_state,started,completed,estimate,owners,epic,app_url,updated_at";
+export const DETAIL_FIELDS = `${SUMMARY_FIELDS},description,labels`;
+export const COMMENT_FIELDS = "id,author,text,created_at,deleted";
 
 const summaryFields = {
   id: storyId,
   name: z.string(),
   story_type: storyType,
-  workflow_state_id: workflowStateId,
+  workflow_state: z.object({ id: workflowStateId, name: z.string() }),
+  started: z.boolean(),
+  completed: z.boolean(),
   estimate: z.number().nullable(),
-  owner_ids: z.array(memberId),
-  epic_id: epicId.nullable(),
+  owners: nestedList(memberRef),
+  epic: z.object({ id: epicId, name: z.string() }).nullable(),
   app_url: z.string(),
-  created_at: z.coerce.date(),
-  updated_at: z.coerce.date().nullable(),
+  updated_at: timestamp,
 };
 
 const summarySchema = z.object(summaryFields);
@@ -88,52 +69,45 @@ const toSummary = (raw: z.infer<typeof summarySchema>): StorySummary => ({
   id: raw.id,
   name: raw.name,
   storyType: raw.story_type,
-  workflowStateId: raw.workflow_state_id,
+  state: {
+    id: raw.workflow_state.id,
+    name: raw.workflow_state.name,
+    progress: progressOf(raw.started, raw.completed),
+  },
   estimate: raw.estimate,
-  ownerIds: raw.owner_ids,
-  epicId: raw.epic_id,
+  owners: raw.owners,
+  epic: raw.epic,
   appUrl: raw.app_url,
-  updatedAt: raw.updated_at ?? raw.created_at,
+  updatedAt: raw.updated_at,
 });
-
-const commentSchema = z.object({
-  id: z.number(),
-  author_id: memberId.nullable(),
-  text: z.string().nullable(),
-  created_at: z.coerce.date(),
-  deleted: z.boolean().optional(),
-});
-
-const toComments = (raw: z.infer<typeof commentSchema>[]): StoryComment[] =>
-  raw.flatMap((comment) =>
-    comment.deleted === true
-      ? []
-      : [
-          {
-            id: comment.id,
-            authorId: comment.author_id,
-            text: comment.text ?? "",
-            createdAt: comment.created_at,
-          },
-        ],
-  );
 
 export const StorySummarySchema = summarySchema.transform(toSummary);
 
-export const StoryDetailSchema = z
+export const StoryBodySchema = z
   .object({
     ...summaryFields,
-    description: z.string().nullable(),
-    labels: z.array(z.object({ name: z.string() })),
-    comments: z.array(commentSchema),
+    description: z.string(),
+    labels: nestedList(z.object({ name: z.string() })),
   })
-  .transform((raw): StoryDetail => ({
+  .transform((raw): Omit<StoryDetail, "comments"> => ({
     ...toSummary(raw),
-    description: raw.description ?? "",
+    description: raw.description,
     labels: raw.labels.map((label) => label.name),
-    comments: toComments(raw.comments),
   }));
 
-export const SearchStoriesSchema = z
-  .object({ data: z.array(StorySummarySchema) })
-  .transform((page) => page.data);
+export const StoryCommentSchema = z
+  .discriminatedUnion("deleted", [
+    z.object({ deleted: z.literal(true) }),
+    z.object({
+      deleted: z.literal(false),
+      id: z.number().nullable(),
+      author: memberRef.nullable(),
+      text: z.string().nullable(),
+      created_at: timestamp,
+    }),
+  ])
+  .transform((raw): StoryComment | null =>
+    raw.deleted || raw.id === null
+      ? null
+      : { id: raw.id, author: raw.author, text: raw.text ?? "", createdAt: raw.created_at },
+  );

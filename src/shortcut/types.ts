@@ -4,41 +4,30 @@ export type WorkflowStateId = number & { readonly brand: "WorkflowStateId" };
 export type EpicId = number & { readonly brand: "EpicId" };
 
 export type StoryType = "feature" | "bug" | "chore";
-export type WorkflowStateKind = "unstarted" | "started" | "done";
+export type Progress = "unstarted" | "started" | "done";
 
-export type WorkflowState = {
-  id: WorkflowStateId;
-  name: string;
-  kind: WorkflowStateKind;
-};
-
-export type Member = {
-  id: MemberId;
-  name: string;
-  mentionName: string;
-};
+export type MemberRef = { id: MemberId; name: string };
 
 export type Workspace = {
-  me: Member;
-  members: ReadonlyMap<MemberId, Member>;
-  workflowStates: ReadonlyMap<WorkflowStateId, WorkflowState>;
+  me: { id: MemberId; name: string; mentionName: string };
+  slug: string;
 };
 
 export type StorySummary = {
   id: StoryId;
   name: string;
   storyType: StoryType;
-  workflowStateId: WorkflowStateId;
+  state: { id: WorkflowStateId; name: string; progress: Progress };
   estimate: number | null;
-  ownerIds: readonly MemberId[];
-  epicId: EpicId | null;
+  owners: readonly MemberRef[];
+  epic: { id: EpicId; name: string } | null;
   appUrl: string;
   updatedAt: Date;
 };
 
 export type StoryComment = {
   id: number;
-  authorId: MemberId | null;
+  author: MemberRef | null;
   text: string;
   createdAt: Date;
 };

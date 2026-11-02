@@ -1,12 +1,12 @@
 import { epicId, memberId, storyId, workflowStateId } from "./schemas.ts";
 import type {
-  Member,
+  MemberRef,
+  Progress,
   ShortcutClient,
   StoryComment,
   StoryDetail,
+  StorySummary,
   StoryType,
-  WorkflowState,
-  WorkflowStateKind,
   Workspace,
 } from "./types.ts";
 
@@ -14,21 +14,19 @@ export type FakeOptions = {
   delayMs?: number;
 };
 
-const member = (id: string, name: string, mentionName: string): Member => ({
-  id: memberId.parse(id),
-  name,
-  mentionName,
-});
+const member = (id: string, name: string): MemberRef => ({ id: memberId.parse(id), name });
 
-const me = member("00000000-0000-4000-8000-000000000001", "Demo User", "demo");
-const alex = member("00000000-0000-4000-8000-000000000002", "Alex Rivera", "alex");
-const priya = member("00000000-0000-4000-8000-000000000003", "Priya Shah", "priya");
-const sam = member("00000000-0000-4000-8000-000000000004", "Sam Okafor", "sam");
+const me = member("00000000-0000-4000-8000-000000000001", "Demo User");
+const alex = member("00000000-0000-4000-8000-000000000002", "Alex Rivera");
+const priya = member("00000000-0000-4000-8000-000000000003", "Priya Shah");
+const sam = member("00000000-0000-4000-8000-000000000004", "Sam Okafor");
 
-const state = (id: number, name: string, kind: WorkflowStateKind): WorkflowState => ({
+const workspace: Workspace = { me: { ...me, mentionName: "demo" }, slug: "demo" };
+
+const state = (id: number, name: string, progress: Progress): StorySummary["state"] => ({
   id: workflowStateId.parse(id),
   name,
-  kind,
+  progress,
 });
 
 const backlog = state(500000001, "Backlog", "unstarted");
@@ -37,14 +35,19 @@ const inProgress = state(500000003, "In Progress", "started");
 const inReview = state(500000004, "In Review", "started");
 const done = state(500000005, "Done", "done");
 
+const epics = {
+  shortcuts: { id: epicId.parse(90), name: "Keyboard-first navigation" },
+  reporting: { id: epicId.parse(91), name: "Iteration reporting" },
+};
+
 const comment = (
   id: number,
-  author: Member | null,
+  author: MemberRef | null,
   text: string,
   createdAt: string,
 ): StoryComment => ({
   id,
-  authorId: author?.id ?? null,
+  author,
   text,
   createdAt: new Date(createdAt),
 });
@@ -53,10 +56,10 @@ type StorySeed = {
   id: number;
   name: string;
   storyType: StoryType;
-  state: WorkflowState;
+  state: StorySummary["state"];
   estimate: number | null;
-  owners: Member[];
-  epicId?: number;
+  owners: MemberRef[];
+  epic?: StorySummary["epic"];
   updatedAt: string;
   description: string;
   labels: string[];
@@ -97,7 +100,7 @@ const seeds: StorySeed[] = [
     state: ready,
     estimate: 3,
     owners: [me, priya],
-    epicId: 90,
+    epic: epics.shortcuts,
     updatedAt: "2026-10-29T11:00:00Z",
     description: "Show a modal listing every shortcut when the user presses `?`.",
     labels: ["ux"],
@@ -124,7 +127,7 @@ const seeds: StorySeed[] = [
     state: inReview,
     estimate: 5,
     owners: [me],
-    epicId: 91,
+    epic: epics.reporting,
     updatedAt: "2026-11-02T08:45:00Z",
     description:
       "Managers want to pull iteration burndown data into spreadsheets.\n\nAcceptance criteria\n- Download button on the iteration page\n- Columns: story id, name, owner, state, estimate",
@@ -202,10 +205,10 @@ const stories: readonly StoryDetail[] = seeds.map((seed) => ({
   id: storyId.parse(seed.id),
   name: seed.name,
   storyType: seed.storyType,
-  workflowStateId: seed.state.id,
+  state: seed.state,
   estimate: seed.estimate,
-  ownerIds: seed.owners.map((owner) => owner.id),
-  epicId: seed.epicId === undefined ? null : epicId.parse(seed.epicId),
+  owners: seed.owners,
+  epic: seed.epic ?? null,
   appUrl: `https://app.shortcut.com/demo/story/${seed.id}`,
   updatedAt: new Date(seed.updatedAt),
   description: seed.description,
@@ -213,20 +216,14 @@ const stories: readonly StoryDetail[] = seeds.map((seed) => ({
   comments: seed.comments,
 }));
 
-const workspace: Workspace = {
-  me,
-  members: new Map([me, alex, priya, sam].map((m) => [m.id, m])),
-  workflowStates: new Map([backlog, ready, inProgress, inReview, done].map((s) => [s.id, s])),
-};
-
 const matchesQuery = (story: StoryDetail, query: string): boolean =>
   query
     .split(/\s+/)
     .filter((term) => term !== "")
     .every((term) => {
-      if (term === "owner:me") return story.ownerIds.includes(me.id);
-      if (term === "!is:done")
-        return workspace.workflowStates.get(story.workflowStateId)?.kind !== "done";
+      if (term === "owner:me" || term === `owner:${workspace.me.mentionName}`)
+        return story.owners.some((owner) => owner.id === me.id);
+      if (term === "!is:done") return story.state.progress !== "done";
       if (term.includes(":")) return true;
       return story.name.toLowerCase().includes(term.toLowerCase());
     });
@@ -251,7 +248,7 @@ export const createFakeShortcutClient = ({ delayMs = 0 }: FakeOptions = {}): Sho
       await pause();
       const story = stories.find((candidate) => candidate.id === id);
       if (story === undefined)
-        throw new Error(`Shortcut API 404 Not Found for GET /api/v3/stories/${id}`);
+        throw new Error(`Shortcut API 404 for GET /api/v4/demo/stories/${id}`);
       return story;
     },
   };

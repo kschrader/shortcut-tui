@@ -2,34 +2,33 @@ import { expect, test } from "bun:test";
 import { createFakeShortcutClient } from "./fake.ts";
 import { storyId } from "./schemas.ts";
 
-test("workspace has me, members and states across all kinds", async () => {
-  const workspace = await createFakeShortcutClient().loadWorkspace();
-  expect(workspace.members.get(workspace.me.id)).toEqual(workspace.me);
-  const kinds = new Set([...workspace.workflowStates.values()].map((state) => state.kind));
-  expect(kinds).toEqual(new Set(["unstarted", "started", "done"]));
-});
-
-test("every story references known members and states", async () => {
-  const client = createFakeShortcutClient();
-  const workspace = await client.loadWorkspace();
-  const stories = await client.searchStories("");
+test("stories span every progress and carry owner and state names", async () => {
+  const stories = await createFakeShortcutClient().searchStories("");
   expect(stories.length).toBeGreaterThanOrEqual(8);
+  expect(new Set(stories.map((story) => story.state.progress))).toEqual(
+    new Set(["unstarted", "started", "done"]),
+  );
   for (const story of stories) {
-    expect(workspace.workflowStates.has(story.workflowStateId)).toBe(true);
-    for (const ownerId of story.ownerIds) expect(workspace.members.has(ownerId)).toBe(true);
+    expect(story.state.name).not.toBe("");
+    for (const owner of story.owners) expect(owner.name).not.toBe("");
   }
 });
 
-test("the search query narrows by owner, open state and text", async () => {
+test("the app's default query returns only my open stories", async () => {
   const client = createFakeShortcutClient();
-  const workspace = await client.loadWorkspace();
-  const mine = await client.searchStories("owner:me !is:done");
+  const { me } = await client.loadWorkspace();
+  const all = await client.searchStories("");
+  const mine = await client.searchStories(`owner:${me.mentionName} !is:done !is:archived`);
   expect(mine.length).toBeGreaterThan(0);
+  expect(mine.length).toBeLessThan(all.length);
   for (const story of mine) {
-    expect(story.ownerIds).toContain(workspace.me.id);
-    expect(workspace.workflowStates.get(story.workflowStateId)?.kind).not.toBe("done");
+    expect(story.owners.map((owner) => owner.id)).toContain(me.id);
+    expect(story.state.progress).not.toBe("done");
   }
-  const byText = await client.searchStories("webhook");
+});
+
+test("free text narrows by story name", async () => {
+  const byText = await createFakeShortcutClient().searchStories("webhook");
   expect(byText.map((story) => story.name)).toEqual(["Document webhook retry behavior"]);
 });
 
