@@ -9,8 +9,9 @@
   },
   "scripts": {
     "start": "bun ./src/index.tsx",
-    "lint": "oxlint --type-aware --deny-warnings --ignore-pattern 'lint/fixtures/**' src lint spec && oxfmt --check src lint spec",
-    "format": "oxlint --type-aware --fix --ignore-pattern 'lint/fixtures/**' src lint spec && oxfmt --write src lint spec",
+    "smoke": "bun ./scripts/smoke.ts",
+    "lint": "oxlint --type-aware --deny-warnings --ignore-pattern 'lint/fixtures/**' src lint scripts spec && oxfmt --check src lint scripts spec",
+    "format": "oxlint --type-aware --fix --ignore-pattern 'lint/fixtures/**' src lint scripts spec && oxfmt --write src lint scripts spec",
     "type-check": "tsc --noEmit",
     "test": "bun test",
     "tlc": "bun ./spec/check.ts",

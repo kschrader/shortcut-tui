@@ -22,5 +22,5 @@
     "resolveJsonModule": true,
     "types": ["bun"]
   },
-  "include": ["src", "lint", "spec"]
+  "include": ["src", "lint", "scripts", "spec"]
 }
