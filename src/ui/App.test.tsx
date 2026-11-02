@@ -161,3 +161,19 @@ test("an 80-column terminal shows enough of each story name to read it", async (
   );
   expect(frame()).toContain("Add option to limit GitHub PR auto-");
 });
+
+test("an 80-column terminal shows every browsing key hint", async () => {
+  const { frame } = await show(browsing(), { width: 80 });
+  const bar = frame().trimEnd().split("\n").at(-1) ?? "";
+  const hints = [
+    "j/k move",
+    "/ query",
+    "r refresh",
+    "o open",
+    "p PR",
+    "m move",
+    "? help",
+    "q quit",
+  ];
+  for (const hint of hints) expect(bar).toContain(hint);
+});
