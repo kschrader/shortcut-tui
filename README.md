@@ -110,7 +110,7 @@ The default query is `owner:<you> is:started !is:archived`, which shows your in-
 | `bun run tlc:big` | A larger TLA+ model, with no pull request links so it stays at about 14 minutes |
 | `bun run smoke` | Read-only calls to the live API with your token |
 
-`bun run tlc` needs Java and the TLA+ tools. Download [`tla2tools.jar` v1.8.0](https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar) to `spec/tools/`. Git ignores that directory.
+`bun run tlc` needs Java and the TLA+ tools. Download [`tla2tools.jar` v1.7.4](https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar) to `spec/tools/`. It must be the stable v1.7.4 release: the v1.8.0 prerelease is rebuilt in place, so it cannot be pinned by checksum. Git ignores that directory.
 
 ## Project rules
 

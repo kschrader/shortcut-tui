@@ -8,7 +8,7 @@ type ModelCheck = { cfg: string; tla: string; expect: Outcome; budgetSeconds: nu
 const specDir = import.meta.dir;
 const projectRoot = join(specDir, "..");
 const jar = join(specDir, "tools", "tla2tools.jar");
-const jarUrl = "https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar";
+const jarUrl = "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar";
 
 const suites: Record<string, readonly ModelCheck[]> = {
   default: [
@@ -72,7 +72,6 @@ const runModelCheck = ({ cfg, tla, expect, budgetSeconds }: ModelCheck): boolean
       "-workers",
       "auto",
       "-cleanup",
-      "-noGenerateSpecTE",
       "-metadir",
       metadir,
       "-config",
