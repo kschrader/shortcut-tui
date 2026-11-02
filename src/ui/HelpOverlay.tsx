@@ -28,7 +28,7 @@ export const HelpOverlay = () => (
         <box flexDirection="column">
           <text fg={colors.dim}>Keys</text>
           {keyBindings.map((binding) => (
-            <text key={binding.label}>
+            <text key={`${binding.modes.join("+")} ${binding.label}`}>
               <span fg={colors.accent}>{binding.label.padEnd(KEY_LABEL_WIDTH)}</span>
               {`  ${binding.description}`}
             </text>

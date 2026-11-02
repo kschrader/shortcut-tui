@@ -2,12 +2,15 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef } from "react";
 import type { Model, Msg } from "../app/model.ts";
+import { pickerStates } from "../app/update.ts";
 import type { StorySummary } from "../shortcut/types.ts";
 import { storyCount } from "./format.ts";
 import { StoryDetailPane } from "./StoryDetailPane.tsx";
 import { HelpOverlay } from "./HelpOverlay.tsx";
 import { bindingFor, hintFor } from "./keys.ts";
+import { MovePicker } from "./MovePicker.tsx";
 import { pullRequestToOpen, storyPullRequests } from "./pull-requests.ts";
+import { ReadOnlyNotice } from "./ReadOnlyNotice.tsx";
 import { StoryList } from "./StoryList.tsx";
 import { colors } from "./theme.ts";
 
@@ -49,6 +52,7 @@ const Browser = ({
           stories={stories}
           selectedId={model.selectedStoryId}
           pullRequests={model.pullRequests}
+          moves={model.moves}
           width={listWidth}
         />
       </box>
@@ -125,11 +129,55 @@ const status = ({ results }: Model): { text: string; color: string } => {
   }
 };
 
+const bottomBar = (
+  model: Model,
+  selectedStory: StorySummary | undefined,
+): { text: string; color: string } => {
+  const move = selectedStory === undefined ? undefined : model.moves.get(selectedStory.id);
+  if (model.focus.mode === "browsing" && move?.status === "failed") {
+    return { text: `✗ Move failed  ·  m to retry  ·  ${move.message}`, color: colors.error };
+  }
+  return {
+    text:
+      model.focus.mode === "editingQuery"
+        ? "enter search  ·  esc cancel"
+        : hintFor(model.focus.mode),
+    color: colors.dim,
+  };
+};
+
+const Overlay = ({ model, height }: { model: Model; height: number }) => {
+  const { focus } = model;
+  switch (focus.mode) {
+    case "browsing":
+    case "editingQuery":
+      return null;
+    case "help":
+      return <HelpOverlay />;
+    case "readOnly":
+      return <ReadOnlyNotice />;
+    case "picking": {
+      const story =
+        model.results.status === "loaded"
+          ? model.results.value.stories.find((candidate) => candidate.id === focus.storyId)
+          : undefined;
+      if (story === undefined || model.workspace.status !== "loaded") return null;
+      return (
+        <MovePicker
+          story={story}
+          states={pickerStates(model.workspace.value, story)}
+          cursor={focus.cursor}
+          height={height}
+        />
+      );
+    }
+  }
+};
+
 export const App = ({ model, dispatch, quit, openUrl }: Props) => {
-  const { width } = useTerminalDimensions();
+  const { width, height } = useTerminalDimensions();
   const detailScroll = useRef<ScrollBoxRenderable>(null);
   const listWidth = Math.min(width, Math.max(MIN_LIST_WIDTH, Math.floor(width * LIST_WIDTH_RATIO)));
-  const editing = model.focus.mode === "editingQuery";
 
   const selectedStory =
     model.results.status === "loaded"
@@ -160,6 +208,7 @@ export const App = ({ model, dispatch, quit, openUrl }: Props) => {
   });
 
   const { text, color } = status(model);
+  const bottom = bottomBar(model, selectedStory);
   return (
     <box flexDirection="column" width="100%" height="100%" backgroundColor={colors.background}>
       <box
@@ -191,11 +240,11 @@ export const App = ({ model, dispatch, quit, openUrl }: Props) => {
       </box>
       <Body model={model} scrollRef={detailScroll} listWidth={listWidth} />
       <box height={1} paddingLeft={1} backgroundColor={colors.selection}>
-        <text fg={colors.dim}>
-          {editing ? "enter search  ·  esc cancel" : hintFor(model.focus.mode)}
+        <text wrapMode="none" fg={bottom.color}>
+          {bottom.text}
         </text>
       </box>
-      {model.focus.mode === "help" && <HelpOverlay />}
+      <Overlay model={model} height={height} />
     </box>
   );
 };

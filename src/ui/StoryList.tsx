@@ -1,6 +1,6 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useEffect, useRef } from "react";
-import type { Remote, StoryPullRequests } from "../app/model.ts";
+import type { Remote, StoryMove, StoryPullRequests } from "../app/model.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { estimateLabel, fit, typeStyle } from "./format.ts";
 import { badgeStyle, BADGE_LABEL_WIDTH, storyBadge, type Badge } from "./pull-requests.ts";
@@ -17,10 +17,27 @@ const badgeColumnWidth: Record<BadgeColumn, number> = {
   labelled: 3 + BADGE_LABEL_WIDTH,
 };
 
+type MoveMark = { text: string; color: string };
+
+export const moveMark = (move: StoryMove | undefined): MoveMark | null => {
+  switch (move?.status) {
+    case "saving":
+      return { text: "⟳ saving", color: colors.accent };
+    case "failed":
+      return { text: "✗ failed", color: colors.error };
+    case "moved":
+    case undefined:
+      return null;
+  }
+};
+
+const MOVE_MARK_WIDTH = 1 + Math.max(...["⟳ saving", "✗ failed"].map((text) => text.length));
+
 type Props = {
   stories: readonly StorySummary[];
   selectedId: StoryId | null;
   pullRequests: Remote<StoryPullRequests>;
+  moves: ReadonlyMap<StoryId, StoryMove>;
   width: number;
 };
 
@@ -64,17 +81,22 @@ const StoryRow = ({
   selected,
   badge,
   badgeColumn,
+  mark,
+  markColumnWidth,
   width,
 }: {
   story: StorySummary;
   selected: boolean;
   badge: Badge | null;
   badgeColumn: BadgeColumn;
+  mark: MoveMark | null;
+  markColumnWidth: number;
   width: number;
 }) => {
   const { glyph, color } = typeStyle[story.storyType];
   const idLabel = String(story.id).padStart(6);
-  const nameWidth = width - idLabel.length - ROW_CHROME_WIDTH - badgeColumnWidth[badgeColumn];
+  const nameWidth =
+    width - idLabel.length - ROW_CHROME_WIDTH - badgeColumnWidth[badgeColumn] - markColumnWidth;
   return (
     <box
       id={`story-${story.id}`}
@@ -86,6 +108,9 @@ const StoryRow = ({
         <span fg={color}>{glyph}</span>
         <span fg={colors.dim}>{` ${idLabel} `}</span>
         {selected ? <b>{fit(story.name, nameWidth)}</b> : fit(story.name, nameWidth)}
+        <span fg={mark?.color ?? colors.dim}>
+          {mark === null ? "".padEnd(markColumnWidth) : ` ${mark.text}`.padEnd(markColumnWidth)}
+        </span>
         <span fg={badge === null ? colors.dim : badgeStyle[badge].color}>
           {badgeText(badge, badgeColumn)}
         </span>
@@ -96,20 +121,28 @@ const StoryRow = ({
   );
 };
 
-const badgeColumnFor = (stories: readonly StorySummary[], width: number): BadgeColumn => {
+const badgeColumnFor = (
+  stories: readonly StorySummary[],
+  width: number,
+  markColumnWidth: number,
+): BadgeColumn => {
   if (!stories.some((story) => story.pullRequestCount > 0)) return "none";
   const widestId = Math.max(6, ...stories.map((story) => String(story.id).length));
-  const nameWidth = width - widestId - ROW_CHROME_WIDTH - badgeColumnWidth.labelled;
+  const nameWidth =
+    width - widestId - ROW_CHROME_WIDTH - badgeColumnWidth.labelled - markColumnWidth;
   return nameWidth >= MIN_NAME_WIDTH_BESIDE_LABELS ? "labelled" : "glyph";
 };
 
-export const StoryList = ({ stories, selectedId, pullRequests, width }: Props) => {
+export const StoryList = ({ stories, selectedId, pullRequests, moves, width }: Props) => {
   const scroll = useRef<ScrollBoxRenderable>(null);
   useEffect(() => {
     if (selectedId !== null) scroll.current?.scrollChildIntoView(`story-${selectedId}`);
   }, [selectedId]);
 
-  const badgeColumn = badgeColumnFor(stories, width);
+  const markColumnWidth = stories.some((story) => moveMark(moves.get(story.id)) !== null)
+    ? MOVE_MARK_WIDTH
+    : 0;
+  const badgeColumn = badgeColumnFor(stories, width, markColumnWidth);
   return (
     <scrollbox ref={scroll} flexGrow={1} scrollY>
       {groupByState(stories).flatMap((group, index) => [
@@ -121,6 +154,8 @@ export const StoryList = ({ stories, selectedId, pullRequests, width }: Props) =
             selected={story.id === selectedId}
             badge={storyBadge(story, pullRequests)}
             badgeColumn={badgeColumn}
+            mark={moveMark(moves.get(story.id))}
+            markColumnWidth={markColumnWidth}
             width={width}
           />
         )),
