@@ -53,7 +53,7 @@ const summaryFields = {
   id: storyId,
   name: z.string(),
   story_type: storyType,
-  workflow_state: z.object({ id: workflowStateId, name: z.string() }),
+  workflow_state: z.object({ id: workflowStateId, name: z.string(), workflow_name: z.string() }),
   started: z.boolean(),
   completed: z.boolean(),
   estimate: z.number().nullable(),
@@ -95,6 +95,7 @@ const toSummary = (raw: z.infer<typeof summarySchema>): UnplacedSummary => ({
   state: {
     id: raw.workflow_state.id,
     name: raw.workflow_state.name,
+    workflowName: raw.workflow_state.workflow_name,
     progress: progressOf(raw.started, raw.completed),
   },
   estimate: raw.estimate,

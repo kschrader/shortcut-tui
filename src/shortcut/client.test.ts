@@ -210,6 +210,7 @@ test("searchStories reads every page and maps embedded names", async () => {
     state: {
       id: workflowStateId.parse(500000003),
       name: "In Progress",
+      workflowName: "Engineering",
       progress: "started",
       position: 5,
     },

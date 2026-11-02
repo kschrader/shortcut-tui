@@ -259,6 +259,32 @@ describe("default order", () => {
     expect(model.results.value.stories.map((story) => story.id)).toEqual([storyId(2), storyId(1)]);
   });
 
+  test("two states at the same progress and position stay in separate unbroken groups", () => {
+    const engineering = {
+      id: 1491,
+      name: "In Development",
+      workflowName: "Engineering",
+      progress: "started",
+      position: 5,
+    } as const;
+    const marketing = {
+      id: 500018025,
+      name: "Ready for Deploy",
+      workflowName: "Marketing",
+      progress: "started",
+      position: 5,
+    } as const;
+    const [model] = browsing([
+      inState(summary(1), engineering, new Date("2026-10-01T00:00:00Z")),
+      inState(summary(2), marketing, new Date("2026-10-02T00:00:00Z")),
+      inState(summary(3), engineering, new Date("2026-10-03T00:00:00Z")),
+    ]);
+    if (model.results.status !== "loaded") throw new Error("results not loaded");
+    const names = model.results.value.stories.map((story) => story.state.name);
+    const groupStarts = names.filter((name, index) => name !== names[index - 1]);
+    expect(groupStarts).toHaveLength(2);
+  });
+
   test("stories in the same state put the most recently updated first", () => {
     const [model] = browsing([
       inState(summary(1), ready, new Date("2026-10-01T00:00:00Z")),

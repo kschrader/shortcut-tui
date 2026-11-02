@@ -28,12 +28,14 @@ const workspace: Workspace = { me: { ...ada, mentionName: "ada" }, slug: "acme" 
 const ready: StorySummary["state"] = {
   id: stateId(1),
   name: "Ready",
+  workflowName: "Engineering",
   progress: "unstarted",
   position: 1,
 };
 const inProgress: StorySummary["state"] = {
   id: stateId(2),
   name: "In Progress",
+  workflowName: "Engineering",
   progress: "started",
   position: 2,
 };
@@ -139,6 +141,20 @@ test("lists stories with id, name, state and estimate", async () => {
   expect(text).toContain("Rotate API keys");
   expect(text).toContain("3 stories");
   expect(text).toContain("owner:me");
+});
+
+test("a divider names each workflow state group above its stories", async () => {
+  const { frame } = await show(browsing());
+  const lines = frame().split("\n");
+  const rowOf = (needle: string) => lines.findIndex((line) => line.includes(needle));
+  const dividers = lines.filter((line) => line.includes("──"));
+  expect(dividers.length).toBe(2);
+  expect(dividers[0]).toMatch(/In Progress\s+1\s+· Engineering/);
+  expect(dividers[1]).toMatch(/Ready\s+2\s+· Engineering/);
+  expect(rowOf("In Progress  1")).toBeLessThan(rowOf(" 101 "));
+  expect(rowOf(" 101 ")).toBeLessThan(rowOf("Ready  2"));
+  expect(rowOf("Ready  2")).toBeLessThan(rowOf(" 102 "));
+  expect(rowOf(" 103 ") - rowOf(" 102 ")).toBe(1);
 });
 
 test("marks the selected row and shows its detail", async () => {
@@ -263,12 +279,4 @@ test("an 80-column terminal shows enough of each story name to read it", async (
     { width: 80 },
   );
   expect(frame()).toContain("Add option to limit GitHub PR auto-");
-});
-
-test("a wide terminal shows each story's state in the list", async () => {
-  const { frame } = await show(browsing({ selectedStoryId: stories[0].id }), { width: 160 });
-  const listRow = frame()
-    .split("\n")
-    .find((line) => line.includes("Rotate API keys"));
-  expect(listRow).toContain("Ready");
 });

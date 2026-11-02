@@ -43,7 +43,7 @@ The launcher runs from this directory, so `.env.local` is always found.
 | `pgup` / `pgdn` | Scroll the detail pane |
 | `q`, `ctrl-c` | Quit |
 
-The default query is `owner:<you> !is:done !is:archived`. Stories are sorted by workflow state, with states further right in the workflow at the top. Started states come before unstarted ones, which keeps stories from different workflows in a sensible order. Stories in the same state are sorted with the most recently updated first. The query uses Shortcut's [search operators](https://help.shortcut.com/hc/en-us/articles/360000046646-Search-Operators).
+The default query is `owner:<you> !is:done !is:archived`. Stories are sorted by workflow state, with states further right in the workflow at the top. Started states come before unstarted ones, which keeps stories from different workflows in a sensible order. Stories in the same state are sorted with the most recently updated first. A divider above each group shows the state, its story count, and its workflow. The query uses Shortcut's [search operators](https://help.shortcut.com/hc/en-us/articles/360000046646-Search-Operators).
 
 ## Checks
 

@@ -31,6 +31,7 @@ const state = (
 ): StorySummary["state"] => ({
   id: workflowStateId.parse(id),
   name,
+  workflowName: "Engineering",
   progress,
   position,
 });

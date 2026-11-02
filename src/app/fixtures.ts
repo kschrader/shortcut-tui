@@ -35,7 +35,13 @@ export const summary = (id: number, name = `Story ${String(id)}`): StorySummary 
   id: storyId(id),
   name,
   storyType: "feature",
-  state: { id: workflowStateId(1), name: "To Do", progress: "unstarted", position: 0 },
+  state: {
+    id: workflowStateId(1),
+    name: "To Do",
+    workflowName: "Engineering",
+    progress: "unstarted",
+    position: 0,
+  },
   estimate: null,
   owners: [{ id: memberId("me"), name: "Me" }],
   epic: null,
@@ -45,11 +51,20 @@ export const summary = (id: number, name = `Story ${String(id)}`): StorySummary 
 
 export const inState = (
   story: StorySummary,
-  state: Pick<StorySummary["state"], "name" | "progress" | "position">,
+  state: Pick<StorySummary["state"], "name" | "progress" | "position"> & {
+    id?: number;
+    workflowName?: string;
+  },
   updatedAt = story.updatedAt,
 ): StorySummary => ({
   ...story,
-  state: { ...state, id: workflowStateId(100 + state.position) },
+  state: {
+    name: state.name,
+    progress: state.progress,
+    position: state.position,
+    workflowName: state.workflowName ?? "Engineering",
+    id: workflowStateId(state.id ?? 100 + state.position),
+  },
   updatedAt,
 });
 
