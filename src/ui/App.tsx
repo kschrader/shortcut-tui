@@ -9,7 +9,7 @@ import { StoryDetailPane } from "./StoryDetailPane.tsx";
 import { HelpOverlay } from "./HelpOverlay.tsx";
 import { bindingFor, hintFor } from "./keys.ts";
 import { MovePicker } from "./MovePicker.tsx";
-import { pullRequestToOpen, storyPullRequests } from "./pull-requests.ts";
+import { pullRequestToOpen, pullRequestTrouble, storyPullRequests } from "./pull-requests.ts";
 import { ReadOnlyNotice } from "./ReadOnlyNotice.tsx";
 import { StoryList } from "./StoryList.tsx";
 import { colors } from "./theme.ts";
@@ -137,6 +137,8 @@ const bottomBar = (
   if (model.focus.mode === "browsing" && move?.status === "failed") {
     return { text: `✗ Move failed  ·  m to retry  ·  ${move.message}`, color: colors.error };
   }
+  const trouble = model.focus.mode === "browsing" ? pullRequestTrouble(model.pullRequests) : null;
+  if (trouble !== null) return { text: `✗ ${trouble}  ·  r to retry`, color: colors.warning };
   return {
     text:
       model.focus.mode === "editingQuery"

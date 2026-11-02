@@ -1,6 +1,7 @@
 import type { PullRequestView, Remote, StoryPullRequests } from "../app/model.ts";
 import { storyMergeStatus, type StoryMergeStatus } from "../github/pull-request-state.ts";
 import type { StorySummary } from "../shortcut/types.ts";
+import { storyCount } from "./format.ts";
 import { colors } from "./theme.ts";
 
 export type Badge = Exclude<StoryMergeStatus, "none"> | "checking";
@@ -109,4 +110,20 @@ export const pullRequestToOpen = (
       .toSorted((a, b) => b.id - a.id)
       .at(0) ?? null
   );
+};
+
+export const pullRequestTrouble = (pullRequests: Remote<StoryPullRequests>): string | null => {
+  switch (pullRequests.status) {
+    case "loading":
+      return null;
+    case "failed":
+      return `PR status: ${pullRequests.message}`;
+    case "loaded": {
+      const failures = [...pullRequests.value.values()].flatMap((list) =>
+        list.status === "failed" ? [list.message] : [],
+      );
+      const [first] = failures;
+      return first === undefined ? null : `PR status for ${storyCount(failures.length)}: ${first}`;
+    }
+  }
 };

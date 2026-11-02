@@ -146,3 +146,37 @@ test("a story whose pull requests could not be listed shows unknown and says why
   expect(rowOf(text, 102)).toContain("≠ conflicts");
   expect(text).toContain("Shortcut API 429");
 });
+
+const statusBar = (frame: string) => frame.trimEnd().split("\n").at(-1) ?? "";
+
+test("a failed pull request load shows in the status bar at 80 columns whatever is selected", async () => {
+  const { frame } = await show(
+    withPullRequests(
+      { status: "failed", message: "GitHub status needs the gh CLI: gh auth login" },
+      103,
+    ),
+    { width: 80 },
+  );
+  const text = frame();
+  for (const line of text.split("\n")) expect(line.length).toBeLessThanOrEqual(80);
+  expect(statusBar(text)).toContain(
+    "PR status: GitHub status needs the gh CLI: gh auth login  ·  r to retry",
+  );
+});
+
+test("stories whose pull requests could not be listed are counted in the status bar", async () => {
+  const partly: StoryPullRequests = new Map([
+    [storyId(101), { status: "failed", message: "Shortcut API 429" } as const],
+    [storyId(102), { status: "failed", message: "Shortcut API 429" } as const],
+  ]);
+  const { frame } = await show(withPullRequests(loaded(partly), 103), { width: 80 });
+  expect(statusBar(frame())).toContain("PR status for 2 stories: Shortcut API 429  ·  r to retry");
+});
+
+test("the status bar keeps its key hints while pull request status is fine or loading", async () => {
+  const fine = await show(withPullRequests(loaded(checked), 103), { width: 80 });
+  expect(statusBar(fine.frame())).not.toContain("PR status");
+  cleanup();
+  const checking = await show(withPullRequests({ status: "loading", requestId: requestId(4) }));
+  expect(statusBar(checking.frame())).not.toContain("PR status");
+});
