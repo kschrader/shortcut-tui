@@ -131,7 +131,7 @@ OnSelectionMoved(model, delta) ==
          IN Select(model, At(S, Clamp(current + delta, 0, Cardinality(S) - 1)))
 
 OnQueryEditStarted(model) ==
-    IF model.workspace.status # "loaded" THEN <<model, {}>>
+    IF model.workspace.status # "loaded" \/ model.focus.mode = "help" THEN <<model, {}>>
     ELSE <<[model EXCEPT !.focus = [mode |-> "editing", draft |-> model.query]], {}>>
 
 OnQueryDraftChanged(model, draft) ==
@@ -139,11 +139,20 @@ OnQueryDraftChanged(model, draft) ==
     ELSE <<[model EXCEPT !.focus.draft = draft], {}>>
 
 OnQueryEditCancelled(model) ==
-    <<[model EXCEPT !.focus = [mode |-> "browsing", draft |-> NoQuery]], {}>>
+    IF model.focus.mode # "editing" THEN <<model, {}>>
+    ELSE <<[model EXCEPT !.focus = [mode |-> "browsing", draft |-> NoQuery]], {}>>
 
 OnQuerySubmitted(model) ==
     IF model.focus.mode # "editing" THEN <<model, {}>>
     ELSE Search([model EXCEPT !.focus = [mode |-> "browsing", draft |-> NoQuery]], model.focus.draft)
+
+OnHelpOpened(model) ==
+    IF model.focus.mode # "browsing" THEN <<model, {}>>
+    ELSE <<[model EXCEPT !.focus = [mode |-> "help", draft |-> NoQuery]], {}>>
+
+OnHelpClosed(model) ==
+    IF model.focus.mode # "help" THEN <<model, {}>>
+    ELSE <<[model EXCEPT !.focus = [mode |-> "browsing", draft |-> NoQuery]], {}>>
 
 Init ==
     /\ m = [ workspace |-> Loading(1),
@@ -177,6 +186,8 @@ UserActs ==
     \/ UserSends(OnQueryEditCancelled(m))
     \/ UserSends(OnQuerySubmitted(m))
     \/ UserSends(Refresh(m))
+    \/ UserSends(OnHelpOpened(m))
+    \/ UserSends(OnHelpClosed(m))
 
 Answer(req) ==
     /\ UNCHANGED userRequests
@@ -208,7 +219,7 @@ TypeOK ==
     /\ m.selected \in Stories \cup {NoStory}
     /\ m.details \in [Stories -> Remote]
     /\ m.prs \in Remote
-    /\ m.focus \in [mode : {"browsing", "editing"}, draft : AllQueries]
+    /\ m.focus \in [mode : {"browsing", "editing", "help"}, draft : AllQueries]
     /\ userRequests \in 0..MaxUserRequests
 
 RequestIdsStayInModelBounds == m.nextRid <= MaxRequestId + 1
@@ -229,7 +240,10 @@ ResultsComeFromLatestSearch ==
         m.results.answer = LatestRid("search", NoStory)
 
 QueryEditingNeedsWorkspace ==
-    m.workspace.status # "loaded" => m.query = NoQuery /\ m.focus.mode = "browsing"
+    m.workspace.status # "loaded" => m.query = NoQuery /\ m.focus.mode # "editing"
+
+OnlyEditingHoldsADraft ==
+    m.focus.mode # "editing" => m.focus.draft = NoQuery
 
 SelectionIsInResults ==
     m.results.status = "loaded" =>

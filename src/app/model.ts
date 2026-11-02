@@ -20,7 +20,10 @@ export type PullRequestView = LinkedPullRequest & { state: PullRequestState };
 
 export type StoryPullRequests = ReadonlyMap<StoryId, readonly PullRequestView[]>;
 
-export type Focus = { mode: "browsing" } | { mode: "editingQuery"; draft: string };
+export type Focus =
+  | { mode: "browsing" }
+  | { mode: "editingQuery"; draft: string }
+  | { mode: "help" };
 
 export type Model = {
   workspace: Remote<Workspace>;
@@ -47,7 +50,9 @@ export type Msg =
   | { type: "queryDraftChanged"; draft: string }
   | { type: "queryEditCancelled" }
   | { type: "querySubmitted" }
-  | { type: "refreshRequested" };
+  | { type: "refreshRequested" }
+  | { type: "helpOpened" }
+  | { type: "helpClosed" };
 
 export type Effect =
   | { type: "loadWorkspace"; requestId: RequestId }

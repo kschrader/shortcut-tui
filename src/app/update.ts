@@ -181,7 +181,7 @@ export const update = (model: Model, msg: Msg): Step => {
       return select(model, stories[target]?.id ?? null);
     }
     case "queryEditStarted": {
-      if (model.workspace.status !== "loaded") return [model, []];
+      if (model.workspace.status !== "loaded" || model.focus.mode === "help") return [model, []];
       const draft = model.query === "" ? "" : `${model.query} `;
       return [{ ...model, focus: { mode: "editingQuery", draft } }, []];
     }
@@ -189,13 +189,23 @@ export const update = (model: Model, msg: Msg): Step => {
       if (model.focus.mode !== "editingQuery") return [model, []];
       return [{ ...model, focus: { mode: "editingQuery", draft: msg.draft } }, []];
     }
-    case "queryEditCancelled":
+    case "queryEditCancelled": {
+      if (model.focus.mode !== "editingQuery") return [model, []];
       return [{ ...model, focus: { mode: "browsing" } }, []];
+    }
     case "querySubmitted": {
       if (model.focus.mode !== "editingQuery") return [model, []];
       return search({ ...model, focus: { mode: "browsing" } }, model.focus.draft.trim());
     }
     case "refreshRequested":
       return refresh(model);
+    case "helpOpened": {
+      if (model.focus.mode !== "browsing") return [model, []];
+      return [{ ...model, focus: { mode: "help" } }, []];
+    }
+    case "helpClosed": {
+      if (model.focus.mode !== "help") return [model, []];
+      return [{ ...model, focus: { mode: "browsing" } }, []];
+    }
   }
 };

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { detail, inState, storyId, summary } from "./fixtures.ts";
 import { answer, browsing, first, loggedIn, ofType, only, submitQuery } from "./steps.ts";
+import type { Msg } from "./model.ts";
 import { init, update } from "./update.ts";
 
 describe("startup", () => {
@@ -280,5 +281,56 @@ describe("query editing", () => {
     const [after, effects] = update(model, { type: "querySubmitted" });
     expect(after).toBe(model);
     expect(effects).toEqual([]);
+  });
+});
+
+const helpOpen = () => {
+  const [model] = browsing([summary(1)]);
+  const [open] = update(model, { type: "helpOpened" });
+  return { model, open };
+};
+
+describe("help", () => {
+  test("opening help while browsing focuses it and searches nothing", () => {
+    const [model] = browsing([summary(1)]);
+    const [open, effects] = update(model, { type: "helpOpened" });
+    expect(open.focus).toEqual({ mode: "help" });
+    expect(effects).toEqual([]);
+  });
+
+  test("help opens before the workspace loads, so it can explain how to retry", () => {
+    const [initial] = init();
+    const [open] = update(initial, { type: "helpOpened" });
+    expect(open.focus).toEqual({ mode: "help" });
+  });
+
+  test("closing help returns to browsing with the model otherwise unchanged", () => {
+    const { model, open } = helpOpen();
+    const [closed, effects] = update(open, { type: "helpClosed" });
+    expect(closed).toEqual(model);
+    expect(effects).toEqual([]);
+  });
+
+  test("help does not open over query editing or lose the draft", () => {
+    const [model] = browsing([summary(1)]);
+    const [editing] = update(model, { type: "queryEditStarted" });
+    const [after] = update(editing, { type: "helpOpened" });
+    expect(after).toBe(editing);
+  });
+
+  test("closing help while browsing does nothing", () => {
+    const [model] = browsing([summary(1)]);
+    const [after] = update(model, { type: "helpClosed" });
+    expect(after).toBe(model);
+  });
+
+  test("starting a query edit, cancelling or submitting cannot leave help", () => {
+    const { open } = helpOpen();
+    const msgs: Msg[] = [
+      { type: "queryEditStarted" },
+      { type: "queryEditCancelled" },
+      { type: "querySubmitted" },
+    ];
+    for (const msg of msgs) expect(update(open, msg)[0].focus).toEqual({ mode: "help" });
   });
 });
