@@ -15,7 +15,7 @@ export type GitHubClientOptions = { run?: GhRunner; recheckAfterMs?: number };
 export const GH_SETUP_HINT = "GitHub status needs the gh CLI: gh auth login";
 
 const GH_AUTH_REQUIRED_EXIT_CODE = 4;
-const PULL_REQUESTS_PER_QUERY = 50;
+const PULL_REQUESTS_PER_QUERY = 10;
 const PULL_REQUEST_FIELDS =
   "state merged isDraft reviewDecision mergeable mergeStateStatus statusCheckRollup { state }";
 

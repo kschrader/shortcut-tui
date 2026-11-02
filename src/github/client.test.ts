@@ -31,8 +31,13 @@ type Table = Record<string, Record<string, unknown>>;
 
 const fakeGitHub = (...answersPerCall: [Table, ...Table[]]) => {
   const calls: string[][] = [];
+  const concurrency = { now: 0, max: 0 };
   const run: GhRunner = async (args) => {
     calls.push([...args]);
+    concurrency.now += 1;
+    concurrency.max = Math.max(concurrency.max, concurrency.now);
+    await Bun.sleep(1);
+    concurrency.now -= 1;
     const pullRequests = answersPerCall[calls.length - 1] ?? answersPerCall[0];
     const variables = flags(args);
     const data: Record<string, Record<string, unknown> | null> = {};
@@ -63,7 +68,7 @@ const fakeGitHub = (...answersPerCall: [Table, ...Table[]]) => {
       stderr: missing ? "gh: Could not resolve to a Repository\n" : "",
     };
   };
-  return { calls, client: createGitHubClient({ run, recheckAfterMs: 0 }) };
+  return { calls, concurrency, client: createGitHubClient({ run, recheckAfterMs: 0 }) };
 };
 
 const rejection = async (promise: Promise<unknown>): Promise<Error> => {
@@ -118,14 +123,15 @@ test("pull requests GitHub cannot resolve are unknown while the rest still class
   expect([...states.values()]).toEqual(["merged", "unknown", "unknown"]);
 });
 
-test("many pull requests are split into queries of at most 50", async () => {
-  const numbers = Array.from({ length: 120 }, (_, i) => i + 1);
-  const { calls, client } = fakeGitHub(
+test("many pull requests are split into concurrent queries of at most 10", async () => {
+  const numbers = Array.from({ length: 25 }, (_, i) => i + 1);
+  const { calls, concurrency, client } = fakeGitHub(
     Object.fromEntries(numbers.map((n) => [`useshortcut/monorepo#${n}`, raw({ isDraft: true })])),
   );
   const states = await client.pullRequestStates(numbers.map((n) => ref("monorepo", n)));
   expect(calls.length).toBe(3);
-  expect(states.size).toBe(120);
+  expect(concurrency.max).toBe(3);
+  expect(states.size).toBe(25);
   expect(new Set(states.values())).toEqual(new Set(["draft"]));
 });
 
