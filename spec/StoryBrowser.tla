@@ -67,7 +67,8 @@ Refresh(model) ==
 
 OnWorkspaceLoaded(model, req) ==
     IF ~Awaiting(model.workspace, req.rid) THEN <<model, {}>>
-    ELSE Search([model EXCEPT !.workspace = [Absent EXCEPT !.status = "loaded"]], DefaultQuery)
+    ELSE Search([model EXCEPT !.workspace = [Absent EXCEPT !.status = "loaded", !.answer = req.rid]],
+                DefaultQuery)
 
 OnWorkspaceFailed(model, req) ==
     IF ~Awaiting(model.workspace, req.rid) THEN <<model, {}>>
@@ -188,8 +189,16 @@ LatestRid(kind, s) ==
 ResultsAnswerCurrentQuery ==
     m.results.status = "loaded" => m.results.query = m.query
 
+WorkspaceComesFromLatestLoad ==
+    m.workspace.status \in {"loaded", "failed"} =>
+        m.workspace.answer = LatestRid("workspace", NoStory)
+
 ResultsComeFromLatestSearch ==
-    m.results.status = "loaded" => m.results.answer = LatestRid("search", NoStory)
+    m.results.status \in {"loaded", "failed"} =>
+        m.results.answer = LatestRid("search", NoStory)
+
+QueryEditingNeedsWorkspace ==
+    m.workspace.status # "loaded" => m.query = NoQuery /\ m.focus.mode = "browsing"
 
 SelectionIsInResults ==
     m.results.status = "loaded" =>
