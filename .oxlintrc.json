@@ -1,16 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "typescript",
-    "react",
-    "unicorn",
-    "oxc",
-    "import",
-    "promise"
-  ],
-  "jsPlugins": [
-    "./lint/plugin.ts"
-  ],
+  "plugins": ["typescript", "react", "unicorn", "oxc", "import", "promise"],
+  "jsPlugins": ["./lint/plugin.ts"],
   "categories": {
     "correctness": "error",
     "suspicious": "error"
@@ -18,6 +9,8 @@
   "rules": {
     "shortcut-tui/no-comments": "error",
     "shortcut-tui/switch-on-discriminant": "error",
+    "shortcut-tui/opentui-text-placement": "error",
+
     "no-console": "error",
     "unicorn/no-process-exit": "error",
     "typescript/no-floating-promises": "error",
@@ -55,7 +48,5 @@
       }
     ]
   },
-  "ignorePatterns": [
-    "node_modules"
-  ]
+  "ignorePatterns": ["node_modules"]
 }
