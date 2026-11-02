@@ -25,6 +25,12 @@ const suites: Record<string, readonly ModelCheck[]> = {
       expect: "violation of PullRequestStatusesComeFromLatestLoad",
       budgetSeconds: 60,
     },
+    {
+      cfg: "UnguardedAutoRefresh.cfg",
+      tla: "StoryBrowser.tla",
+      expect: "violation of AutoRefreshWaitsForIdle",
+      budgetSeconds: 60,
+    },
     { cfg: "StoryMoves.cfg", tla: "StoryMoves.tla", expect: "pass", budgetSeconds: 60 },
     {
       cfg: "UnserializedMoves.cfg",

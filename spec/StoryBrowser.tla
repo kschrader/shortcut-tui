@@ -12,7 +12,8 @@ CONSTANTS
     MaxRequestId,
     StoriesWithPullRequests,
     CheckSearchRequestId,
-    CheckPullRequestsRequestId
+    CheckPullRequestsRequestId,
+    GuardAutoRefresh
 
 NoStory == 0
 NoQuery == ""
@@ -77,6 +78,14 @@ Refresh(model) ==
                THEN searching
                ELSE LET fetching == FetchDetail(searching[1], model.selected)
                     IN <<fetching[1], searching[2] \cup fetching[2]>>
+
+Idle(model) ==
+    /\ model.focus.mode = "browsing"
+    /\ model.results.status # "loading"
+    /\ model.prs.status # "loading"
+
+OnAutoRefreshDue(model) ==
+    IF ~GuardAutoRefresh \/ Idle(model) THEN Refresh(model) ELSE <<model, {}>>
 
 OnWorkspaceLoaded(model, req) ==
     IF ~Awaiting(model.workspace, req.rid) THEN <<model, {}>>
@@ -203,7 +212,11 @@ Answer(req) ==
 
 NetworkAnswers(rid) == \E req \in network : req.rid = rid /\ Answer(req)
 
-Next == UserActs \/ \E req \in network : Answer(req)
+(* The timer shares the user's request budget, so it adds interleavings *)
+(* without growing the model.                                           *)
+TimerFires == UserSends(OnAutoRefreshDue(m))
+
+Next == UserActs \/ TimerFires \/ \E req \in network : Answer(req)
 
 Spec == Init /\ [][Next]_vars /\ \A rid \in RequestIds : WF_vars(NetworkAnswers(rid))
 
@@ -289,6 +302,10 @@ EverythingSettles ==
          /\ m.results.status # "loading"
          /\ m.prs.status # "loading"
          /\ \A s \in Stories : m.details[s].status # "loading")
+
+AutoRefreshWaitsForIdle ==
+    [][LET step == OnAutoRefreshDue(m)
+       IN (m' = step[1] /\ network' = network \cup step[2] /\ step[2] # {}) => Idle(m)]_vars
 
 SelectedDetailArrives ==
     <>[](m.selected # NoStory => m.details[m.selected].status \in {"loaded", "failed"})
