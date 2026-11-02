@@ -5,6 +5,7 @@ import { opentuiTextPlacement } from "./opentui-text-placement.ts";
 import { keysFromTable } from "./keys-from-table.ts";
 import { paginateV4Lists } from "./paginate-v4-lists.ts";
 import { classifyEveryRawEnumValue } from "./classify-every-raw-enum-value.ts";
+import { boundFanOut } from "./bound-fan-out.ts";
 
 export type Rule = Parameters<RuleTester["run"]>[1];
 
@@ -15,6 +16,7 @@ export const rules = {
   "paginate-v4-lists": paginateV4Lists,
   "keys-from-table": keysFromTable,
   "classify-every-raw-enum-value": classifyEveryRawEnumValue,
+  "bound-fan-out": boundFanOut,
 } satisfies Record<string, Rule>;
 
 export default {

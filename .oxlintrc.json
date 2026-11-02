@@ -13,6 +13,7 @@
     "shortcut-tui/paginate-v4-lists": "error",
     "shortcut-tui/keys-from-table": "error",
     "shortcut-tui/classify-every-raw-enum-value": "error",
+    "shortcut-tui/bound-fan-out": "error",
 
     "no-console": "error",
     "unicorn/no-process-exit": "error",
