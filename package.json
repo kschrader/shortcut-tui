@@ -15,6 +15,7 @@
     "type-check": "tsc --noEmit",
     "test": "bun test",
     "tlc": "bun ./spec/check.ts",
+    "tlc:big": "bun ./spec/check.ts big",
     "check": "bun run lint && bun run type-check && bun run test && bun run tlc"
   },
   "dependencies": {
