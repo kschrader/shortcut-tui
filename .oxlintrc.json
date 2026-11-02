@@ -10,6 +10,7 @@
     "shortcut-tui/no-comments": "error",
     "shortcut-tui/switch-on-discriminant": "error",
     "shortcut-tui/opentui-text-placement": "error",
+    "shortcut-tui/paginate-v4-lists": "error",
 
     "no-console": "error",
     "unicorn/no-process-exit": "error",
