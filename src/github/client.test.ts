@@ -195,3 +195,13 @@ test("pull requests whose mergeability GitHub is still computing are asked about
   expect(flags(calls[1] ?? []).get("query")).not.toContain("3911");
   expect([...states.values()]).toEqual(["conflicts", "ready", "draft"]);
 });
+
+test("pull requests whose merge state GitHub is still computing are asked about once more", async () => {
+  const { calls, client } = fakeGitHub(
+    { "useshortcut/monorepo#3940": raw({ mergeStateStatus: "UNKNOWN" }) },
+    { "useshortcut/monorepo#3940": raw({ mergeStateStatus: "BEHIND" }) },
+  );
+  const states = await client.pullRequestStates([ref("monorepo", 3940)]);
+  expect(calls.length).toBe(2);
+  expect([...states.values()]).toEqual(["behind"]);
+});

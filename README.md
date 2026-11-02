@@ -43,10 +43,12 @@ A story shows the status of its least ready open pull request. When none is open
 | `≠ conflicts` | The branch conflicts with its base |
 | `✗ CI failing` | A check failed or errored |
 | `! changes` | A reviewer requested changes |
+| `↓ behind` | The branch must be updated from its base before merging |
 | `◌ draft` | The pull request is a draft |
 | `○ review` | A review is required before merging |
+| `⊟ blocked` | A branch rule other than review blocks merging, such as unresolved conversations or required signed commits |
 | `◔ CI running` | Checks are still running |
-| `? unknown` | GitHub has not computed mergeability yet, or the pull request is not on GitHub. Press `r` to check again |
+| `? unknown` | GitHub did not report a status: the link is not a GitHub pull request, `gh` cannot see it, GitHub did not answer, or GitHub was still computing mergeability after a second look. Press `r` to ask again |
 | `✓ ready` | GitHub reports the pull request can be merged |
 | `◉ merged` | Merged |
 | `⊘ closed` | Closed without merging |

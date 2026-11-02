@@ -11,35 +11,50 @@ export const RawPullRequestSchema = z.object({
     .catch(null),
   mergeable: z.enum(["MERGEABLE", "CONFLICTING", "UNKNOWN"]).catch("UNKNOWN"),
   mergeStateStatus: z
-    .enum(["BEHIND", "BLOCKED", "CLEAN", "DIRTY", "DRAFT", "HAS_HOOKS", "UNKNOWN", "UNSTABLE"])
+    .enum(["BEHIND", "BLOCKED", "CLEAN", "DIRTY", "HAS_HOOKS", "UNKNOWN", "UNSTABLE"])
     .catch("UNKNOWN"),
   statusCheckRollup: z
     .object({ state: z.enum(["ERROR", "EXPECTED", "FAILURE", "PENDING", "SUCCESS"]).nullable() })
     .nullable()
-    .catch(null),
+    .catch(null)
+    .transform((rollup) => rollup?.state ?? null),
 });
 
 export type RawPullRequest = z.infer<typeof RawPullRequestSchema>;
 
-const checks = (pr: RawPullRequest) => pr.statusCheckRollup?.state ?? null;
+export const DECIDED_BY_OTHER_FIELDS = {
+  reviewDecision: ["APPROVED"],
+  mergeable: ["MERGEABLE"],
+  mergeStateStatus: ["UNSTABLE"],
+  statusCheckRollup: ["SUCCESS"],
+} as const satisfies {
+  [Field in keyof RawPullRequest]?: readonly NonNullable<RawPullRequest[Field]>[];
+};
 
 const CLASSIFICATION: readonly (readonly [PullRequestState, (pr: RawPullRequest) => boolean])[] = [
   ["merged", (pr) => pr.merged || pr.state === "MERGED"],
   ["closed", (pr) => pr.state === "CLOSED"],
   ["draft", (pr) => pr.isDraft],
   ["conflicts", (pr) => pr.mergeable === "CONFLICTING" || pr.mergeStateStatus === "DIRTY"],
-  ["checks-failing", (pr) => checks(pr) === "FAILURE" || checks(pr) === "ERROR"],
-  ["changes-requested", (pr) => pr.reviewDecision === "CHANGES_REQUESTED"],
-  ["ready", (pr) => pr.mergeStateStatus === "CLEAN" || pr.mergeStateStatus === "HAS_HOOKS"],
-  ["checks-running", (pr) => checks(pr) === "PENDING" || checks(pr) === "EXPECTED"],
   [
-    "needs-review",
-    (pr) => pr.reviewDecision === "REVIEW_REQUIRED" || pr.mergeStateStatus === "BLOCKED",
+    "checks-failing",
+    (pr) => pr.statusCheckRollup === "FAILURE" || pr.statusCheckRollup === "ERROR",
   ],
+  ["changes-requested", (pr) => pr.reviewDecision === "CHANGES_REQUESTED"],
+  ["behind", (pr) => pr.mergeStateStatus === "BEHIND"],
+  ["ready", (pr) => pr.mergeStateStatus === "CLEAN" || pr.mergeStateStatus === "HAS_HOOKS"],
+  [
+    "checks-running",
+    (pr) => pr.statusCheckRollup === "PENDING" || pr.statusCheckRollup === "EXPECTED",
+  ],
+  ["needs-review", (pr) => pr.reviewDecision === "REVIEW_REQUIRED"],
+  ["blocked", (pr) => pr.mergeStateStatus === "BLOCKED"],
 ];
 
 export const awaitsMergeability = (pr: RawPullRequest): boolean =>
-  pr.state === "OPEN" && !pr.isDraft && pr.mergeable === "UNKNOWN";
+  pr.state === "OPEN" &&
+  !pr.isDraft &&
+  (pr.mergeable === "UNKNOWN" || pr.mergeStateStatus === "UNKNOWN");
 
 export const classify = (pr: RawPullRequest): PullRequestState =>
   CLASSIFICATION.find(([, holds]) => holds(pr))?.[0] ?? "unknown";
@@ -55,11 +70,13 @@ const LEAST_READY_FIRST: Record<OpenState, number> = {
   conflicts: 0,
   "checks-failing": 1,
   "changes-requested": 2,
-  draft: 3,
-  "needs-review": 4,
-  "checks-running": 5,
-  unknown: 6,
-  ready: 7,
+  behind: 3,
+  draft: 4,
+  "needs-review": 5,
+  blocked: 6,
+  "checks-running": 7,
+  unknown: 8,
+  ready: 9,
 };
 
 export const storyMergeStatus = (states: readonly PullRequestState[]): StoryMergeStatus => {

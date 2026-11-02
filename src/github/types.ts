@@ -7,9 +7,11 @@ export type PullRequestState =
   | "conflicts"
   | "checks-failing"
   | "changes-requested"
+  | "behind"
   | "ready"
   | "checks-running"
   | "needs-review"
+  | "blocked"
   | "unknown";
 
 export type PullRequestStates = ReadonlyMap<string, PullRequestState>;

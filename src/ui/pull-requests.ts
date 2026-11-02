@@ -26,12 +26,24 @@ export const badgeStyle: Record<Badge, BadgeStyle> = {
     description: "changes requested",
     color: colors.caution,
   },
+  behind: {
+    glyph: "↓",
+    label: "behind",
+    description: "needs update from base",
+    color: colors.caution,
+  },
   draft: { glyph: "◌", label: "draft", description: "draft", color: colors.dim },
   "needs-review": {
     glyph: "○",
     label: "review",
     description: "needs review",
     color: colors.accent,
+  },
+  blocked: {
+    glyph: "⊟",
+    label: "blocked",
+    description: "blocked by branch rules",
+    color: colors.caution,
   },
   "checks-running": {
     glyph: "◔",
