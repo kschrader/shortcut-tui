@@ -59,3 +59,12 @@ test("delayMs delays every call", async () => {
   await client.loadWorkspace();
   expect(performance.now() - started).toBeGreaterThanOrEqual(35);
 });
+
+test("stories that link pull requests list exactly as many as their summary counts", async () => {
+  const client = createFakeShortcutClient();
+  const stories = await client.searchStories("");
+  const linked = await Promise.all(stories.map((story) => client.listPullRequests(story.id)));
+  expect(linked.map((prs) => prs.length)).toEqual(stories.map((story) => story.pullRequestCount));
+  expect(linked.flat().length).toBeGreaterThanOrEqual(5);
+  for (const pr of linked.flat()) expect(pr.github).not.toBeNull();
+});

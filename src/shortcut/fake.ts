@@ -1,5 +1,6 @@
-import { epicId, memberId, storyId, workflowStateId } from "./schemas.ts";
+import { epicId, memberId, pullRequestId, storyId, workflowStateId } from "./schemas.ts";
 import type {
+  LinkedPullRequest,
   MemberRef,
   Progress,
   ShortcutClient,
@@ -59,6 +60,21 @@ const comment = (
   createdAt: new Date(createdAt),
 });
 
+export const DEMO_REPOSITORY = { owner: "demo", repo: "app" };
+
+const pullRequest = (
+  number: number,
+  title: string,
+  { closed = false, draft = false } = {},
+): LinkedPullRequest => ({
+  id: pullRequestId.parse(700000 + number),
+  title,
+  url: `https://github.com/${DEMO_REPOSITORY.owner}/${DEMO_REPOSITORY.repo}/pull/${String(number)}`,
+  closed,
+  draft,
+  github: { ...DEMO_REPOSITORY, number },
+});
+
 type StorySeed = {
   id: number;
   name: string;
@@ -71,6 +87,7 @@ type StorySeed = {
   description: string;
   labels: string[];
   comments: StoryComment[];
+  pullRequests?: LinkedPullRequest[];
 };
 
 const seeds: StorySeed[] = [
@@ -99,6 +116,7 @@ const seeds: StorySeed[] = [
         "2026-11-01T16:20:00Z",
       ),
     ],
+    pullRequests: [pullRequest(3955, "Forward the next param through the SSO callback")],
   },
   {
     id: 1002,
@@ -153,6 +171,10 @@ const seeds: StorySeed[] = [
         "2026-11-02T08:46:00Z",
       ),
     ],
+    pullRequests: [
+      pullRequest(3951, "Export iteration reports as CSV"),
+      pullRequest(3948, "Add a date formatter for report exports", { closed: true }),
+    ],
   },
   {
     id: 1005,
@@ -181,6 +203,7 @@ const seeds: StorySeed[] = [
     comments: [
       comment(6, alex, "Retries use exponential backoff, five attempts.", "2026-10-28T15:10:00Z"),
     ],
+    pullRequests: [pullRequest(3960, "Document webhook retries", { draft: true })],
   },
   {
     id: 1007,
@@ -193,6 +216,7 @@ const seeds: StorySeed[] = [
     description: "Label text on story cards fails WCAG AA in dark mode.",
     labels: ["a11y"],
     comments: [comment(7, priya, "Verified on the preview build.", "2026-10-25T10:00:00Z")],
+    pullRequests: [pullRequest(3902, "Raise story card label contrast", { closed: true })],
   },
   {
     id: 1008,
@@ -206,7 +230,29 @@ const seeds: StorySeed[] = [
     labels: [],
     comments: [],
   },
+  {
+    id: 1009,
+    name: "Rate-limit integration retries per workspace",
+    storyType: "feature",
+    state: inReview,
+    estimate: 3,
+    owners: [me],
+    updatedAt: "2026-11-01T18:05:00Z",
+    description: "One noisy integration should not delay retries for everyone else.",
+    labels: ["webhooks"],
+    comments: [
+      comment(8, priya, "Left a few notes on the limiter config.", "2026-11-01T18:05:00Z"),
+    ],
+    pullRequests: [
+      pullRequest(3962, "Add a per-workspace retry limiter"),
+      pullRequest(3963, "Expose retry limits in workspace settings"),
+    ],
+  },
 ];
+
+const pullRequestsByStory = new Map(
+  seeds.map((seed) => [storyId.parse(seed.id), seed.pullRequests ?? []]),
+);
 
 const stories: readonly StoryDetail[] = seeds.map((seed) => ({
   id: storyId.parse(seed.id),
@@ -218,6 +264,7 @@ const stories: readonly StoryDetail[] = seeds.map((seed) => ({
   epic: seed.epic ?? null,
   appUrl: `https://app.shortcut.com/demo/story/${seed.id}`,
   updatedAt: new Date(seed.updatedAt),
+  pullRequestCount: seed.pullRequests?.length ?? 0,
   description: seed.description,
   labels: seed.labels,
   comments: seed.comments,
@@ -258,6 +305,11 @@ export const createFakeShortcutClient = ({ delayMs = 0 }: FakeOptions = {}): Sho
       if (story === undefined)
         throw new Error(`Shortcut API 404 for GET /api/v4/demo/stories/${id}`);
       return story;
+    },
+
+    async listPullRequests(id) {
+      await pause();
+      return pullRequestsByStory.get(id) ?? [];
     },
   };
 };

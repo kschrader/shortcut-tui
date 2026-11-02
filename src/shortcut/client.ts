@@ -7,9 +7,11 @@ import { z } from "zod";
 import {
   COMMENT_FIELDS,
   DETAIL_FIELDS,
+  LinkedPullRequestSchema,
   StoryBodySchema,
   StoryCommentSchema,
   placeInWorkflow,
+  PULL_REQUEST_FIELDS,
   StorySummarySchema,
   SUMMARY_FIELDS,
   WhoamiSchema,
@@ -19,7 +21,14 @@ import {
   type UnplacedSummary,
 } from "./schemas.ts";
 import type { ApiToken } from "./token.ts";
-import type { ShortcutClient, StoryComment, StoryId, WorkflowStateId, Workspace } from "./types.ts";
+import type {
+  LinkedPullRequest,
+  ShortcutClient,
+  StoryComment,
+  StoryId,
+  WorkflowStateId,
+  Workspace,
+} from "./types.ts";
 
 export type ClientOptions = {
   token: ApiToken;
@@ -138,6 +147,18 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
         const body = StoryBodySchema.parse(entity);
         const positions = await positionsCovering(current, [body]);
         return { ...placeInWorkflow(body, positions), comments };
+      }),
+
+    listPullRequests: (id) =>
+      attempt(async () => {
+        const { api } = await connect();
+        const pullRequests: LinkedPullRequest[] = [];
+        for await (const raw of client.paginate(
+          api.listStoryPullRequests(id, { fields: PULL_REQUEST_FIELDS, limit: PAGE_SIZE }),
+        )) {
+          pullRequests.push(LinkedPullRequestSchema.parse(raw));
+        }
+        return pullRequests;
       }),
   };
 };

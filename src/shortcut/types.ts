@@ -1,7 +1,10 @@
+import type { PullRequestRef } from "../github/types.ts";
+
 export type StoryId = number & { readonly brand: "StoryId" };
 export type MemberId = string & { readonly brand: "MemberId" };
 export type WorkflowStateId = number & { readonly brand: "WorkflowStateId" };
 export type EpicId = number & { readonly brand: "EpicId" };
+export type PullRequestId = number & { readonly brand: "PullRequestId" };
 
 export type StoryType = "feature" | "bug" | "chore";
 export type Progress = "unstarted" | "started" | "done";
@@ -29,6 +32,7 @@ export type StorySummary = {
   epic: { id: EpicId; name: string } | null;
   appUrl: string;
   updatedAt: Date;
+  pullRequestCount: number;
 };
 
 export type StoryComment = {
@@ -44,8 +48,18 @@ export type StoryDetail = StorySummary & {
   comments: readonly StoryComment[];
 };
 
+export type LinkedPullRequest = {
+  id: PullRequestId;
+  title: string;
+  url: string;
+  closed: boolean;
+  draft: boolean;
+  github: PullRequestRef | null;
+};
+
 export type ShortcutClient = {
   loadWorkspace(): Promise<Workspace>;
   searchStories(query: string): Promise<readonly StorySummary[]>;
   getStory(id: StoryId): Promise<StoryDetail>;
+  listPullRequests(id: StoryId): Promise<readonly LinkedPullRequest[]>;
 };

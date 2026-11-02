@@ -11,6 +11,7 @@ const failingClient: ShortcutClient = {
   loadWorkspace: () => Promise.reject(new Error("offline")),
   searchStories: () => Promise.reject(new Error("HTTP 500")),
   getStory: () => Promise.reject(new Error("not found")),
+  listPullRequests: () => Promise.reject(new Error("HTTP 502")),
 };
 
 test("a failing workspace load becomes a workspaceFailed message", async () => {

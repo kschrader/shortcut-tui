@@ -47,6 +47,7 @@ export const summary = (id: number, name = `Story ${String(id)}`): StorySummary 
   epic: null,
   appUrl: `https://app.shortcut.com/story/${String(id)}`,
   updatedAt: new Date(0),
+  pullRequestCount: 0,
 });
 
 export const inState = (

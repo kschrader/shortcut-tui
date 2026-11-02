@@ -1,9 +1,12 @@
 import { z } from "zod";
+import type { PullRequestRef } from "../github/types.ts";
 import type {
   EpicId,
+  LinkedPullRequest,
   MemberId,
   MemberRef,
   Progress,
+  PullRequestId,
   StoryComment,
   StoryDetail,
   StoryId,
@@ -17,6 +20,7 @@ export const storyId = z.custom<StoryId>((value) => typeof value === "number");
 export const memberId = z.custom<MemberId>((value) => typeof value === "string");
 export const workflowStateId = z.custom<WorkflowStateId>((value) => typeof value === "number");
 export const epicId = z.custom<EpicId>((value) => typeof value === "number");
+export const pullRequestId = z.custom<PullRequestId>((value) => typeof value === "number");
 
 const timestamp = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
 
@@ -45,7 +49,7 @@ export const WhoamiSchema = z
   }));
 
 export const SUMMARY_FIELDS =
-  "id,name,story_type,workflow_state,started,completed,estimate,owners,epic,app_url,updated_at";
+  "id,name,story_type,workflow_state,started,completed,estimate,owners,epic,app_url,updated_at,pull_requests";
 export const DETAIL_FIELDS = `${SUMMARY_FIELDS},description,labels`;
 export const COMMENT_FIELDS = "id,author,text,created_at,deleted";
 
@@ -61,6 +65,7 @@ const summaryFields = {
   epic: z.object({ id: epicId, name: z.string() }).nullable(),
   app_url: z.string(),
   updated_at: timestamp,
+  pull_requests: z.object({ total_items: z.number() }),
 };
 
 const summarySchema = z.object(summaryFields);
@@ -103,6 +108,7 @@ const toSummary = (raw: z.infer<typeof summarySchema>): UnplacedSummary => ({
   epic: raw.epic,
   appUrl: raw.app_url,
   updatedAt: raw.updated_at,
+  pullRequestCount: raw.pull_requests.total_items,
 });
 
 export const StorySummarySchema = summarySchema.transform(toSummary);
@@ -135,3 +141,30 @@ export const StoryCommentSchema = z
       ? null
       : { id: raw.id, author: raw.author, text: raw.text ?? "", createdAt: raw.created_at },
   );
+
+export const PULL_REQUEST_FIELDS = "id,title,closed,draft,external_url";
+
+const GITHUB_PULL_REQUEST_URL = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)\/?$/;
+
+export const gitHubPullRequestRef = (url: string): PullRequestRef | null => {
+  const [, owner, repo, number] = GITHUB_PULL_REQUEST_URL.exec(url) ?? [];
+  if (owner === undefined || repo === undefined || number === undefined) return null;
+  return { owner, repo, number: Number(number) };
+};
+
+export const LinkedPullRequestSchema = z
+  .object({
+    id: pullRequestId,
+    title: z.string(),
+    closed: z.boolean(),
+    draft: z.boolean(),
+    external_url: z.string(),
+  })
+  .transform((raw): LinkedPullRequest => ({
+    id: raw.id,
+    title: raw.title,
+    url: raw.external_url,
+    closed: raw.closed,
+    draft: raw.draft,
+    github: gitHubPullRequestRef(raw.external_url),
+  }));
