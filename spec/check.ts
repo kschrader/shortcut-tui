@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 type Outcome = "pass" | `violation of ${string}`;
-type ModelCheck = { cfg: string; tla: string; expect: Outcome };
+type ModelCheck = { cfg: string; tla: string; expect: Outcome; budgetSeconds: number };
 
 const specDir = import.meta.dir;
 const projectRoot = join(specDir, "..");
@@ -12,14 +12,15 @@ const jarUrl = "https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2
 
 const suites: Record<string, readonly ModelCheck[]> = {
   default: [
-    { cfg: "StoryBrowser.cfg", tla: "StoryBrowser.tla", expect: "pass" },
+    { cfg: "StoryBrowser.cfg", tla: "StoryBrowser.tla", expect: "pass", budgetSeconds: 60 },
     {
       cfg: "Naive.cfg",
       tla: "StoryBrowser.tla",
       expect: "violation of ResultsComeFromLatestSearch",
+      budgetSeconds: 60,
     },
   ],
-  big: [{ cfg: "Big.cfg", tla: "StoryBrowser.tla", expect: "pass" }],
+  big: [{ cfg: "Big.cfg", tla: "StoryBrowser.tla", expect: "pass", budgetSeconds: 3600 }],
 };
 
 const say = (line: string) => process.stdout.write(`${line}\n`);
@@ -39,7 +40,7 @@ const outcomeOf = (exitCode: number, output: string): Outcome | null => {
   return null;
 };
 
-const runModelCheck = ({ cfg, tla, expect }: ModelCheck): boolean => {
+const runModelCheck = ({ cfg, tla, expect, budgetSeconds }: ModelCheck): boolean => {
   const metadir = mkdtempSync(join(tmpdir(), "shortcut-tui-tlc-"));
   const started = performance.now();
   const run = Bun.spawnSync(
@@ -59,18 +60,21 @@ const runModelCheck = ({ cfg, tla, expect }: ModelCheck): boolean => {
       relative(projectRoot, join(specDir, cfg)),
       relative(projectRoot, join(specDir, tla)),
     ],
-    { cwd: projectRoot, stdout: "pipe", stderr: "pipe" },
+    { cwd: projectRoot, stdout: "pipe", stderr: "pipe", timeout: budgetSeconds * 1000 },
   );
   rmSync(metadir, { recursive: true, force: true });
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
   const output = run.stdout.toString() + run.stderr.toString();
-  const outcome = outcomeOf(run.exitCode, output);
+  const outcome =
+    run.exitedDueToTimeout === true
+      ? `exceeded its ${String(budgetSeconds)}s budget`
+      : outcomeOf(run.exitCode, output);
   const finalCount = /^(\d+) states generated, (\d+) distinct states found/m.exec(output);
   const states =
     finalCount === null
       ? "state count not reported"
       : `${finalCount[1] ?? "?"} generated, ${finalCount[2] ?? "?"} distinct`;
-  const ok = outcome === expect;
+  const ok: boolean = outcome === expect;
   say(
     `${ok ? "ok  " : "FAIL"} ${cfg}: ${outcome ?? `unrecognized TLC result (exit ${String(run.exitCode)})`}, expected ${expect}; ${states} states in ${seconds}s`,
   );
