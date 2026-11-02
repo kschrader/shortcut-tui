@@ -81,33 +81,39 @@ const Body = (props: {
     );
   }
   const { results } = model;
-  if (results.status === "loading") {
-    return <Centered headline="Loading stories…" hint="Asking Shortcut" color={colors.accent} />;
+  switch (results.status) {
+    case "loading":
+      return <Centered headline="Loading stories…" hint="Asking Shortcut" color={colors.accent} />;
+    case "failed":
+      return (
+        <Centered
+          headline="Search failed"
+          hint={`${results.message}  ·  press r to retry or / to change the query`}
+          color={colors.error}
+        />
+      );
+    case "loaded":
+      return results.value.stories.length === 0 ? (
+        <Centered
+          headline="No stories match"
+          hint="Press / to change the query or r to refresh"
+          color={colors.dim}
+        />
+      ) : (
+        <Browser {...props} stories={results.value.stories} />
+      );
   }
-  if (results.status === "failed") {
-    return (
-      <Centered
-        headline="Search failed"
-        hint={`${results.message}  ·  press r to retry or / to change the query`}
-        color={colors.error}
-      />
-    );
-  }
-  return results.value.stories.length === 0 ? (
-    <Centered
-      headline="No stories match"
-      hint="Press / to change the query or r to refresh"
-      color={colors.dim}
-    />
-  ) : (
-    <Browser {...props} stories={results.value.stories} />
-  );
 };
 
 const status = ({ results }: Model): { text: string; color: string } => {
-  if (results.status === "loading") return { text: "loading…", color: colors.accent };
-  if (results.status === "failed") return { text: "error", color: colors.error };
-  return { text: storyCount(results.value.stories.length), color: colors.ok };
+  switch (results.status) {
+    case "loading":
+      return { text: "loading…", color: colors.accent };
+    case "failed":
+      return { text: "error", color: colors.error };
+    case "loaded":
+      return { text: storyCount(results.value.stories.length), color: colors.ok };
+  }
 };
 
 export const App = ({ model, dispatch, quit, openUrl }: Props) => {

@@ -49,22 +49,27 @@ const select = (model: Model, storyId: StoryId | null): Step => {
 };
 
 const refresh = (model: Model): Step => {
-  if (model.workspace.status === "loading") return [model, []];
-  if (model.workspace.status === "failed") {
-    const requestId = model.nextRequestId;
-    return [
-      {
-        ...model,
-        workspace: { status: "loading", requestId },
-        nextRequestId: requestIdAfter(requestId),
-      },
-      [{ type: "loadWorkspace", requestId }],
-    ];
+  switch (model.workspace.status) {
+    case "loading":
+      return [model, []];
+    case "failed": {
+      const requestId = model.nextRequestId;
+      return [
+        {
+          ...model,
+          workspace: { status: "loading", requestId },
+          nextRequestId: requestIdAfter(requestId),
+        },
+        [{ type: "loadWorkspace", requestId }],
+      ];
+    }
+    case "loaded": {
+      const [searching, searchEffects] = search(model, model.query);
+      if (model.selectedStoryId === null) return [searching, searchEffects];
+      const [fetching, detailEffects] = fetchDetail(searching, model.selectedStoryId);
+      return [fetching, [...searchEffects, ...detailEffects]];
+    }
   }
-  const [searching, searchEffects] = search(model, model.query);
-  if (model.selectedStoryId === null) return [searching, searchEffects];
-  const [fetching, detailEffects] = fetchDetail(searching, model.selectedStoryId);
-  return [fetching, [...searchEffects, ...detailEffects]];
 };
 
 export const init = (): Step => {
