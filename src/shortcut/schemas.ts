@@ -12,12 +12,15 @@ import type {
   StoryId,
   StorySummary,
   StoryType,
+  WorkflowId,
+  WorkflowState,
   WorkflowStateId,
   Workspace,
 } from "./types.ts";
 
 export const storyId = z.custom<StoryId>((value) => typeof value === "number");
 export const memberId = z.custom<MemberId>((value) => typeof value === "string");
+export const workflowId = z.custom<WorkflowId>((value) => typeof value === "number");
 export const workflowStateId = z.custom<WorkflowStateId>((value) => typeof value === "number");
 export const epicId = z.custom<EpicId>((value) => typeof value === "number");
 export const pullRequestId = z.custom<PullRequestId>((value) => typeof value === "number");
@@ -31,25 +34,52 @@ const memberRef = z.object({ id: memberId, name: z.string() }) satisfies z.ZodTy
 const nestedList = <T extends z.ZodType>(item: T) =>
   z.object({ entities: z.array(item) }).transform((list) => list.entities);
 
-const progressOf = (started: boolean, completed: boolean): Progress => {
-  if (completed) return "done";
-  return started ? "started" : "unstarted";
-};
+const canWriteWith = (scopes: readonly string[] | undefined): boolean =>
+  scopes === undefined || scopes.some((scope) => scope !== "read");
 
 export const WhoamiSchema = z
   .object({
     entity: z.object({
+      authorization: z.object({ scopes: z.array(z.string()) }).optional(),
       member: z.object({ id: memberId, name: z.string(), mention_name: z.string() }),
       workspace: z.object({ slug: z.string().min(1) }),
     }),
   })
-  .transform(({ entity }): Workspace => ({
+  .transform(({ entity }): Omit<Workspace, "workflowStates"> => ({
     me: { id: entity.member.id, name: entity.member.name, mentionName: entity.member.mention_name },
     slug: entity.workspace.slug,
+    canWrite: canWriteWith(entity.authorization?.scopes),
   }));
 
+export const WORKFLOW_STATE_FIELDS = "id,name,type,position,workflow";
+
+const progressOfStateType: Record<"backlog" | "unstarted" | "started" | "done", Progress> = {
+  backlog: "unstarted",
+  unstarted: "unstarted",
+  started: "started",
+  done: "done",
+};
+
+export const WorkflowStateSchema = z
+  .object({
+    id: workflowStateId,
+    name: z.string(),
+    type: z.enum(["backlog", "unstarted", "started", "done"]),
+    position: z.number(),
+    workflow: z.object({ id: workflowId, name: z.string() }),
+  })
+  .transform((raw): WorkflowState => ({
+    id: raw.id,
+    name: raw.name,
+    progress: progressOfStateType[raw.type],
+    position: raw.position,
+    workflow: raw.workflow,
+  }));
+
+export type WorkflowStates = ReadonlyMap<WorkflowStateId, WorkflowState>;
+
 export const SUMMARY_FIELDS =
-  "id,name,story_type,workflow_state,started,completed,estimate,owners,epic,app_url,updated_at,pull_requests";
+  "id,name,story_type,workflow_state,estimate,owners,epic,app_url,updated_at,pull_requests";
 export const DETAIL_FIELDS = `${SUMMARY_FIELDS},description,labels`;
 export const COMMENT_FIELDS = "id,author,text,created_at,deleted";
 
@@ -57,9 +87,7 @@ const summaryFields = {
   id: storyId,
   name: z.string(),
   story_type: storyType,
-  workflow_state: z.object({ id: workflowStateId, name: z.string(), workflow_name: z.string() }),
-  started: z.boolean(),
-  completed: z.boolean(),
+  workflow_state: z.object({ id: workflowStateId }),
   estimate: z.number().nullable(),
   owners: nestedList(memberRef),
   epic: z.object({ id: epicId, name: z.string() }).nullable(),
@@ -70,39 +98,27 @@ const summaryFields = {
 
 const summarySchema = z.object(summaryFields);
 
-export type UnplacedSummary = Omit<StorySummary, "state"> & {
-  state: Omit<StorySummary["state"], "position">;
-};
-
-export type StatePositions = ReadonlyMap<WorkflowStateId, number>;
-
-export const WORKFLOW_STATE_FIELDS = "id,position";
-
-export const WorkflowStatePositionSchema = z.object({ id: workflowStateId, position: z.number() });
+export type UnplacedSummary = Omit<StorySummary, "state"> & { stateId: WorkflowStateId };
 
 export const placeInWorkflow = <T extends UnplacedSummary>(
   story: T,
-  positions: StatePositions,
-): Omit<T, "state"> & { state: StorySummary["state"] } => {
-  const position = positions.get(story.state.id);
-  if (position === undefined) {
+  states: WorkflowStates,
+): Omit<T, "stateId"> & { state: WorkflowState } => {
+  const state = states.get(story.stateId);
+  if (state === undefined) {
     throw new Error(
-      `Shortcut sent a story in workflow state ${String(story.state.id)}, which the workflow state list does not include`,
+      `Shortcut sent a story in workflow state ${String(story.stateId)}, which the workflow state list does not include`,
     );
   }
-  return { ...story, state: { ...story.state, position } };
+  const { stateId: _stateId, ...placed } = story;
+  return { ...placed, state };
 };
 
 const toSummary = (raw: z.infer<typeof summarySchema>): UnplacedSummary => ({
   id: raw.id,
   name: raw.name,
   storyType: raw.story_type,
-  state: {
-    id: raw.workflow_state.id,
-    name: raw.workflow_state.name,
-    workflowName: raw.workflow_state.workflow_name,
-    progress: progressOf(raw.started, raw.completed),
-  },
+  stateId: raw.workflow_state.id,
   estimate: raw.estimate,
   owners: raw.owners,
   epic: raw.epic,

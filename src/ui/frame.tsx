@@ -9,6 +9,8 @@ import type {
   StoryId,
   StorySummary,
   Workspace,
+  WorkflowId,
+  WorkflowState,
   WorkflowStateId,
 } from "../shortcut/types.ts";
 import { App } from "./App.tsx";
@@ -22,21 +24,35 @@ export const epicId = (id: number) => z.custom<EpicId>().parse(id);
 export const ada: MemberRef = { id: memberId("ada"), name: "Ada Lovelace" };
 export const grace: MemberRef = { id: memberId("grace"), name: "Grace Hopper" };
 
-export const workspace: Workspace = { me: { ...ada, mentionName: "ada" }, slug: "acme" };
+export const engineering = { id: z.custom<WorkflowId>().parse(1), name: "Engineering" };
 
-export const ready: StorySummary["state"] = {
+export const ready: WorkflowState = {
   id: stateId(1),
   name: "Ready",
-  workflowName: "Engineering",
   progress: "unstarted",
   position: 1,
+  workflow: engineering,
 };
-export const inProgress: StorySummary["state"] = {
+export const inProgress: WorkflowState = {
   id: stateId(2),
   name: "In Progress",
-  workflowName: "Engineering",
   progress: "started",
   position: 2,
+  workflow: engineering,
+};
+export const done: WorkflowState = {
+  id: stateId(3),
+  name: "Done",
+  progress: "done",
+  position: 3,
+  workflow: engineering,
+};
+
+export const workspace: Workspace = {
+  me: { ...ada, mentionName: "ada" },
+  slug: "acme",
+  canWrite: true,
+  workflowStates: [ready, inProgress, done],
 };
 
 export const summary = (id: number, overrides: Partial<StorySummary> = {}): StorySummary => ({

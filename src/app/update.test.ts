@@ -208,14 +208,14 @@ describe("default order", () => {
     const engineering = {
       id: 1491,
       name: "In Development",
-      workflowName: "Engineering",
+      workflow: { id: 1, name: "Engineering" },
       progress: "started",
       position: 5,
     } as const;
     const marketing = {
       id: 500018025,
       name: "Ready for Deploy",
-      workflowName: "Marketing",
+      workflow: { id: 2, name: "Marketing" },
       progress: "started",
       position: 5,
     } as const;

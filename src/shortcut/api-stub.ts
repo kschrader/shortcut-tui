@@ -55,18 +55,25 @@ export const whoami = {
   },
 };
 
+export const whoamiReadWrite = {
+  ...whoami,
+  entity: { ...whoami.entity, authorization: { scopes: ["read", "write"] } },
+};
+
+const stateSlim = (id: number, name: string) => ({
+  entity_type: "workflow-state:slim",
+  id,
+  name,
+  uri: `${API}/api/v4/acme/workflow-states/${id}`,
+  workflow_name: "Engineering",
+});
+
 export const storyJson = (id: number, overrides: Record<string, unknown> = {}) => ({
   entity_type: "story",
   id,
   name: `Story ${id}`,
   story_type: "feature",
-  workflow_state: {
-    entity_type: "workflow-state",
-    id: 500000002,
-    name: "Ready for Development",
-    uri: `${API}/api/v4/acme/workflow-states/500000002`,
-    workflow_name: "Engineering",
-  },
+  workflow_state: stateSlim(500000002, "Ready for Development"),
   started: false,
   completed: false,
   estimate: null,
@@ -78,17 +85,43 @@ export const storyJson = (id: number, overrides: Record<string, unknown> = {}) =
   ...overrides,
 });
 
-export const inProgress = {
-  entity_type: "workflow-state",
-  id: 500000003,
-  name: "In Progress",
-  uri: `${API}/api/v4/acme/workflow-states/500000003`,
-  workflow_name: "Engineering",
+export const inProgress = stateSlim(500000003, "In Progress");
+export const done = stateSlim(500000005, "Done");
+
+export const ENGINEERING_WORKFLOW_ID = 1488;
+
+const workflowSlim = {
+  entity_type: "workflow:slim",
+  id: ENGINEERING_WORKFLOW_ID,
+  name: "Engineering",
+  uri: `${API}/api/v4/acme/workflows/${ENGINEERING_WORKFLOW_ID}`,
 };
 
 export const workflowStates = [
-  { entity_type: "workflow-state", id: 500000002, position: 4 },
-  { entity_type: "workflow-state", id: 500000003, position: 5 },
+  {
+    entity_type: "workflow-state",
+    id: 500000002,
+    name: "Ready for Development",
+    type: "unstarted",
+    position: 4,
+    workflow: workflowSlim,
+  },
+  {
+    entity_type: "workflow-state",
+    id: 500000003,
+    name: "In Progress",
+    type: "started",
+    position: 5,
+    workflow: workflowSlim,
+  },
+  {
+    entity_type: "workflow-state",
+    id: 500000005,
+    name: "Done",
+    type: "done",
+    position: 7,
+    workflow: workflowSlim,
+  },
 ];
 
 export const page = (entities: unknown[], next: string | null, total: number) => ({
@@ -108,16 +141,24 @@ export const commentJson = (id: number | null, author: string | null, text: stri
   deleted: false,
 });
 
-export type Call = { url: URL; authorization: string | null };
-export type Route = (url: URL) => Response | undefined;
+export type Call = { url: URL; method: string; authorization: string | null; body: unknown };
+export type Route = (url: URL, method: string) => Response | undefined;
 
 export const stub = (...routes: Route[]) => {
   const calls: Call[] = [];
   const handler = async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = new URL(input instanceof Request ? input.url : input);
-    calls.push({ url, authorization: new Headers(init?.headers).get("Authorization") });
+    const request = input instanceof Request ? input : new Request(input, init);
+    const url = new URL(request.url);
+    const text = await request.text();
+    const body: unknown = text === "" ? null : JSON.parse(text);
+    calls.push({
+      url,
+      method: request.method,
+      authorization: request.headers.get("Authorization"),
+      body,
+    });
     for (const route of [...routes, workflowStatesRoute]) {
-      const response = route(url);
+      const response = route(url, request.method);
       if (response !== undefined) return response;
     }
     return Response.json({ message: "No such route", tag: "not_found" }, { status: 404 });
@@ -128,15 +169,22 @@ export const stub = (...routes: Route[]) => {
 
 export const at =
   (path: string, body: () => Response, cursor: string | null = null): Route =>
-  (url) =>
-    url.pathname === path && url.searchParams.get("cursor") === cursor ? body() : undefined;
+  (url, method) =>
+    method === "GET" && url.pathname === path && url.searchParams.get("cursor") === cursor
+      ? body()
+      : undefined;
+
+export const patching =
+  (path: string, body: () => Response): Route =>
+  (url, method) =>
+    method === "PATCH" && url.pathname === path ? body() : undefined;
 
 export const json = (body: unknown) => () => Response.json(body);
 
 export const whoamiRoute = at("/api/v4/whoami", json(whoami));
 
-export const workflowStatesRoute: Route = (url) =>
-  url.pathname === "/api/v4/acme/workflow-states"
+export const workflowStatesRoute: Route = (url, method) =>
+  method === "GET" && url.pathname === "/api/v4/acme/workflow-states"
     ? Response.json(page(workflowStates, null, workflowStates.length))
     : undefined;
 

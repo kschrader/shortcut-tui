@@ -10,8 +10,11 @@ import {
   memberSlim,
   nested,
   whoami,
+  whoamiReadWrite,
   storyJson,
   inProgress,
+  done,
+  ENGINEERING_WORKFLOW_ID,
   workflowStates,
   page,
   commentJson,
@@ -19,21 +22,55 @@ import {
   type Route,
   stub,
   at,
+  patching,
   json,
   whoamiRoute,
   rejection,
 } from "./api-stub.ts";
-import { epicId, storyId, workflowStateId } from "./schemas.ts";
+import { epicId, storyId, workflowId, workflowStateId } from "./schemas.ts";
 
-test("loadWorkspace returns me and the workspace slug, authenticating with the bearer token", async () => {
+const engineering = { id: workflowId.parse(ENGINEERING_WORKFLOW_ID), name: "Engineering" };
+
+test("loadWorkspace returns me, the slug, the token's write access and every workflow state, authenticating with the bearer token", async () => {
   const { client, calls } = stub(whoamiRoute);
   expect(await client.loadWorkspace()).toEqual({
     me: { ...meRef, mentionName: "kurt" },
     slug: "acme",
+    canWrite: false,
+    workflowStates: [
+      {
+        id: workflowStateId.parse(500000002),
+        name: "Ready for Development",
+        progress: "unstarted",
+        position: 4,
+        workflow: engineering,
+      },
+      {
+        id: workflowStateId.parse(500000003),
+        name: "In Progress",
+        progress: "started",
+        position: 5,
+        workflow: engineering,
+      },
+      {
+        id: workflowStateId.parse(500000005),
+        name: "Done",
+        progress: "done",
+        position: 7,
+        workflow: engineering,
+      },
+    ],
   });
-  expect(calls.map((call) => [call.url.origin, call.authorization])).toEqual([
-    [API, `Bearer ${RAW_TOKEN}`],
+  expect(calls.map((call) => [call.url.pathname, call.authorization])).toEqual([
+    ["/api/v4/whoami", `Bearer ${RAW_TOKEN}`],
+    ["/api/v4/acme/workflow-states", `Bearer ${RAW_TOKEN}`],
   ]);
+  expect(calls[0]?.url.origin).toBe(API);
+});
+
+test("a token with a scope beyond read can write", async () => {
+  const { client } = stub(at("/api/v4/whoami", json(whoamiReadWrite)));
+  expect((await client.loadWorkspace()).canWrite).toBe(true);
 });
 
 test("searchStories reads every page and maps embedded names", async () => {
@@ -78,7 +115,7 @@ test("searchStories reads every page and maps embedded names", async () => {
     ),
     at(
       "/api/v4/acme/stories/search",
-      json(page([storyJson(3, { completed: true, started: true })], null, 3)),
+      json(page([storyJson(3, { workflow_state: done })], null, 3)),
       "page-2",
     ),
   );
@@ -93,9 +130,9 @@ test("searchStories reads every page and maps embedded names", async () => {
     state: {
       id: workflowStateId.parse(500000003),
       name: "In Progress",
-      workflowName: "Engineering",
       progress: "started",
       position: 5,
+      workflow: engineering,
     },
     estimate: 3,
     owners: [meRef, samRef],
@@ -109,16 +146,16 @@ test("searchStories reads every page and maps embedded names", async () => {
   expect(stories[1]?.estimate).toBeNull();
   expect(stories[2]?.state.progress).toBe("done");
 
-  const first = calls[1]?.url.searchParams;
+  const first = calls[2]?.url.searchParams;
   expect(first?.get("query")).toBe(QUERY);
   expect(first?.get("limit")).toBe("100");
   expect(first?.get("fields")?.split(",")).toContain("workflow_state");
   expect(first?.get("fields")?.split(",")).toContain("pull_requests");
   expect(calls.map((call) => call.url.pathname)).toEqual([
     "/api/v4/whoami",
-    "/api/v4/acme/stories/search",
-    "/api/v4/acme/stories/search",
     "/api/v4/acme/workflow-states",
+    "/api/v4/acme/stories/search",
+    "/api/v4/acme/stories/search",
   ]);
 });
 
@@ -285,4 +322,61 @@ test("a failed workspace load is retried on the next call", async () => {
     "Shortcut API 503 for GET /api/v4/whoami",
   );
   expect((await client.loadWorkspace()).slug).toBe("acme");
+});
+
+const movingStory42 = (response: () => Response) =>
+  stub(whoamiRoute, patching("/api/v4/acme/stories/42", response));
+
+test("moveStory PATCHes only the workflow state and returns the story placed in its new state", async () => {
+  const { client, calls } = movingStory42(
+    json({
+      $schema: `${API}/api/v4/schemas/StoryEntityWrapper`,
+      entity: storyJson(42, { workflow_state: inProgress, updated_at: "2026-11-02T10:00:00Z" }),
+    }),
+  );
+  const moved = await client.moveStory(storyId.parse(42), workflowStateId.parse(500000003));
+  expect(moved.state).toEqual({
+    id: workflowStateId.parse(500000003),
+    name: "In Progress",
+    progress: "started",
+    position: 5,
+    workflow: engineering,
+  });
+  expect(moved.updatedAt).toEqual(new Date("2026-11-02T10:00:00Z"));
+  const patch = calls.find((call) => call.method === "PATCH");
+  expect(patch?.url.pathname).toBe("/api/v4/acme/stories/42");
+  expect(patch?.body).toEqual({ workflow_state_id: 500000003 });
+  expect(patch?.url.searchParams.get("fields")?.split(",")).toContain("workflow_state");
+  expect(calls.filter((call) => call.method !== "GET")).toHaveLength(1);
+});
+
+test("a 403 on a move says the token is read-only and how to get a read-write one", async () => {
+  const { client } = movingStory42(() =>
+    Response.json({ message: "Forbidden", tag: "forbidden" }, { status: 403 }),
+  );
+  const { message } = await rejection(
+    client.moveStory(storyId.parse(42), workflowStateId.parse(500000003)),
+  );
+  expect(message).toContain("403");
+  expect(message).toContain("read-only");
+  expect(message).toContain("read-write sct_ token");
+  expect(message).not.toContain(RAW_TOKEN);
+});
+
+test("a 422 on a move names the method, path and tag", async () => {
+  const { client } = movingStory42(() =>
+    Response.json(
+      {
+        message: "workflow_state_id is not in the story's workflow",
+        tag: "invalid_workflow_state",
+      },
+      { status: 422 },
+    ),
+  );
+  const { message } = await rejection(
+    client.moveStory(storyId.parse(42), workflowStateId.parse(500000003)),
+  );
+  expect(message).toBe(
+    "Shortcut API 422 for PATCH /api/v4/acme/stories/42 (invalid_workflow_state)",
+  );
 });

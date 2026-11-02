@@ -37,7 +37,7 @@ const groupByState = (stories: readonly StorySummary[]): StateGroup[] => {
 };
 
 const Divider = ({ group, width }: { group: StateGroup; width: number }) => {
-  const label = `── ${group.state.name}  ${String(group.stories.length)}  · ${group.state.workflowName} `;
+  const label = `── ${group.state.name}  ${String(group.stories.length)}  · ${group.state.workflow.name} `;
   return (
     <box height={1}>
       <text wrapMode="none" fg={colors.dim}>

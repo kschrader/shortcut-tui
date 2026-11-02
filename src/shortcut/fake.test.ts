@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { defaultQueryFor } from "../app/update.ts";
 import { createFakeShortcutClient } from "./fake.ts";
-import { storyId } from "./schemas.ts";
+import { storyId, workflowStateId } from "./schemas.ts";
 
 test("stories span every progress and carry owner and state names", async () => {
   const stories = await createFakeShortcutClient().searchStories("");
@@ -67,4 +67,79 @@ test("stories that link pull requests list exactly as many as their summary coun
   expect(linked.map((prs) => prs.length)).toEqual(stories.map((story) => story.pullRequestCount));
   expect(linked.flat().length).toBeGreaterThanOrEqual(5);
   for (const pr of linked.flat()) expect(pr.github).not.toBeNull();
+});
+
+test("the demo workspace can write and lists the states a story can move to", async () => {
+  const workspace = await createFakeShortcutClient().loadWorkspace();
+  expect(workspace.canWrite).toBe(true);
+  expect(workspace.workflowStates.map((state) => state.name)).toEqual([
+    "Backlog",
+    "Ready for Development",
+    "In Progress",
+    "In Review",
+    "Done",
+  ]);
+});
+
+test("moveStory changes the state that later searches and getStory report, for that client only", async () => {
+  const client = createFakeShortcutClient();
+  const other = createFakeShortcutClient();
+  const { workflowStates } = await client.loadWorkspace();
+  const [story] = await client.searchStories("owner:me is:started");
+  if (story === undefined) throw new Error("expected a started story");
+  const done = workflowStates.find((state) => state.progress === "done");
+  if (done === undefined) throw new Error("expected a done state");
+
+  const moved = await client.moveStory(story.id, done.id);
+  expect(moved.id).toBe(story.id);
+  expect(moved.state).toEqual(done);
+  expect(moved.updatedAt.getTime()).toBeGreaterThan(story.updatedAt.getTime());
+  expect((await client.getStory(story.id)).state).toEqual(done);
+  expect((await client.searchStories("owner:me is:started")).map((s) => s.id)).not.toContain(
+    story.id,
+  );
+  expect((await other.getStory(story.id)).state).toEqual(story.state);
+});
+
+test("moveStory rejects an unknown state with a 422 and leaves the story alone", async () => {
+  const client = createFakeShortcutClient();
+  const [story] = await client.searchStories("owner:me");
+  if (story === undefined) throw new Error("expected a story");
+  const { message } = await client.moveStory(story.id, workflowStateId.parse(1)).then(
+    () => ({ message: "resolved" }),
+    (error: unknown) => ({ message: error instanceof Error ? error.message : "non-error" }),
+  );
+  expect(message).toContain("422");
+  expect(message).toContain(`/stories/${story.id}`);
+  expect((await client.getStory(story.id)).state).toEqual(story.state);
+});
+
+test("an injected failure rejects the move with its message and leaves the story alone", async () => {
+  const client = createFakeShortcutClient({
+    failMove: (story, target) => `cannot move ${story.name} to ${target.name}`,
+  });
+  const { workflowStates } = await client.loadWorkspace();
+  const [story] = await client.searchStories("owner:me");
+  const target = workflowStates[0];
+  if (story === undefined || target === undefined) throw new Error("expected fixtures");
+  const message = await client.moveStory(story.id, target.id).then(
+    () => "resolved",
+    (error: unknown) => (error instanceof Error ? error.message : "non-error"),
+  );
+  expect(message).toBe(`cannot move ${story.name} to ${target.name}`);
+  expect((await client.getStory(story.id)).state).toEqual(story.state);
+});
+
+test("moveDelayMs delays moves without delaying reads", async () => {
+  const client = createFakeShortcutClient({ moveDelayMs: 40 });
+  const { workflowStates } = await client.loadWorkspace();
+  const [story] = await client.searchStories("owner:me");
+  const target = workflowStates[0];
+  if (story === undefined || target === undefined) throw new Error("expected fixtures");
+  const readStart = performance.now();
+  await client.getStory(story.id);
+  expect(performance.now() - readStart).toBeLessThan(30);
+  const moveStart = performance.now();
+  await client.moveStory(story.id, target.id);
+  expect(performance.now() - moveStart).toBeGreaterThanOrEqual(35);
 });

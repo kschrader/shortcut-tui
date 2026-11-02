@@ -2,6 +2,7 @@ import type { PullRequestRef } from "../github/types.ts";
 
 export type StoryId = number & { readonly brand: "StoryId" };
 export type MemberId = string & { readonly brand: "MemberId" };
+export type WorkflowId = number & { readonly brand: "WorkflowId" };
 export type WorkflowStateId = number & { readonly brand: "WorkflowStateId" };
 export type EpicId = number & { readonly brand: "EpicId" };
 export type PullRequestId = number & { readonly brand: "PullRequestId" };
@@ -11,22 +12,26 @@ export type Progress = "unstarted" | "started" | "done";
 
 export type MemberRef = { id: MemberId; name: string };
 
+export type WorkflowState = {
+  id: WorkflowStateId;
+  name: string;
+  progress: Progress;
+  position: number;
+  workflow: { id: WorkflowId; name: string };
+};
+
 export type Workspace = {
   me: { id: MemberId; name: string; mentionName: string };
   slug: string;
+  canWrite: boolean;
+  workflowStates: readonly WorkflowState[];
 };
 
 export type StorySummary = {
   id: StoryId;
   name: string;
   storyType: StoryType;
-  state: {
-    id: WorkflowStateId;
-    name: string;
-    workflowName: string;
-    progress: Progress;
-    position: number;
-  };
+  state: WorkflowState;
   estimate: number | null;
   owners: readonly MemberRef[];
   epic: { id: EpicId; name: string } | null;
@@ -62,4 +67,5 @@ export type ShortcutClient = {
   searchStories(query: string): Promise<readonly StorySummary[]>;
   getStory(id: StoryId): Promise<StoryDetail>;
   listPullRequests(id: StoryId): Promise<readonly LinkedPullRequest[]>;
+  moveStory(id: StoryId, stateId: WorkflowStateId): Promise<StorySummary>;
 };

@@ -16,9 +16,9 @@ import {
   SUMMARY_FIELDS,
   WhoamiSchema,
   WORKFLOW_STATE_FIELDS,
-  WorkflowStatePositionSchema,
-  type StatePositions,
+  WorkflowStateSchema,
   type UnplacedSummary,
+  type WorkflowStates,
 } from "./schemas.ts";
 import type { ApiToken } from "./token.ts";
 import type {
@@ -26,7 +26,7 @@ import type {
   ShortcutClient,
   StoryComment,
   StoryId,
-  WorkflowStateId,
+  WorkflowState,
   Workspace,
 } from "./types.ts";
 
@@ -39,10 +39,13 @@ export type ClientOptions = {
 const SEARCH_LIMIT = 500;
 const PAGE_SIZE = 100;
 
+export const READ_ONLY_TOKEN_HINT =
+  "this token is read-only. Moving stories needs a read-write sct_ token from https://app.shortcut.com/settings/account/api-tokens";
+
 type Session = {
   workspace: Workspace;
   api: ShortcutWorkspaceApi;
-  positions: Promise<StatePositions> | null;
+  states: Promise<WorkflowStates>;
 };
 
 const describeFailure = (error: unknown): Error => {
@@ -57,43 +60,55 @@ const describeFailure = (error: unknown): Error => {
   return new Error(`Shortcut API ${summary.status} for ${summary.method} ${summary.path}${tag}`);
 };
 
-const attempt = async <T>(run: () => Promise<T>): Promise<T> => {
+const describeMoveFailure = (error: unknown): Error =>
+  summarizeShortcutV4Error(error)?.status === 403
+    ? new Error(`Shortcut refused the move (403): ${READ_ONLY_TOKEN_HINT}`)
+    : describeFailure(error);
+
+const attempt = async <T>(run: () => Promise<T>, describe = describeFailure): Promise<T> => {
   try {
     return await run();
   } catch (error) {
-    throw describeFailure(error);
+    throw describe(error);
   }
 };
+
+const byId = (states: readonly WorkflowState[]): WorkflowStates =>
+  new Map(states.map((state) => [state.id, state]));
 
 export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): ShortcutClient => {
   const client = new ShortcutV4Client({ token, baseUrl, fetch });
   let session: Promise<Session> | null = null;
 
-  const openSession = async (): Promise<Session> => {
-    const workspace = WhoamiSchema.parse(await client.getWhoami());
-    return { workspace, api: client.workspace(workspace.slug), positions: null };
-  };
-
-  const loadPositions = async (api: ShortcutWorkspaceApi): Promise<StatePositions> => {
-    const positions = new Map<WorkflowStateId, number>();
+  const loadStates = async (api: ShortcutWorkspaceApi): Promise<WorkflowState[]> => {
+    const states: WorkflowState[] = [];
     for await (const raw of client.paginate(
       api.listWorkflowStates({ fields: WORKFLOW_STATE_FIELDS, limit: PAGE_SIZE }),
     )) {
-      const state = WorkflowStatePositionSchema.parse(raw);
-      positions.set(state.id, state.position);
+      states.push(WorkflowStateSchema.parse(raw));
     }
-    return positions;
+    return states;
   };
 
-  const positionsCovering = async (
+  const openSession = async (): Promise<Session> => {
+    const whoami = WhoamiSchema.parse(await client.getWhoami());
+    const api = client.workspace(whoami.slug);
+    const workflowStates = await loadStates(api);
+    return {
+      workspace: { ...whoami, workflowStates },
+      api,
+      states: Promise.resolve(byId(workflowStates)),
+    };
+  };
+
+  const statesCovering = async (
     current: Session,
     stories: readonly UnplacedSummary[],
-  ): Promise<StatePositions> => {
-    current.positions ??= loadPositions(current.api);
-    const cached = await current.positions;
-    if (stories.every((story) => cached.has(story.state.id))) return cached;
-    current.positions = loadPositions(current.api);
-    return current.positions;
+  ): Promise<WorkflowStates> => {
+    const cached = await current.states;
+    if (stories.every((story) => cached.has(story.stateId))) return cached;
+    current.states = loadStates(current.api).then(byId);
+    return current.states;
   };
 
   const connect = async (): Promise<Session> => {
@@ -132,8 +147,8 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
           stories.push(StorySummarySchema.parse(raw));
           if (stories.length === SEARCH_LIMIT) break;
         }
-        const positions = await positionsCovering(current, stories);
-        return stories.map((story) => placeInWorkflow(story, positions));
+        const states = await statesCovering(current, stories);
+        return stories.map((story) => placeInWorkflow(story, states));
       }),
 
     getStory: (id) =>
@@ -145,8 +160,8 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
           listComments(api, id),
         ]);
         const body = StoryBodySchema.parse(entity);
-        const positions = await positionsCovering(current, [body]);
-        return { ...placeInWorkflow(body, positions), comments };
+        const states = await statesCovering(current, [body]);
+        return { ...placeInWorkflow(body, states), comments };
       }),
 
     listPullRequests: (id) =>
@@ -160,5 +175,17 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
         }
         return pullRequests;
       }),
+
+    moveStory: (id, stateId) =>
+      attempt(async () => {
+        const current = await connect();
+        const { entity } = await current.api.updateStory(
+          id,
+          { workflow_state_id: stateId },
+          { fields: SUMMARY_FIELDS },
+        );
+        const story = StorySummarySchema.parse(entity);
+        return placeInWorkflow(story, await statesCovering(current, [story]));
+      }, describeMoveFailure),
   };
 };

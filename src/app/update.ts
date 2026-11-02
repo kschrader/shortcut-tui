@@ -73,7 +73,7 @@ const progressRank: Record<Progress, number> = { unstarted: 0, started: 1, done:
 const furthestAlongFirst = (a: StorySummary, b: StorySummary) =>
   progressRank[b.state.progress] - progressRank[a.state.progress] ||
   b.state.position - a.state.position ||
-  a.state.workflowName.localeCompare(b.state.workflowName) ||
+  a.state.workflow.name.localeCompare(b.state.workflow.name) ||
   a.state.id - b.state.id ||
   b.updatedAt.getTime() - a.updatedAt.getTime();
 

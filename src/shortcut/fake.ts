@@ -1,4 +1,11 @@
-import { epicId, memberId, pullRequestId, storyId, workflowStateId } from "./schemas.ts";
+import {
+  epicId,
+  memberId,
+  pullRequestId,
+  storyId,
+  workflowId,
+  workflowStateId,
+} from "./schemas.ts";
 import type {
   LinkedPullRequest,
   MemberRef,
@@ -8,11 +15,14 @@ import type {
   StoryDetail,
   StorySummary,
   StoryType,
+  WorkflowState,
   Workspace,
 } from "./types.ts";
 
 export type FakeOptions = {
   delayMs?: number;
+  moveDelayMs?: number;
+  failMove?: (story: StorySummary, target: WorkflowState) => string | null;
 };
 
 const member = (id: string, name: string): MemberRef => ({ id: memberId.parse(id), name });
@@ -22,19 +32,14 @@ const alex = member("00000000-0000-4000-8000-000000000002", "Alex Rivera");
 const priya = member("00000000-0000-4000-8000-000000000003", "Priya Shah");
 const sam = member("00000000-0000-4000-8000-000000000004", "Sam Okafor");
 
-const workspace: Workspace = { me: { ...me, mentionName: "demo" }, slug: "demo" };
+const engineering = { id: workflowId.parse(500000100), name: "Engineering" };
 
-const state = (
-  id: number,
-  name: string,
-  progress: Progress,
-  position: number,
-): StorySummary["state"] => ({
+const state = (id: number, name: string, progress: Progress, position: number): WorkflowState => ({
   id: workflowStateId.parse(id),
   name,
-  workflowName: "Engineering",
   progress,
   position,
+  workflow: engineering,
 });
 
 const backlog = state(500000001, "Backlog", "unstarted", 0);
@@ -42,6 +47,21 @@ const ready = state(500000002, "Ready for Development", "unstarted", 1);
 const inProgress = state(500000003, "In Progress", "started", 2);
 const inReview = state(500000004, "In Review", "started", 3);
 const done = state(500000005, "Done", "done", 4);
+
+export const DEMO_WORKFLOW_STATES: readonly WorkflowState[] = [
+  backlog,
+  ready,
+  inProgress,
+  inReview,
+  done,
+];
+
+const workspace: Workspace = {
+  me: { ...me, mentionName: "demo" },
+  slug: "demo",
+  canWrite: true,
+  workflowStates: DEMO_WORKFLOW_STATES,
+};
 
 const epics = {
   shortcuts: { id: epicId.parse(90), name: "Keyboard-first navigation" },
@@ -254,7 +274,7 @@ const pullRequestsByStory = new Map(
   seeds.map((seed) => [storyId.parse(seed.id), seed.pullRequests ?? []]),
 );
 
-const stories: readonly StoryDetail[] = seeds.map((seed) => ({
+const seededStories: readonly StoryDetail[] = seeds.map((seed) => ({
   id: storyId.parse(seed.id),
   name: seed.name,
   storyType: seed.storyType,
@@ -270,6 +290,13 @@ const stories: readonly StoryDetail[] = seeds.map((seed) => ({
   comments: seed.comments,
 }));
 
+const summaryOf = ({
+  description: _description,
+  labels: _labels,
+  comments: _comments,
+  ...summary
+}: StoryDetail): StorySummary => summary;
+
 const matchesQuery = (story: StoryDetail, query: string): boolean =>
   query
     .split(/\s+/)
@@ -283,33 +310,55 @@ const matchesQuery = (story: StoryDetail, query: string): boolean =>
       return story.name.toLowerCase().includes(term.toLowerCase());
     });
 
-export const createFakeShortcutClient = ({ delayMs = 0 }: FakeOptions = {}): ShortcutClient => {
-  const pause = () => (delayMs > 0 ? Bun.sleep(delayMs) : Promise.resolve());
+const pause = (ms: number) => (ms > 0 ? Bun.sleep(ms) : Promise.resolve());
+
+export const createFakeShortcutClient = ({
+  delayMs = 0,
+  moveDelayMs = delayMs,
+  failMove = () => null,
+}: FakeOptions = {}): ShortcutClient => {
+  const stories = new Map(seededStories.map((story) => [story.id, story]));
 
   return {
     async loadWorkspace() {
-      await pause();
+      await pause(delayMs);
       return workspace;
     },
 
     async searchStories(query) {
-      await pause();
-      return stories
-        .filter((story) => matchesQuery(story, query))
-        .map(({ description: _d, labels: _l, comments: _c, ...summary }) => summary);
+      await pause(delayMs);
+      return [...stories.values()].filter((story) => matchesQuery(story, query)).map(summaryOf);
     },
 
     async getStory(id) {
-      await pause();
-      const story = stories.find((candidate) => candidate.id === id);
+      await pause(delayMs);
+      const story = stories.get(id);
       if (story === undefined)
         throw new Error(`Shortcut API 404 for GET /api/v4/demo/stories/${id}`);
       return story;
     },
 
     async listPullRequests(id) {
-      await pause();
+      await pause(delayMs);
       return pullRequestsByStory.get(id) ?? [];
+    },
+
+    async moveStory(id, stateId) {
+      await pause(moveDelayMs);
+      const story = stories.get(id);
+      if (story === undefined)
+        throw new Error(`Shortcut API 404 for PATCH /api/v4/demo/stories/${id}`);
+      const target = DEMO_WORKFLOW_STATES.find((candidate) => candidate.id === stateId);
+      if (target === undefined) {
+        throw new Error(
+          `Shortcut API 422 for PATCH /api/v4/demo/stories/${id} (invalid_workflow_state)`,
+        );
+      }
+      const refusal = failMove(summaryOf(story), target);
+      if (refusal !== null) throw new Error(refusal);
+      const moved = { ...story, state: target, updatedAt: new Date() };
+      stories.set(id, moved);
+      return summaryOf(moved);
     },
   };
 };
