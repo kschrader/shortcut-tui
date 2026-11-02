@@ -212,7 +212,7 @@ export const createGitHubClient = ({
       }
     }
     return new Map(
-      [...answers].map(([key, { raw }]) => [key, raw === null ? "unknown" : classify(raw)]),
+      [...answers].flatMap(([key, { raw }]) => (raw === null ? [] : [[key, classify(raw)]])),
     );
   },
 });

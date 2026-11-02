@@ -120,7 +120,7 @@ test("owner and repository names travel as variables, not inside the query", asy
   expect(query).not.toContain("viewer");
 });
 
-test("pull requests GitHub cannot resolve are unknown while the rest still classify", async () => {
+test("pull requests GitHub cannot resolve are left unanswered while the rest still classify", async () => {
   const { client } = fakeGitHub({
     "useshortcut/monorepo#1": raw({ merged: true, state: "MERGED" }),
   });
@@ -129,7 +129,7 @@ test("pull requests GitHub cannot resolve are unknown while the rest still class
     ref("monorepo", 2),
     ref("deleted-repo", 3),
   ]);
-  expect([...states.values()]).toEqual(["merged", "unknown", "unknown"]);
+  expect(states).toEqual(new Map([[pullRequestKey(ref("monorepo", 1)), "merged"]]));
 });
 
 test("many pull requests are split into concurrent queries of at most 10", async () => {

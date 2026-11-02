@@ -1,4 +1,4 @@
-import { pullRequestKey, type GitHubClient } from "../github/types.ts";
+import { pullRequestKey, type GitHubClient, type PullRequestState } from "../github/types.ts";
 import type { LinkedPullRequest, ShortcutClient, StoryId } from "../shortcut/types.ts";
 import type { Effect, Msg, StoryPullRequests } from "./model.ts";
 
@@ -6,6 +6,11 @@ export type Clients = { shortcut: ShortcutClient; github: GitHubClient };
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+const shortcutState = ({ closed, draft }: LinkedPullRequest): PullRequestState => {
+  if (closed) return "closed";
+  return draft ? "draft" : "unknown";
+};
 
 const pullRequestsOf = async (
   { shortcut, github }: Clients,
@@ -26,7 +31,8 @@ const pullRequestsOf = async (
       pullRequests.map((pr) => ({
         ...pr,
         state:
-          pr.github === null ? "unknown" : (states.get(pullRequestKey(pr.github)) ?? "unknown"),
+          (pr.github === null ? undefined : states.get(pullRequestKey(pr.github))) ??
+          shortcutState(pr),
       })),
     ]),
   );

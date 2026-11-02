@@ -1,6 +1,12 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { pullRequestKey, type GitHubClient, type PullRequestRef } from "../github/types.ts";
+import { storyMergeStatus } from "../github/pull-request-state.ts";
+import {
+  pullRequestKey,
+  type GitHubClient,
+  type PullRequestRef,
+  type PullRequestState,
+} from "../github/types.ts";
 import type {
   LinkedPullRequest,
   PullRequestId,
@@ -150,4 +156,72 @@ test("a failing move becomes a moveFailed message for its story", async () => {
   expect(
     await runEffect(failing(failingClient), { type: "moveStory", requestId, storyId, stateId }),
   ).toEqual({ type: "moveFailed", requestId, storyId, message: "HTTP 403" });
+});
+
+const answeredBy = (answers: [PullRequestRef, PullRequestState][]): GitHubClient => ({
+  pullRequestStates: async () =>
+    new Map(answers.map(([ref, state]) => [pullRequestKey(ref), state])),
+});
+
+const loadedStates = async (github: GitHubClient, links: readonly LinkedPullRequest[]) => {
+  const shortcut: ShortcutClient = { ...failingClient, listPullRequests: async () => links };
+  const msg = await runEffect(
+    { shortcut, github },
+    { type: "loadPullRequests", requestId, storyIds: [storyId] },
+  );
+  if (msg.type !== "pullRequestsLoaded") throw new Error(`expected a load, got ${msg.type}`);
+  return (msg.pullRequests.get(storyId) ?? []).map((pr) => pr.state);
+};
+
+const gitlabMr = (shortcutSays: { closed?: boolean; draft?: boolean }) => ({
+  ...gitlab,
+  ...shortcutSays,
+});
+const unanswered = (shortcutSays: { closed?: boolean; draft?: boolean }) => ({
+  ...toggle,
+  ...shortcutSays,
+});
+
+const fallbackCases: [string, LinkedPullRequest, PullRequestState][] = [
+  ["a non-GitHub link Shortcut says is closed", gitlabMr({ closed: true }), "closed"],
+  ["a non-GitHub link Shortcut says is a draft", gitlabMr({ draft: true }), "draft"],
+  ["a closed draft on a non-GitHub host", gitlabMr({ closed: true, draft: true }), "closed"],
+  ["an open non-GitHub link", gitlabMr({}), "unknown"],
+  [
+    "a GitHub link GitHub left unanswered, closed in Shortcut",
+    unanswered({ closed: true }),
+    "closed",
+  ],
+  [
+    "a GitHub link GitHub left unanswered, a draft in Shortcut",
+    unanswered({ draft: true }),
+    "draft",
+  ],
+  ["a GitHub link GitHub left unanswered, open in Shortcut", unanswered({}), "unknown"],
+];
+
+describe("a pull request GitHub did not answer falls back to what Shortcut knows", () => {
+  test.each(fallbackCases)("%s", async (_name, link, expected) => {
+    expect(await loadedStates(answeredBy([]), [link])).toEqual([expected]);
+  });
+});
+
+test("GitHub's answer outranks Shortcut's flags for a pull request it answered", async () => {
+  const states = await loadedStates(answeredBy([[monorepo(3917), "merged"]]), [
+    unanswered({ closed: true }),
+  ]);
+  expect(states).toEqual(["merged"]);
+});
+
+test("a merged GitHub pull request plus a closed GitLab merge request makes the story merged", async () => {
+  const states = await loadedStates(answeredBy([[monorepo(3917), "merged"]]), [
+    toggle,
+    gitlabMr({ closed: true }),
+  ]);
+  expect(storyMergeStatus(states)).toBe("merged");
+});
+
+test("a merged GitHub pull request plus an open GitLab merge request leaves the story open", async () => {
+  const states = await loadedStates(answeredBy([[monorepo(3917), "merged"]]), [toggle, gitlab]);
+  expect(storyMergeStatus(states)).toBe("unknown");
 });

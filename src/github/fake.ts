@@ -24,9 +24,10 @@ export const createFakeGitHubClient = ({ delayMs = 0 }: FakeGitHubOptions = {}):
   async pullRequestStates(refs) {
     if (delayMs > 0) await Bun.sleep(delayMs);
     return new Map(
-      refs.map((ref) => {
+      refs.flatMap((ref) => {
         const key = pullRequestKey(ref);
-        return [key, states.get(key) ?? "unknown"];
+        const state = states.get(key);
+        return state === undefined ? [] : [[key, state]];
       }),
     );
   },
