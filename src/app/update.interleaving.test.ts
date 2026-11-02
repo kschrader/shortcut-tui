@@ -2,6 +2,14 @@ import { expect, test } from "bun:test";
 import { z } from "zod";
 import type { PullRequestId } from "../shortcut/types.ts";
 import { detail, summary, workspaceFor } from "./fixtures.ts";
+import {
+  moveViolations,
+  pickedTarget,
+  serverState,
+  shownStories,
+  stateById,
+  type World,
+} from "./interleaving.moves.ts";
 import type { Effect, Model, Msg, PullRequestView } from "./model.ts";
 import { init, update } from "./update.ts";
 
@@ -43,19 +51,31 @@ const pullRequestAnswer = (requestId: number, index: number): PullRequestView =>
   state: "ready",
 });
 
-const respond = (random: Random, effect: Effect, succeed: boolean): Msg => {
+const respond = (
+  random: Random,
+  effect: Effect,
+  succeed: boolean,
+  world: World,
+  model: Model,
+): Msg => {
   const { requestId } = effect;
   switch (effect.type) {
     case "loadWorkspace":
       return succeed
-        ? { type: "workspaceLoaded", requestId, workspace: workspaceFor(answerMark(requestId)) }
+        ? {
+            type: "workspaceLoaded",
+            requestId,
+            workspace: workspaceFor(answerMark(requestId), world.canWrite),
+          }
         : { type: "workspaceFailed", requestId, message: answerMark(requestId) };
     case "searchStories": {
       if (!succeed) return { type: "searchFailed", requestId, message: answerMark(requestId) };
+      const seen = random() < 0.5 ? (world.snapshots.get(requestId) ?? world.server) : world.server;
       const ids = storyPool.filter(() => random() < 0.6).toSorted(() => random() - 0.5);
       const stories = ids.map((id) => ({
         ...summary(id, storyName(effect.query, requestId, id)),
         pullRequestCount: random() < 0.5 ? 0 : 1 + Math.floor(random() * 2),
+        state: serverState(seen, summary(id).id),
       }));
       return { type: "searchSucceeded", requestId, stories };
     }
@@ -82,6 +102,31 @@ const respond = (random: Random, effect: Effect, succeed: boolean): Msg => {
             ),
           }
         : { type: "pullRequestsFailed", requestId, message: answerMark(requestId) };
+    case "moveStory": {
+      const outcome = world.moveOutcomes.get(requestId) ?? succeed;
+      world.moveOutcomes.set(requestId, outcome);
+      if (!outcome) {
+        return {
+          type: "moveFailed",
+          requestId,
+          storyId: effect.storyId,
+          message: answerMark(requestId),
+        };
+      }
+      const state = stateById(effect.stateId);
+      world.server.set(effect.storyId, state);
+      const shown = shownStories(model).find((story) => story.id === effect.storyId);
+      return {
+        type: "moveSucceeded",
+        requestId,
+        storyId: effect.storyId,
+        story: {
+          ...(shown ?? summary(effect.storyId)),
+          state,
+          updatedAt: new Date(1_000 * requestId),
+        },
+      };
+    }
   }
 };
 
@@ -93,22 +138,27 @@ const userMsg = (random: Random): Msg =>
     { type: "queryEditCancelled" },
     { type: "querySubmitted" },
     { type: "refreshRequested" },
+    { type: "movePickerOpened" },
+    { type: "movePickerMoved", delta: pick(random, [-1, 1]) },
+    { type: "movePickerConfirmed" },
+    { type: "movePickerClosed" },
+    { type: "readOnlyNoticeClosed" },
   ]);
 
 const pullRequestViolations = (model: Model, issued: readonly Effect[]): string[] => {
   const found: string[] = [];
-  const shownStories = model.results.status === "loaded" ? model.results.value.stories : [];
+  const shown = shownStories(model);
   const latest = issued.findLast((effect) => effect.type === "loadPullRequests");
   const { pullRequests } = model;
   switch (pullRequests.status) {
     case "loading": {
       const effect = issued.find((candidate) => candidate.requestId === pullRequests.requestId);
-      const linking = shownStories.filter((story) => story.pullRequestCount > 0);
+      const linking = shown.filter((story) => story.pullRequestCount > 0);
       if (
         effect?.type !== "loadPullRequests" ||
         !Bun.deepEquals(
-          effect.storyIds,
-          linking.map((story) => story.id),
+          effect.storyIds.toSorted((a, b) => a - b),
+          linking.map((story) => story.id).toSorted((a, b) => a - b),
         )
       ) {
         found.push("pull requests wait on a load that is not for the shown stories");
@@ -117,7 +167,7 @@ const pullRequestViolations = (model: Model, issued: readonly Effect[]): string[
     }
     case "loaded":
       for (const [storyId, views] of pullRequests.value) {
-        if (!shownStories.some((story) => story.id === storyId)) {
+        if (!shown.some((story) => story.id === storyId)) {
           found.push(
             `pull requests shown for story ${String(storyId)}, which is not in the results`,
           );
@@ -138,7 +188,7 @@ const pullRequestViolations = (model: Model, issued: readonly Effect[]): string[
   return found;
 };
 
-const violations = (model: Model, issued: readonly Effect[]): string[] => {
+const violations = (model: Model, issued: readonly Effect[], world: World): string[] => {
   const found: string[] = [];
   const issuedById = new Map(issued.map((effect) => [effect.requestId, effect]));
   if (issuedById.size !== issued.length) found.push("two effects share a request id");
@@ -176,6 +226,7 @@ const violations = (model: Model, issued: readonly Effect[]): string[] => {
     }
   }
   found.push(...pullRequestViolations(model, issued));
+  found.push(...moveViolations(model, issued, world));
   if (model.selectedStoryId !== null && !model.details.has(model.selectedStoryId)) {
     found.push("selected story has no detail entry");
   }
@@ -220,22 +271,43 @@ const awaitedRequests = (model: Model) => [
   ...[...model.details.values()].flatMap((remote) =>
     remote.status === "loading" ? [remote.requestId] : [],
   ),
+  ...[...model.moves.values()].flatMap((move) =>
+    move.status === "saving" ? [move.requestId] : [],
+  ),
 ];
 
 const explore = (seed: number): string[] => {
   const random = mulberry32(seed);
+  const world: World = {
+    canWrite: seed % 5 !== 0,
+    server: new Map(),
+    snapshots: new Map(),
+    delivered: new Set(),
+    moveOutcomes: new Map(),
+    intents: new Map(),
+  };
   let [model, issued] = init();
   const trail: string[] = [];
   const apply = (msg: Msg, isResponse: boolean) => {
+    if (msg.type === "movePickerConfirmed") {
+      const picked = pickedTarget(model);
+      if (picked !== null) world.intents.set(picked[0], picked[1]);
+    }
+    if (isResponse && "requestId" in msg) world.delivered.add(msg.requestId);
     const [next, effects] = update(model, msg);
     model = next;
     issued = [...issued, ...effects];
+    for (const effect of effects) {
+      if (effect.type === "searchStories") {
+        world.snapshots.set(effect.requestId, new Map(world.server));
+      }
+    }
     trail.push(msg.type);
     const [redelivered, redeliveryEffects] = update(model, msg);
     const redeliveryChanged =
       isResponse && (redeliveryEffects.length > 0 || !Bun.deepEquals(redelivered, model));
     const problems = [
-      ...violations(model, issued),
+      ...violations(model, issued, world),
       ...(redeliveryChanged ? ["redelivering the same response changed the model"] : []),
     ];
     return problems.map(
@@ -245,25 +317,36 @@ const explore = (seed: number): string[] => {
 
   for (let step = 0; step < stepsPerSeed; step++) {
     const deliver = random() < 0.55;
-    const msg = deliver ? respond(random, pick(random, issued), random() < 0.8) : userMsg(random);
+    const msg = deliver
+      ? respond(random, pick(random, issued), random() < 0.8, world, model)
+      : userMsg(random);
     const problems = apply(msg, deliver);
     if (problems.length > 0) return problems;
   }
 
   for (let round = 0; round < 10; round++) {
     const awaited = awaitedRequests(model);
-    if (awaited.length === 0) return [];
+    if (awaited.length === 0) break;
     for (const requestId of awaited) {
       const effect = issued.find((candidate) => candidate.requestId === requestId);
       if (effect === undefined) return [`seed ${String(seed)}: awaited request never sent`];
-      const problems = apply(respond(random, effect, true), true);
+      const problems = apply(respond(random, effect, true, world, model), true);
       if (problems.length > 0) return problems;
     }
   }
-  return [`seed ${String(seed)}: requests still loading after every response was delivered`];
+  if (awaitedRequests(model).length > 0) {
+    return [`seed ${String(seed)}: requests still loading after every response was delivered`];
+  }
+  const unsettled = shownStories(model).filter(
+    (story) => story.state.id !== serverState(world.server, story.id).id,
+  );
+  return unsettled.map(
+    (story) =>
+      `seed ${String(seed)} settled with story ${String(story.id)} showing ${story.state.name} while the server has ${serverState(world.server, story.id).name}`,
+  );
 };
 
-test("random interleavings of user input and reordered, duplicated responses keep the invariants", () => {
+test("random interleavings of user input, moves and reordered, duplicated responses keep the invariants", () => {
   const problems = Array.from({ length: seeds }, (_, seed) => explore(seed)).flat();
   expect(problems).toEqual([]);
 });

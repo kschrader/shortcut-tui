@@ -4,6 +4,8 @@ import type {
   StoryDetail,
   StoryId,
   StorySummary,
+  WorkflowState,
+  WorkflowStateId,
   Workspace,
 } from "../shortcut/types.ts";
 
@@ -23,7 +25,24 @@ export type StoryPullRequests = ReadonlyMap<StoryId, readonly PullRequestView[]>
 export type Focus =
   | { mode: "browsing" }
   | { mode: "editingQuery"; draft: string }
-  | { mode: "help" };
+  | { mode: "help" }
+  | { mode: "picking"; storyId: StoryId; cursor: number }
+  | { mode: "readOnly" };
+
+export type ServerKnown = {
+  known: WorkflowState;
+  trustFrom: RequestId;
+};
+
+export type StoryMove =
+  | (ServerKnown & {
+      status: "saving";
+      requestId: RequestId;
+      target: WorkflowState;
+      pending: WorkflowState | null;
+    })
+  | (ServerKnown & { status: "moved" })
+  | (ServerKnown & { status: "failed"; message: string });
 
 export type Model = {
   workspace: Remote<Workspace>;
@@ -32,6 +51,7 @@ export type Model = {
   selectedStoryId: StoryId | null;
   details: ReadonlyMap<StoryId, Remote<StoryDetail>>;
   pullRequests: Remote<StoryPullRequests>;
+  moves: ReadonlyMap<StoryId, StoryMove>;
   focus: Focus;
   nextRequestId: RequestId;
 };
@@ -45,6 +65,8 @@ export type Msg =
   | { type: "detailFailed"; requestId: RequestId; storyId: StoryId; message: string }
   | { type: "pullRequestsLoaded"; requestId: RequestId; pullRequests: StoryPullRequests }
   | { type: "pullRequestsFailed"; requestId: RequestId; message: string }
+  | { type: "moveSucceeded"; requestId: RequestId; storyId: StoryId; story: StorySummary }
+  | { type: "moveFailed"; requestId: RequestId; storyId: StoryId; message: string }
   | { type: "selectionMoved"; delta: number }
   | { type: "queryEditStarted" }
   | { type: "queryDraftChanged"; draft: string }
@@ -52,10 +74,16 @@ export type Msg =
   | { type: "querySubmitted" }
   | { type: "refreshRequested" }
   | { type: "helpOpened" }
-  | { type: "helpClosed" };
+  | { type: "helpClosed" }
+  | { type: "movePickerOpened" }
+  | { type: "movePickerMoved"; delta: number }
+  | { type: "movePickerConfirmed" }
+  | { type: "movePickerClosed" }
+  | { type: "readOnlyNoticeClosed" };
 
 export type Effect =
   | { type: "loadWorkspace"; requestId: RequestId }
   | { type: "searchStories"; requestId: RequestId; query: string }
   | { type: "getStory"; requestId: RequestId; storyId: StoryId }
-  | { type: "loadPullRequests"; requestId: RequestId; storyIds: readonly StoryId[] };
+  | { type: "loadPullRequests"; requestId: RequestId; storyIds: readonly StoryId[] }
+  | { type: "moveStory"; requestId: RequestId; storyId: StoryId; stateId: WorkflowStateId };

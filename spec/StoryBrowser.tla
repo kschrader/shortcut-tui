@@ -131,7 +131,7 @@ OnSelectionMoved(model, delta) ==
          IN Select(model, At(S, Clamp(current + delta, 0, Cardinality(S) - 1)))
 
 OnQueryEditStarted(model) ==
-    IF model.workspace.status # "loaded" \/ model.focus.mode = "help" THEN <<model, {}>>
+    IF model.workspace.status # "loaded" \/ model.focus.mode # "browsing" THEN <<model, {}>>
     ELSE <<[model EXCEPT !.focus = [mode |-> "editing", draft |-> model.query]], {}>>
 
 OnQueryDraftChanged(model, draft) ==

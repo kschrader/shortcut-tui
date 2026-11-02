@@ -78,6 +78,7 @@ export const modelWith = (overrides: Partial<Model>): Model => ({
   selectedStoryId: null,
   details: new Map(),
   pullRequests: loaded(new Map()),
+  moves: new Map(),
   focus: { mode: "browsing" },
   nextRequestId: requestId(10),
   ...overrides,

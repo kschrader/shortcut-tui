@@ -6,6 +6,7 @@ import type {
   PullRequestId,
   ShortcutClient,
   StoryId,
+  WorkflowStateId,
 } from "../shortcut/types.ts";
 import { runEffect, type Clients } from "./effects.ts";
 import type { RequestId } from "./model.ts";
@@ -142,4 +143,11 @@ test("a GitHub failure fails the whole pull request load with GitHub's message",
     requestId,
     message: "GitHub status needs the gh CLI",
   });
+});
+
+test("a failing move becomes a moveFailed message for its story", async () => {
+  const stateId = z.custom<WorkflowStateId>().parse(3);
+  expect(
+    await runEffect(failing(failingClient), { type: "moveStory", requestId, storyId, stateId }),
+  ).toEqual({ type: "moveFailed", requestId, storyId, message: "HTTP 403" });
 });

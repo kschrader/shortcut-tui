@@ -58,6 +58,13 @@ const runEffectUnsafe = async (clients: Clients, effect: Effect): Promise<Msg> =
         requestId: effect.requestId,
         pullRequests: await pullRequestsOf(clients, effect.storyIds),
       };
+    case "moveStory":
+      return {
+        type: "moveSucceeded",
+        requestId: effect.requestId,
+        storyId: effect.storyId,
+        story: await clients.shortcut.moveStory(effect.storyId, effect.stateId),
+      };
   }
 };
 
@@ -76,6 +83,13 @@ const failureMsg = (effect: Effect, message: string): Msg => {
       };
     case "loadPullRequests":
       return { type: "pullRequestsFailed", requestId: effect.requestId, message };
+    case "moveStory":
+      return {
+        type: "moveFailed",
+        requestId: effect.requestId,
+        storyId: effect.storyId,
+        message,
+      };
   }
 };
 
