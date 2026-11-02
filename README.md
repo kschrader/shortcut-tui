@@ -51,7 +51,7 @@ A story shows the status of its least ready open pull request. When none is open
 | `◉ merged` | Merged |
 | `⊘ closed` | Closed without merging |
 
-In narrow terminals the badge shows only its symbol.
+In narrow terminals the badge shows only its symbol. Press `?` for the same legend in the app.
 
 ## Keys
 
@@ -61,8 +61,10 @@ In narrow terminals the badge shows only its symbol.
 | `/` | Edit the search query. `enter` searches, `esc` cancels |
 | `r` | Refresh the results, the selected story, and pull request status |
 | `o` | Open the selected story in the browser |
+| `p` | Open the pull request that sets the story's badge: the least ready open one, otherwise the newest merged or closed one. Does nothing until pull request status has loaded |
+| `?` | Show every key and the badge legend. `?` or `esc` closes it |
 | `pgup` / `pgdn` | Scroll the detail pane |
-| `q`, `ctrl-c` | Quit |
+| `q`, `ctrl-c` | Quit. `ctrl-c` also quits from the query editor and the help overlay |
 
 The default query is `owner:<you> is:started !is:archived`, which shows your in-progress stories. Press `/` to change it, for example to `owner:<you> !is:done` to include unstarted stories. Stories are sorted by workflow state, with states further right in the workflow at the top. Started states come before unstarted ones, which keeps stories from different workflows in a sensible order. Stories in the same state are sorted with the most recently updated first. A divider above each group shows the state, its story count, and its workflow. The query uses Shortcut's [search operators](https://help.shortcut.com/hc/en-us/articles/360000046646-Search-Operators).
 
@@ -90,6 +92,7 @@ The lint config enforces these rules. `no-comments` is the founding rule. `switc
 | No comments. Use a better name or a test | `shortcut-tui/no-comments` |
 | Branch on a union with a `switch`, so new variants fail type-check | `shortcut-tui/switch-on-discriminant` |
 | Read every page of a v4 list | `shortcut-tui/paginate-v4-lists` |
+| Read keys through `keyBindings` in `src/ui/keys.ts`, so help and the hint bar match the handler | `shortcut-tui/keys-from-table` |
 | Put text only inside `<text>` | `shortcut-tui/opentui-text-placement` |
 | No `console` output. It corrupts the screen | `no-console` |
 | No `process.exit`. Destroy the renderer so the terminal is restored | `unicorn/no-process-exit` |

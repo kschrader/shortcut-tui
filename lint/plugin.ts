@@ -2,6 +2,7 @@ import type { RuleTester } from "oxlint/plugins-dev";
 import { noComments } from "./no-comments.ts";
 import { switchOnDiscriminant } from "./switch-on-discriminant.ts";
 import { opentuiTextPlacement } from "./opentui-text-placement.ts";
+import { keysFromTable } from "./keys-from-table.ts";
 import { paginateV4Lists } from "./paginate-v4-lists.ts";
 
 export type Rule = Parameters<RuleTester["run"]>[1];
@@ -11,6 +12,7 @@ export const rules = {
   "switch-on-discriminant": switchOnDiscriminant,
   "opentui-text-placement": opentuiTextPlacement,
   "paginate-v4-lists": paginateV4Lists,
+  "keys-from-table": keysFromTable,
 } satisfies Record<string, Rule>;
 
 export default {

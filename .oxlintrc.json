@@ -11,6 +11,7 @@
     "shortcut-tui/switch-on-discriminant": "error",
     "shortcut-tui/opentui-text-placement": "error",
     "shortcut-tui/paginate-v4-lists": "error",
+    "shortcut-tui/keys-from-table": "error",
 
     "no-console": "error",
     "unicorn/no-process-exit": "error",
