@@ -1,23 +1,35 @@
 import { afterEach, expect, test } from "bun:test";
 import { badgeStyle } from "./pull-requests.ts";
 import { browsing, cleanup, show } from "./frame.tsx";
-import { keyBindings } from "./keys.ts";
+import { bindingsUsableIn, keyBindings } from "./keys.ts";
 
 afterEach(cleanup);
 
 const helping = () => browsing({ focus: { mode: "help" } });
 
-test("the overlay lists every key and every badge at 80x24", async () => {
+test("the overlay lists every key usable while browsing and every badge at 80x24", async () => {
   const { frame } = await show(helping(), { width: 80, height: 24 });
   const text = frame().replace(/ +/g, " ");
   expect(text).toContain("Help");
-  for (const binding of keyBindings) {
+  for (const binding of bindingsUsableIn("browsing")) {
     expect(text).toContain(`${binding.label} ${binding.description}`);
   }
   for (const { glyph, label, description } of Object.values(badgeStyle)) {
     expect(text).toContain(`${glyph} ${label} ${description}`);
   }
   expect(text).toContain("? or esc close help");
+});
+
+test("keys that only work inside another mode stay out of the overlay", async () => {
+  const { frame } = await show(helping(), { width: 80, height: 24 });
+  const text = frame().replace(/ +/g, " ");
+  const elsewhere = keyBindings.filter(
+    (binding) => binding.modes !== "all" && !binding.modes.includes("browsing"),
+  );
+  expect(elsewhere.length).toBeGreaterThan(0);
+  for (const binding of elsewhere) {
+    expect(text).not.toContain(binding.description);
+  }
 });
 
 test("the overlay fits inside 80x24 with its border intact", async () => {

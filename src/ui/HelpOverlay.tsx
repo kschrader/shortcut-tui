@@ -1,8 +1,10 @@
-import { keyBindings } from "./keys.ts";
+import { bindingsUsableIn } from "./keys.ts";
 import { BADGE_LABEL_WIDTH, badgeStyle } from "./pull-requests.ts";
 import { colors } from "./theme.ts";
 
-const KEY_LABEL_WIDTH = Math.max(...keyBindings.map((binding) => binding.label.length));
+const browsingBindings = bindingsUsableIn("browsing");
+
+const KEY_LABEL_WIDTH = Math.max(...browsingBindings.map((binding) => binding.label.length));
 
 export const HelpOverlay = () => (
   <box
@@ -27,7 +29,7 @@ export const HelpOverlay = () => (
       <box flexDirection="row" gap={3}>
         <box flexDirection="column">
           <text fg={colors.dim}>Keys</text>
-          {keyBindings.map((binding) => (
+          {browsingBindings.map((binding) => (
             <text key={`${String(binding.modes)} ${binding.label}`}>
               <span fg={colors.accent}>{binding.label.padEnd(KEY_LABEL_WIDTH)}</span>
               {`  ${binding.description}`}

@@ -189,3 +189,6 @@ export const hintFor = (mode: Focus["mode"]): string =>
     .filter((binding) => appliesTo(binding, mode))
     .flatMap((binding) => (binding.hint === undefined ? [] : [binding.hint]))
     .join("  ·  ");
+
+export const bindingsUsableIn = (mode: Focus["mode"]) =>
+  keyBindings.filter((binding) => appliesTo(binding, mode));
