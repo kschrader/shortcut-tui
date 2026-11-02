@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { settleLimited } from "../concurrency.ts";
 import {
   awaitsMergeability,
   classify,
@@ -16,6 +17,7 @@ export const GH_SETUP_HINT = "GitHub status needs the gh CLI: gh auth login";
 
 const GH_AUTH_REQUIRED_EXIT_CODE = 4;
 const PULL_REQUESTS_PER_QUERY = 10;
+const GH_QUERIES_IN_FLIGHT = 4;
 const PULL_REQUEST_FIELDS =
   "state merged isDraft reviewDecision mergeable mergeStateStatus statusCheckRollup { state }";
 
@@ -182,8 +184,8 @@ const answersTo = async (
 };
 
 const lookUp = async (gh: Gh, refs: readonly PullRequestRef[]) => {
-  const settled = await Promise.allSettled(
-    queriesFor(refs).map((repositories) => answersTo(gh, repositories)),
+  const settled = await settleLimited(queriesFor(refs), GH_QUERIES_IN_FLIGHT, (repositories) =>
+    answersTo(gh, repositories),
   );
   const answered = settled.flatMap((query) => (query.status === "fulfilled" ? query.value : []));
   const failures = settled.flatMap((query): unknown[] =>

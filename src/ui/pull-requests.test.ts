@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 import type { PullRequestView, Remote, StoryPullRequests } from "../app/model.ts";
 import type { PullRequestState } from "../github/types.ts";
-import type { PullRequestId, StoryId } from "../shortcut/types.ts";
+import type { PullRequestId } from "../shortcut/types.ts";
 import { loaded, requestId, storyId, summary } from "./frame.tsx";
 import { pullRequestToOpen } from "./pull-requests.ts";
 
@@ -19,13 +19,19 @@ const view = (number: number, state: PullRequestState): PullRequestView => ({
 const story = (pullRequestCount: number) => summary(1, { pullRequestCount });
 
 const withPrs = (...prs: PullRequestView[]): Remote<StoryPullRequests> =>
-  loaded(new Map<StoryId, PullRequestView[]>([[storyId(1), prs]]));
+  loaded(new Map([[storyId(1), loaded<readonly PullRequestView[]>(prs)]]));
 
 const cases: [string, ReturnType<typeof story>, Remote<StoryPullRequests>, number | null][] = [
   ["a story without pull requests", story(0), withPrs(), null],
   ["status still loading", story(1), { status: "loading", requestId: requestId(3) }, null],
   ["status failed to load", story(1), { status: "failed", message: "no gh" }, null],
   ["linked but absent from the loaded status", story(1), loaded(new Map()), null],
+  [
+    "the story's own list failed to load",
+    story(1),
+    loaded(new Map([[storyId(1), { status: "failed", message: "HTTP 429" } as const]])),
+    null,
+  ],
   ["a single open pull request", story(1), withPrs(view(10, "ready")), 10],
   [
     "the least ready open pull request, not the newest",

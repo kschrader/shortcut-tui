@@ -328,3 +328,14 @@ test("a hung gh process is killed at the timeout", async () => {
   for (let waited = 0; alive() && waited < 2000; waited += 20) await Bun.sleep(20);
   expect(alive()).toBe(false);
 });
+
+test("many queries keep at most 4 gh processes running at once", async () => {
+  const numbers = Array.from({ length: 95 }, (_, i) => i + 1);
+  const { calls, concurrency, client } = fakeGitHub(
+    Object.fromEntries(numbers.map((n) => [`useshortcut/monorepo#${n}`, raw({ isDraft: true })])),
+  );
+  const states = await client.pullRequestStates(numbers.map((n) => ref("monorepo", n)));
+  expect(calls.length).toBe(10);
+  expect(concurrency.max).toBe(4);
+  expect(states.size).toBe(95);
+});

@@ -120,17 +120,23 @@ test("loading pull requests asks GitHub once for every story's pull requests", a
     pullRequests: new Map([
       [
         storyId,
-        [
-          { ...toggle, state: "conflicts" },
-          { ...gitlab, state: "unknown" },
-        ],
+        {
+          status: "loaded",
+          value: [
+            { ...toggle, state: "conflicts" },
+            { ...gitlab, state: "unknown" },
+          ],
+        },
       ],
       [
         otherStoryId,
-        [
-          { ...docs, state: "ready" },
-          { ...toggle, state: "conflicts" },
-        ],
+        {
+          status: "loaded",
+          value: [
+            { ...docs, state: "ready" },
+            { ...toggle, state: "conflicts" },
+          ],
+        },
       ],
     ]),
   });
@@ -170,7 +176,9 @@ const loadedStates = async (github: GitHubClient, links: readonly LinkedPullRequ
     { type: "loadPullRequests", requestId, storyIds: [storyId] },
   );
   if (msg.type !== "pullRequestsLoaded") throw new Error(`expected a load, got ${msg.type}`);
-  return (msg.pullRequests.get(storyId) ?? []).map((pr) => pr.state);
+  const list = msg.pullRequests.get(storyId);
+  if (list?.status !== "loaded") throw new Error("expected the story's list to load");
+  return list.value.map((pr) => pr.state);
 };
 
 const gitlabMr = (shortcutSays: { closed?: boolean; draft?: boolean }) => ({
@@ -224,4 +232,71 @@ test("a merged GitHub pull request plus a closed GitLab merge request makes the 
 test("a merged GitHub pull request plus an open GitLab merge request leaves the story open", async () => {
   const states = await loadedStates(answeredBy([[monorepo(3917), "merged"]]), [toggle, gitlab]);
   expect(storyMergeStatus(states)).toBe("unknown");
+});
+
+const manyStories = (count: number) =>
+  Array.from({ length: count }, (_, i) => z.custom<StoryId>().parse(i + 1));
+
+const silentGitHub: GitHubClient = { pullRequestStates: async () => new Map() };
+
+test("loading pull requests for 500 stories keeps at most 6 Shortcut requests in flight", async () => {
+  const inFlight = { now: 0, max: 0, calls: 0 };
+  const shortcut: ShortcutClient = {
+    ...failingClient,
+    listPullRequests: async () => {
+      inFlight.calls += 1;
+      inFlight.now += 1;
+      inFlight.max = Math.max(inFlight.max, inFlight.now);
+      await Bun.sleep(1);
+      inFlight.now -= 1;
+      return [];
+    },
+  };
+  const msg = await runEffect(
+    { shortcut, github: silentGitHub },
+    { type: "loadPullRequests", requestId, storyIds: manyStories(500) },
+  );
+  expect(msg.type).toBe("pullRequestsLoaded");
+  expect(inFlight.calls).toBe(500);
+  expect(inFlight.max).toBe(6);
+});
+
+test("a story whose pull request list fails is marked failed while the rest still load", async () => {
+  const shortcut: ShortcutClient = {
+    ...failingClient,
+    listPullRequests: async (id) => {
+      if (id === 7)
+        throw new Error("Shortcut API 429 for GET /api/v4/acme/stories/7/pull-requests");
+      return id === 8 ? [gitlab] : [];
+    },
+  };
+  const msg = await runEffect(
+    { shortcut, github: silentGitHub },
+    { type: "loadPullRequests", requestId, storyIds: manyStories(20) },
+  );
+  if (msg.type !== "pullRequestsLoaded") throw new Error(`expected a load, got ${msg.type}`);
+  expect(msg.pullRequests.size).toBe(20);
+  expect(msg.pullRequests.get(z.custom<StoryId>().parse(7))).toEqual({
+    status: "failed",
+    message: "Shortcut API 429 for GET /api/v4/acme/stories/7/pull-requests",
+  });
+  expect(msg.pullRequests.get(z.custom<StoryId>().parse(8))).toEqual({
+    status: "loaded",
+    value: [{ ...gitlab, state: "unknown" }],
+  });
+});
+
+test("the load fails with the first error only when every story's list fails", async () => {
+  const shortcut: ShortcutClient = {
+    ...failingClient,
+    listPullRequests: async (id) => {
+      throw new Error(`Shortcut API 429 for story ${String(id)}`);
+    },
+  };
+  expect(
+    await runEffect(
+      { shortcut, github: unusedGitHub },
+      { type: "loadPullRequests", requestId, storyIds: manyStories(3) },
+    ),
+  ).toEqual({ type: "pullRequestsFailed", requestId, message: "Shortcut API 429 for story 1" });
 });

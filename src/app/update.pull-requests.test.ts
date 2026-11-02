@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
 import type { PullRequestState } from "../github/types.ts";
-import type { PullRequestId, StoryId, StorySummary } from "../shortcut/types.ts";
+import type { PullRequestId, StorySummary } from "../shortcut/types.ts";
 import { storyId, summary } from "./fixtures.ts";
 import type { Model, PullRequestView, StoryPullRequests } from "./model.ts";
 import {
@@ -32,7 +32,7 @@ const view = (number: number, state: PullRequestState): PullRequestView => ({
 });
 
 const statuses = (entries: [number, PullRequestView[]][]): StoryPullRequests =>
-  new Map(entries.map(([id, views]): [StoryId, PullRequestView[]] => [storyId(id), views]));
+  new Map(entries.map(([id, views]) => [storyId(id), { status: "loaded", value: views }] as const));
 
 const deliver = (
   model: Model,

@@ -98,7 +98,10 @@ const respond = (
             type: "pullRequestsLoaded",
             requestId,
             pullRequests: new Map(
-              effect.storyIds.map((id, index) => [id, [pullRequestAnswer(requestId, index)]]),
+              effect.storyIds.map((id, index) => [
+                id,
+                { status: "loaded", value: [pullRequestAnswer(requestId, index)] },
+              ]),
             ),
           }
         : { type: "pullRequestsFailed", requestId, message: answerMark(requestId) };
@@ -166,7 +169,8 @@ const pullRequestViolations = (model: Model, issued: readonly Effect[]): string[
       break;
     }
     case "loaded":
-      for (const [storyId, views] of pullRequests.value) {
+      for (const [storyId, list] of pullRequests.value) {
+        const views = list.status === "loaded" ? list.value : [];
         if (!shown.some((story) => story.id === storyId)) {
           found.push(
             `pull requests shown for story ${String(storyId)}, which is not in the results`,

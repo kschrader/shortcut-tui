@@ -33,7 +33,10 @@ const report = (model: Model): boolean => {
   const linked: StoryPullRequests =
     pullRequests.status === "loaded" ? pullRequests.value : new Map();
   for (const story of stories) {
-    const views = linked.get(story.id) ?? [];
+    const list = linked.get(story.id);
+    if (list?.status === "failed")
+      say(`  pull requests failed for ${String(story.id)}: ${list.message}`);
+    const views = list?.status === "loaded" ? list.value : [];
     const status = storyMergeStatus(views.map((pr) => pr.state));
     say(`  ${story.state.name.padEnd(20)} ${status.padEnd(17)} ${String(story.id)} ${story.name}`);
     for (const pr of views) {

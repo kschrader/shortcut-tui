@@ -20,7 +20,9 @@ export type SearchResults = { query: string; stories: readonly StorySummary[] };
 
 export type PullRequestView = LinkedPullRequest & { state: PullRequestState };
 
-export type StoryPullRequests = ReadonlyMap<StoryId, readonly PullRequestView[]>;
+export type Settled<T> = Exclude<Remote<T>, { status: "loading" }>;
+
+export type StoryPullRequests = ReadonlyMap<StoryId, Settled<readonly PullRequestView[]>>;
 
 export type Focus =
   | { mode: "browsing" }

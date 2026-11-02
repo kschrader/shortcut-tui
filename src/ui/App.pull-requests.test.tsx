@@ -1,8 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
 import { z } from "zod";
-import type { PullRequestView, StoryPullRequests } from "../app/model.ts";
+import type { PullRequestView, Remote, StoryPullRequests } from "../app/model.ts";
 import type { PullRequestState } from "../github/types.ts";
-import type { PullRequestId, StoryId } from "../shortcut/types.ts";
+import type { PullRequestId } from "../shortcut/types.ts";
 import { browsing, cleanup, detail, loaded, requestId, show, storyId, summary } from "./frame.tsx";
 
 afterEach(cleanup);
@@ -23,18 +23,21 @@ const linked = [
   summary(103, { name: "Rotate API keys" }),
 ];
 
-const checked: StoryPullRequests = new Map<StoryId, PullRequestView[]>([
+const checked: StoryPullRequests = new Map([
   [
     storyId(101),
-    [
+    loaded<readonly PullRequestView[]>([
       view(3917, "ready", "Forward the next param through SSO"),
       view(3911, "merged", "Add a redirect test"),
-    ],
+    ]),
   ],
-  [storyId(102), [view(3939, "conflicts", "Add a dark theme")]],
+  [storyId(102), loaded<readonly PullRequestView[]>([view(3939, "conflicts", "Add a dark theme")])],
 ]);
 
-const withPullRequests = (pullRequests = loaded(checked), selected = 101) =>
+const withPullRequests = (
+  pullRequests: Remote<StoryPullRequests> = loaded(checked),
+  selected = 101,
+) =>
   browsing({
     results: loaded({ query: "owner:me", stories: linked }),
     selectedStoryId: storyId(selected),
@@ -96,7 +99,11 @@ test("an 80-column terminal keeps names readable and shows the status as a glyph
       results: loaded({ query: "owner:me", stories: [story] }),
       selectedStoryId: story.id,
       details: new Map(),
-      pullRequests: loaded(new Map([[story.id, [view(3917, "conflicts", "Toggle")]]])),
+      pullRequests: loaded(
+        new Map([
+          [story.id, loaded<readonly PullRequestView[]>([view(3917, "conflicts", "Toggle")])],
+        ]),
+      ),
     }),
     { width: 80 },
   );
@@ -126,4 +133,16 @@ test("p does nothing for a story without pull requests or before status loads", 
   const checking = await show(withPullRequests({ status: "loading", requestId: requestId(4) }));
   checking.screen.mockInput.pressKey("p");
   expect(checking.calls.opened).toEqual([]);
+});
+
+test("a story whose pull requests could not be listed shows unknown and says why", async () => {
+  const partly: StoryPullRequests = new Map([
+    ...checked,
+    [storyId(101), { status: "failed", message: "Shortcut API 429" } as const],
+  ]);
+  const { frame } = await show(withPullRequests(loaded(partly)), { height: 40 });
+  const text = frame();
+  expect(rowOf(text, 101)).toContain("? unknown");
+  expect(rowOf(text, 102)).toContain("≠ conflicts");
+  expect(text).toContain("Shortcut API 429");
 });

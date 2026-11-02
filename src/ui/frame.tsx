@@ -69,7 +69,10 @@ export const summary = (id: number, overrides: Partial<StorySummary> = {}): Stor
   ...overrides,
 });
 
-export const loaded = <T,>(value: T): Remote<T> => ({ status: "loaded", value });
+export const loaded = <T,>(value: T): Extract<Remote<T>, { status: "loaded" }> => ({
+  status: "loaded",
+  value,
+});
 
 export const modelWith = (overrides: Partial<Model>): Model => ({
   workspace: loaded(workspace),

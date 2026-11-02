@@ -1,6 +1,7 @@
+import { settleLimited } from "../concurrency.ts";
 import { pullRequestKey, type GitHubClient, type PullRequestState } from "../github/types.ts";
 import type { LinkedPullRequest, ShortcutClient, StoryId } from "../shortcut/types.ts";
-import type { Effect, Msg, StoryPullRequests } from "./model.ts";
+import type { Effect, Msg, Settled, StoryPullRequests } from "./model.ts";
 
 export type Clients = { shortcut: ShortcutClient; github: GitHubClient };
 
@@ -12,28 +13,42 @@ const shortcutState = ({ closed, draft }: LinkedPullRequest): PullRequestState =
   return draft ? "draft" : "unknown";
 };
 
+const SHORTCUT_REQUESTS_IN_FLIGHT = 6;
+
 const pullRequestsOf = async (
   { shortcut, github }: Clients,
   storyIds: readonly StoryId[],
 ): Promise<StoryPullRequests> => {
-  const linked = await Promise.all(
-    storyIds.map(async (id): Promise<[StoryId, readonly LinkedPullRequest[]]> => [
-      id,
-      await shortcut.listPullRequests(id),
-    ]),
+  const listed = await settleLimited(storyIds, SHORTCUT_REQUESTS_IN_FLIGHT, (id) =>
+    shortcut.listPullRequests(id),
   );
+  const lists = listed.map((result, i): [StoryId, Settled<readonly LinkedPullRequest[]>] => [
+    storyIds[i],
+    result.status === "fulfilled"
+      ? { status: "loaded", value: result.value }
+      : { status: "failed", message: messageOf(result.reason) },
+  ]);
+  const failures = lists.flatMap(([, list]) => (list.status === "failed" ? [list.message] : []));
+  if (failures.length === lists.length && failures[0] !== undefined) throw new Error(failures[0]);
   const states = await github.pullRequestStates(
-    linked.flatMap(([, pullRequests]) => pullRequests.flatMap((pr) => pr.github ?? [])),
+    lists.flatMap(([, list]) =>
+      list.status === "loaded" ? list.value.flatMap((pr) => pr.github ?? []) : [],
+    ),
   );
   return new Map(
-    linked.map(([id, pullRequests]) => [
+    lists.map(([id, list]) => [
       id,
-      pullRequests.map((pr) => ({
-        ...pr,
-        state:
-          (pr.github === null ? undefined : states.get(pullRequestKey(pr.github))) ??
-          shortcutState(pr),
-      })),
+      list.status === "failed"
+        ? list
+        : {
+            status: "loaded",
+            value: list.value.map((pr) => ({
+              ...pr,
+              state:
+                (pr.github === null ? undefined : states.get(pullRequestKey(pr.github))) ??
+                shortcutState(pr),
+            })),
+          },
     ]),
   );
 };

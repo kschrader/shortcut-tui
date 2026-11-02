@@ -73,9 +73,9 @@ export const storyBadge = (
     case "failed":
       return null;
     case "loaded": {
-      const status = storyMergeStatus(
-        (pullRequests.value.get(story.id) ?? []).map((pr) => pr.state),
-      );
+      const list = pullRequests.value.get(story.id);
+      if (list?.status === "failed") return "unknown";
+      const status = storyMergeStatus((list?.value ?? []).map((pr) => pr.state));
       return status === "none" ? null : status;
     }
   }
@@ -91,7 +91,7 @@ export const storyPullRequests = (
     case "failed":
       return pullRequests;
     case "loaded":
-      return { status: "loaded", value: pullRequests.value.get(story.id) ?? [] };
+      return pullRequests.value.get(story.id) ?? { status: "loaded", value: [] };
   }
 };
 
@@ -99,8 +99,9 @@ export const pullRequestToOpen = (
   story: StorySummary,
   pullRequests: Remote<StoryPullRequests>,
 ): PullRequestView | null => {
-  if (story.pullRequestCount === 0 || pullRequests.status !== "loaded") return null;
-  const linked = pullRequests.value.get(story.id) ?? [];
+  const list = storyPullRequests(story, pullRequests);
+  if (list?.status !== "loaded") return null;
+  const linked = list.value;
   const deciding = storyMergeStatus(linked.map((pr) => pr.state));
   return (
     linked
