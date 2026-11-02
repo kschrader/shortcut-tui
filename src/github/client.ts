@@ -1,14 +1,16 @@
 import { z } from "zod";
-import { classify, RawPullRequestSchema } from "./pull-request-state.ts";
 import {
-  pullRequestKey,
-  type GitHubClient,
-  type PullRequestRef,
-  type PullRequestState,
-} from "./types.ts";
+  awaitsMergeability,
+  classify,
+  RawPullRequestSchema,
+  type RawPullRequest,
+} from "./pull-request-state.ts";
+import { pullRequestKey, type GitHubClient, type PullRequestRef } from "./types.ts";
 
 export type GhOutput = { exitCode: number; stdout: string; stderr: string };
 export type GhRunner = (args: readonly string[]) => Promise<GhOutput>;
+
+export type GitHubClientOptions = { run?: GhRunner; recheckAfterMs?: number };
 
 export const GH_SETUP_HINT = "GitHub status needs the gh CLI: gh auth login";
 
@@ -138,24 +140,43 @@ const parseOutput = ({ exitCode, stdout, stderr }: GhOutput) => {
   throw new Error("GitHub sent an unexpected response");
 };
 
-const statesOf = async (
+type Answer = { ref: PullRequestRef; raw: RawPullRequest | null };
+
+const answersTo = async (
   run: GhRunner,
   repositories: readonly Repository[],
-): Promise<[string, PullRequestState][]> => {
+): Promise<[string, Answer][]> => {
   const data = parseOutput(await ask(run, queryArgs(repositories)));
   return repositories.flatMap(({ owner, repo, numbers }, i) =>
-    numbers.map((number): [string, PullRequestState] => {
-      const raw = data[`r${i}`]?.[`p${number}`] ?? null;
-      return [pullRequestKey({ owner, repo, number }), raw === null ? "unknown" : classify(raw)];
+    numbers.map((number): [string, Answer] => {
+      const ref = { owner, repo, number };
+      return [pullRequestKey(ref), { ref, raw: data[`r${i}`]?.[`p${number}`] ?? null }];
     }),
   );
 };
 
-export const createGitHubClient = (run: GhRunner = ghRunner()): GitHubClient => ({
+const lookUp = async (run: GhRunner, refs: readonly PullRequestRef[]) => {
+  const answers = await Promise.all(
+    queriesFor(refs).map((repositories) => answersTo(run, repositories)),
+  );
+  return answers.flat();
+};
+
+export const createGitHubClient = ({
+  run = ghRunner(),
+  recheckAfterMs = 2000,
+}: GitHubClientOptions = {}): GitHubClient => ({
   async pullRequestStates(refs) {
-    const answers = await Promise.all(
-      queriesFor(refs).map((repositories) => statesOf(run, repositories)),
+    const answers = new Map(await lookUp(run, refs));
+    const computing = [...answers.values()].flatMap(({ ref, raw }) =>
+      raw !== null && awaitsMergeability(raw) ? [ref] : [],
     );
-    return new Map(answers.flat());
+    if (computing.length > 0) {
+      await Bun.sleep(recheckAfterMs);
+      for (const [key, answer] of await lookUp(run, computing)) answers.set(key, answer);
+    }
+    return new Map(
+      [...answers].map(([key, { raw }]) => [key, raw === null ? "unknown" : classify(raw)]),
+    );
   },
 });

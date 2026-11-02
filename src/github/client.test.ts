@@ -13,7 +13,7 @@ const raw = (fields: Record<string, unknown> = {}) => ({
   merged: false,
   isDraft: false,
   reviewDecision: null,
-  mergeable: "UNKNOWN",
+  mergeable: "MERGEABLE",
   mergeStateStatus: "UNKNOWN",
   statusCheckRollup: null,
   ...fields,
@@ -27,10 +27,13 @@ const flags = (args: readonly string[]) =>
     }),
   );
 
-const fakeGitHub = (pullRequests: Record<string, Record<string, unknown>>) => {
+type Table = Record<string, Record<string, unknown>>;
+
+const fakeGitHub = (...answersPerCall: [Table, ...Table[]]) => {
   const calls: string[][] = [];
   const run: GhRunner = async (args) => {
     calls.push([...args]);
+    const pullRequests = answersPerCall[calls.length - 1] ?? answersPerCall[0];
     const variables = flags(args);
     const data: Record<string, Record<string, unknown> | null> = {};
     let missing = false;
@@ -60,7 +63,7 @@ const fakeGitHub = (pullRequests: Record<string, Record<string, unknown>>) => {
       stderr: missing ? "gh: Could not resolve to a Repository\n" : "",
     };
   };
-  return { calls, client: createGitHubClient(run) };
+  return { calls, client: createGitHubClient({ run, recheckAfterMs: 0 }) };
 };
 
 const rejection = async (promise: Promise<unknown>): Promise<Error> => {
@@ -133,30 +136,56 @@ test("no pull requests means no gh call", async () => {
 });
 
 test("a missing gh executable rejects with the setup hint", async () => {
-  const client = createGitHubClient(ghRunner("shortcut-tui-no-such-gh"));
+  const client = createGitHubClient({ run: ghRunner("shortcut-tui-no-such-gh") });
   expect((await rejection(client.pullRequestStates([ref("monorepo", 1)]))).message).toBe(
     GH_SETUP_HINT,
   );
 });
 
 test("a logged-out gh rejects with the setup hint", async () => {
-  const client = createGitHubClient(async () => ({
-    exitCode: 4,
-    stdout: "",
-    stderr: "To get started with GitHub CLI, please run:  gh auth login\n",
-  }));
+  const client = createGitHubClient({
+    run: async () => ({
+      exitCode: 4,
+      stdout: "",
+      stderr: "To get started with GitHub CLI, please run:  gh auth login\n",
+    }),
+  });
   expect((await rejection(client.pullRequestStates([ref("monorepo", 1)]))).message).toBe(
     GH_SETUP_HINT,
   );
 });
 
 test("any other gh failure names gh's own error", async () => {
-  const client = createGitHubClient(async () => ({
-    exitCode: 1,
-    stdout: "",
-    stderr: "HTTP 502: Bad Gateway (https://api.github.com/graphql)\nretry later\n",
-  }));
+  const client = createGitHubClient({
+    run: async () => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "HTTP 502: Bad Gateway (https://api.github.com/graphql)\nretry later\n",
+    }),
+  });
   expect((await rejection(client.pullRequestStates([ref("monorepo", 1)]))).message).toBe(
     "GitHub query failed: HTTP 502: Bad Gateway (https://api.github.com/graphql)",
   );
+});
+
+test("pull requests whose mergeability GitHub is still computing are asked about once more", async () => {
+  const computing = raw({ mergeable: "UNKNOWN", statusCheckRollup: { state: "SUCCESS" } });
+  const { calls, client } = fakeGitHub(
+    {
+      "useshortcut/monorepo#3729": computing,
+      "useshortcut/monorepo#3911": raw({ mergeable: "MERGEABLE", mergeStateStatus: "CLEAN" }),
+      "useshortcut/monorepo#3960": raw({ mergeable: "UNKNOWN", isDraft: true }),
+    },
+    {
+      "useshortcut/monorepo#3729": raw({ mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" }),
+    },
+  );
+  const states = await client.pullRequestStates([
+    ref("monorepo", 3729),
+    ref("monorepo", 3911),
+    ref("monorepo", 3960),
+  ]);
+  expect(calls.length).toBe(2);
+  expect(flags(calls[1] ?? []).get("query")).not.toContain("3911");
+  expect([...states.values()]).toEqual(["conflicts", "ready", "draft"]);
 });

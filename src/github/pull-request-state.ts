@@ -38,6 +38,9 @@ const CLASSIFICATION: readonly (readonly [PullRequestState, (pr: RawPullRequest)
   ],
 ];
 
+export const awaitsMergeability = (pr: RawPullRequest): boolean =>
+  pr.state === "OPEN" && !pr.isDraft && pr.mergeable === "UNKNOWN";
+
 export const classify = (pr: RawPullRequest): PullRequestState =>
   CLASSIFICATION.find(([, holds]) => holds(pr))?.[0] ?? "unknown";
 
