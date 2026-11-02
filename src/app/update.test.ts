@@ -231,11 +231,26 @@ describe("query editing", () => {
   test("editing starts from the current query and submitting searches the draft", () => {
     const [model] = browsing([]);
     const [editing] = update(model, { type: "queryEditStarted" });
-    expect(editing.focus).toEqual({ mode: "editingQuery", draft: model.query });
+    expect(editing.focus).toMatchObject({ mode: "editingQuery" });
     const [submitted, effects] = submitQuery(model, "is:started");
     expect(submitted.focus).toEqual({ mode: "browsing" });
     expect(submitted.query).toBe("is:started");
     expect(only(effects, "searchStories").query).toBe("is:started");
+  });
+
+  test("text typed after the current query becomes a separate search term", () => {
+    const [model] = browsing([]);
+    const [editing] = update(model, { type: "queryEditStarted" });
+    const draft = editing.focus.mode === "editingQuery" ? editing.focus.draft : "";
+    const [submitted, effects] = submitQuery(model, `${draft}webhook`);
+    expect(submitted.query).toBe(`${model.query} webhook`);
+    expect(only(effects, "searchStories").query).toBe(`${model.query} webhook`);
+  });
+
+  test("surrounding whitespace in a submitted query is dropped", () => {
+    const [model] = browsing([]);
+    const [submitted] = submitQuery(model, "  is:started  ");
+    expect(submitted.query).toBe("is:started");
   });
 
   test("cancelling keeps the old query and searches nothing", () => {

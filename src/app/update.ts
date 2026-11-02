@@ -133,7 +133,8 @@ export const update = (model: Model, msg: Msg): Step => {
     }
     case "queryEditStarted": {
       if (model.workspace.status !== "loaded") return [model, []];
-      return [{ ...model, focus: { mode: "editingQuery", draft: model.query } }, []];
+      const draft = model.query === "" ? "" : `${model.query} `;
+      return [{ ...model, focus: { mode: "editingQuery", draft } }, []];
     }
     case "queryDraftChanged": {
       if (model.focus.mode !== "editingQuery") return [model, []];
@@ -143,7 +144,7 @@ export const update = (model: Model, msg: Msg): Step => {
       return [{ ...model, focus: { mode: "browsing" } }, []];
     case "querySubmitted": {
       if (model.focus.mode !== "editingQuery") return [model, []];
-      return search({ ...model, focus: { mode: "browsing" } }, model.focus.draft);
+      return search({ ...model, focus: { mode: "browsing" } }, model.focus.draft.trim());
     }
     case "refreshRequested":
       return refresh(model);
