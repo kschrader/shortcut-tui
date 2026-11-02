@@ -36,10 +36,10 @@ const respond = (random: Random, effect: Effect, succeed: boolean): Msg => {
   switch (effect.type) {
     case "loadWorkspace":
       return succeed
-        ? { type: "workspaceLoaded", requestId, workspace: workspaceFor("kurt") }
-        : { type: "workspaceFailed", requestId, message: "workspace down" };
+        ? { type: "workspaceLoaded", requestId, workspace: workspaceFor(answerMark(requestId)) }
+        : { type: "workspaceFailed", requestId, message: answerMark(requestId) };
     case "searchStories": {
-      if (!succeed) return { type: "searchFailed", requestId, message: "search down" };
+      if (!succeed) return { type: "searchFailed", requestId, message: answerMark(requestId) };
       const ids = storyPool.filter(() => random() < 0.6).toSorted(() => random() - 0.5);
       const stories = ids.map((id) => summary(id, storyName(effect.query, requestId, id)));
       return { type: "searchSucceeded", requestId, stories };
@@ -91,6 +91,22 @@ const violations = (model: Model, issued: readonly Effect[]): string[] => {
       found.push(`selected story ${String(selected)} is not in the results`);
     }
   }
+  if (model.results.status === "failed") {
+    const latest = issued.findLast((effect) => effect.type === "searchStories");
+    if (latest === undefined || model.results.message !== answerMark(latest.requestId)) {
+      found.push(`results show a superseded search failure: ${model.results.message}`);
+    }
+  }
+  if (model.workspace.status !== "loading") {
+    const latest = issued.findLast((effect) => effect.type === "loadWorkspace");
+    const shown =
+      model.workspace.status === "loaded"
+        ? model.workspace.value.me.mentionName
+        : model.workspace.message;
+    if (latest === undefined || shown !== answerMark(latest.requestId)) {
+      found.push(`workspace shows a superseded response: ${shown}`);
+    }
+  }
   if (model.selectedStoryId !== null && !model.details.has(model.selectedStoryId)) {
     found.push("selected story has no detail entry");
   }
@@ -140,12 +156,19 @@ const explore = (seed: number): string[] => {
   const random = mulberry32(seed);
   let [model, issued] = init();
   const trail: string[] = [];
-  const apply = (msg: Msg) => {
+  const apply = (msg: Msg, isResponse: boolean) => {
     const [next, effects] = update(model, msg);
     model = next;
     issued = [...issued, ...effects];
     trail.push(msg.type);
-    return violations(model, issued).map(
+    const [redelivered, redeliveryEffects] = update(model, msg);
+    const redeliveryChanged =
+      isResponse && (redeliveryEffects.length > 0 || !Bun.deepEquals(redelivered, model));
+    const problems = [
+      ...violations(model, issued),
+      ...(redeliveryChanged ? ["redelivering the same response changed the model"] : []),
+    ];
+    return problems.map(
       (problem) => `seed ${String(seed)} after [${trail.join(", ")}]: ${problem}`,
     );
   };
@@ -153,7 +176,7 @@ const explore = (seed: number): string[] => {
   for (let step = 0; step < stepsPerSeed; step++) {
     const deliver = random() < 0.55;
     const msg = deliver ? respond(random, pick(random, issued), random() < 0.8) : userMsg(random);
-    const problems = apply(msg);
+    const problems = apply(msg, deliver);
     if (problems.length > 0) return problems;
   }
 
@@ -163,7 +186,7 @@ const explore = (seed: number): string[] => {
     for (const requestId of awaited) {
       const effect = issued.find((candidate) => candidate.requestId === requestId);
       if (effect === undefined) return [`seed ${String(seed)}: awaited request never sent`];
-      const problems = apply(respond(random, effect, true));
+      const problems = apply(respond(random, effect, true), true);
       if (problems.length > 0) return problems;
     }
   }
