@@ -10,6 +10,8 @@ import { createFakeShortcutClient } from "./shortcut/fake.ts";
 import { describeTokenFailure, resolveTokenFromEnvironment } from "./shortcut/token.ts";
 import { App } from "./ui/App.tsx";
 
+const DEMO_MOVE_DELAY_MS = 1500;
+
 const openUrl = (url: string) => {
   Bun.spawn([process.platform === "darwin" ? "open" : "xdg-open", url], {
     stdio: ["ignore", "ignore", "ignore"],
@@ -28,7 +30,10 @@ const main = async () => {
   }
   const clients: Clients =
     tokenResult === null
-      ? { shortcut: createFakeShortcutClient(), github: createFakeGitHubClient() }
+      ? {
+          shortcut: createFakeShortcutClient({ moveDelayMs: DEMO_MOVE_DELAY_MS }),
+          github: createFakeGitHubClient(),
+        }
       : {
           shortcut: createShortcutClient({ token: tokenResult.token }),
           github: createGitHubClient(),

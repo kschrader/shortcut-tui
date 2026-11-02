@@ -7,7 +7,7 @@ Built on [OpenTUI](https://github.com/anomalyco/opentui) 0.8 and the Shortcut RE
 ## Run it
 
 1. Install [Bun](https://bun.sh).
-2. Create a Shortcut API v4 token. A v4 token starts with `sct_`; older v3 tokens do not work. A read-only token (`sct_r_...`) is enough.
+2. Create a Shortcut API v4 token. A v4 token starts with `sct_`; older v3 tokens do not work. A read-only token (`sct_r_...`) is enough to browse; moving stories needs a read-write token.
 3. Put the token in `.env.local` in this directory. Git ignores the file.
 
    ```
@@ -55,6 +55,14 @@ A story shows the status of its least ready open pull request. When none is open
 
 In narrow terminals the badge shows only its symbol. Press `?` for the same legend in the app.
 
+## Moving stories
+
+Press `m` on a story to move it to another state in its workflow. The list shows the story in its new group at once with a `⟳ saving` marker, then replaces it with the story Shortcut returns. If Shortcut refuses the move, the story goes back to the state Shortcut last reported, the row shows `✗ failed`, and the bottom bar shows the error with `m to retry`. Picking the state the story is already in does nothing.
+
+Moves to one story are sent one at a time. Picking again while a move is saving records a single pending intent (the latest pick wins), which is sent when the saving move settles. Moves to different stories run in parallel. A refresh that races with a move cannot roll the story back: results that load while a move is saving show the picked state, and results from a search sent before the move settled keep the moved state. `spec/StoryMoves.tla` model checks these rules; see Checks.
+
+Moving needs a read-write token. With a read-only token (`sct_r_...`, whose whoami scopes are only `read`) `m` opens a notice explaining that and sends nothing.
+
 ## Keys
 
 | Key | Action |
@@ -64,6 +72,7 @@ In narrow terminals the badge shows only its symbol. Press `?` for the same lege
 | `r` | Refresh the results, the selected story, and pull request status |
 | `o` | Open the selected story in the browser |
 | `p` | Open the pull request that sets the story's badge: the least ready open one, otherwise the newest merged or closed one. Does nothing until pull request status has loaded |
+| `m` | Move the selected story to another state. `j` / `k` choose, `enter` moves, `esc` cancels |
 | `?` | Show every key and the badge legend. `?` or `esc` closes it |
 | `pgup` / `pgdn` | Scroll the detail pane |
 | `q`, `ctrl-c` | Quit. `ctrl-c` also quits from the query editor and the help overlay |
@@ -79,7 +88,7 @@ The default query is `owner:<you> is:started !is:archived`, which shows your in-
 | `bun run lint` | oxlint (type-aware) and oxfmt, including the project rules in `lint/` |
 | `bun run type-check` | TypeScript 7 |
 | `bun test` | Unit, frame, and interleaving tests, plus a fixture test for each project lint rule |
-| `bun run tlc` | TLA+ model checks of the story-browser state machine in `spec/` |
+| `bun run tlc` | TLA+ model checks in `spec/`: the story-browser state machine (`StoryBrowser.tla`) and the story-move protocol (`StoryMoves.tla`), each with a deliberately broken configuration that TLC must reject |
 | `bun run tlc:big` | A larger TLA+ model, with no pull request links so it stays at about 14 minutes |
 | `bun run smoke` | Read-only calls to the live API with your token |
 

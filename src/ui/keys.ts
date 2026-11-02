@@ -9,8 +9,8 @@ export type KeyAction =
 
 type Keystroke = { name: string; ctrl?: true };
 
-type KeyBinding = {
-  modes: readonly Focus["mode"][];
+export type KeyBinding = {
+  modes: readonly Focus["mode"][] | "all";
   keys: readonly Keystroke[];
   label: string;
   description: string;
@@ -161,7 +161,7 @@ export const keyBindings: readonly KeyBinding[] = [
     action: { type: "quit" },
   },
   {
-    modes: ["browsing", "editingQuery", "help", "picking", "readOnly"],
+    modes: "all",
     keys: [{ name: "c", ctrl: true }],
     label: "ctrl-c",
     description: "Quit from anywhere",
@@ -169,13 +169,16 @@ export const keyBindings: readonly KeyBinding[] = [
   },
 ];
 
+export const appliesTo = (binding: KeyBinding, mode: Focus["mode"]): boolean =>
+  binding.modes === "all" || binding.modes.includes(mode);
+
 export const bindingFor = (
   mode: Focus["mode"],
   key: { name: string; ctrl: boolean },
 ): KeyBinding | undefined =>
   keyBindings.find(
     (binding) =>
-      binding.modes.includes(mode) &&
+      appliesTo(binding, mode) &&
       binding.keys.some(
         (stroke) => stroke.name === key.name && (stroke.ctrl ?? false) === key.ctrl,
       ),
@@ -183,6 +186,6 @@ export const bindingFor = (
 
 export const hintFor = (mode: Focus["mode"]): string =>
   keyBindings
-    .filter((binding) => binding.modes.includes(mode))
+    .filter((binding) => appliesTo(binding, mode))
     .flatMap((binding) => (binding.hint === undefined ? [] : [binding.hint]))
     .join("  ·  ");
