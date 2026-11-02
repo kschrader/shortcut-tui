@@ -11,6 +11,7 @@ type Props = {
 };
 
 const CHROME_ROWS = 6;
+const ROW_CHROME_WIDTH = 5;
 const CURRENT_LABEL = "current";
 
 export const MovePicker = ({ story, states, cursor, height }: Props) => {
@@ -21,6 +22,8 @@ export const MovePicker = ({ story, states, cursor, height }: Props) => {
   }, [highlighted]);
 
   const nameWidth = Math.max(...states.map((state) => state.name.length));
+  const rowWidth = ROW_CHROME_WIDTH + nameWidth + CURRENT_LABEL.length;
+  const rows = Math.min(states.length, Math.max(1, height - CHROME_ROWS));
   return (
     <box
       position="absolute"
@@ -42,7 +45,7 @@ export const MovePicker = ({ story, states, cursor, height }: Props) => {
         paddingRight={1}
       >
         <text fg={colors.dim}>{` ${story.state.workflow.name} workflow`}</text>
-        <scrollbox ref={scroll} scrollY maxHeight={Math.max(1, height - CHROME_ROWS)}>
+        <scrollbox ref={scroll} scrollY width={rowWidth} height={rows}>
           {states.map((state, index) => {
             const current = state.id === story.state.id;
             const selected = index === cursor;
