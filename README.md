@@ -32,13 +32,34 @@ shortcut-tui            # or: shortcut-tui --demo
 
 The launcher runs from this directory, so `.env.local` is always found.
 
+## Pull request status
+
+Each story that links pull requests shows a merge status after its name. The detail pane lists every linked pull request with its number, status, and title. Shortcut supplies the links; GitHub supplies the status through the [`gh` CLI](https://cli.github.com), so install it and run `gh auth login` once. Without `gh`, the app still works and the detail pane says how to set it up.
+
+A story shows the status of its least ready open pull request. When none is open, it shows merged if any was merged, otherwise closed.
+
+| Badge | Meaning |
+| --- | --- |
+| `≠ conflicts` | The branch conflicts with its base |
+| `✗ CI failing` | A check failed or errored |
+| `! changes` | A reviewer requested changes |
+| `◌ draft` | The pull request is a draft |
+| `○ review` | A review is required before merging |
+| `◔ CI running` | Checks are still running |
+| `? unknown` | GitHub has not computed mergeability yet, or the pull request is not on GitHub. Press `r` to check again |
+| `✓ ready` | GitHub reports the pull request can be merged |
+| `◉ merged` | Merged |
+| `⊘ closed` | Closed without merging |
+
+In narrow terminals the badge shows only its symbol.
+
 ## Keys
 
 | Key | Action |
 | --- | --- |
 | `j` / `k`, arrows | Move the selection |
 | `/` | Edit the search query. `enter` searches, `esc` cancels |
-| `r` | Refresh the results and the selected story |
+| `r` | Refresh the results, the selected story, and pull request status |
 | `o` | Open the selected story in the browser |
 | `pgup` / `pgdn` | Scroll the detail pane |
 | `q`, `ctrl-c` | Quit |

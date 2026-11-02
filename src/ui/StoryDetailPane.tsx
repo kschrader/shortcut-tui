@@ -1,13 +1,15 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { Ref } from "react";
-import type { Remote } from "../app/model.ts";
+import type { PullRequestView, Remote } from "../app/model.ts";
 import type { StoryDetail, StorySummary } from "../shortcut/types.ts";
 import { dateLabel, epicName, estimateLabel, ownerNames, typeStyle } from "./format.ts";
+import { badgeStyle } from "./pull-requests.ts";
 import { colors } from "./theme.ts";
 
 type Props = {
   summary: StorySummary;
   detail: Remote<StoryDetail> | undefined;
+  pullRequests: Remote<readonly PullRequestView[]> | null;
   scrollRef: Ref<ScrollBoxRenderable>;
 };
 
@@ -16,6 +18,62 @@ const Field = ({ label, value }: { label: string; value: string }) => (
     <span fg={colors.dim}>{label.padEnd(10)}</span>
     {value}
   </text>
+);
+
+const PullRequestItem = ({ pullRequest }: { pullRequest: PullRequestView }) => {
+  const { glyph, description, color } = badgeStyle[pullRequest.state];
+  return (
+    <box marginTop={1} flexDirection="column">
+      <text>
+        <b>{pullRequest.github === null ? pullRequest.url : `#${pullRequest.github.number}`}</b>
+        <span fg={color}>{`  ${glyph} ${description}`}</span>
+      </text>
+      <text wrapMode="word">{pullRequest.title}</text>
+    </box>
+  );
+};
+
+const PullRequestStatus = ({
+  pullRequests,
+}: {
+  pullRequests: Remote<readonly PullRequestView[]>;
+}) => {
+  switch (pullRequests.status) {
+    case "loading":
+      return <text fg={colors.dim}>checking GitHub…</text>;
+    case "failed":
+      return (
+        <box flexDirection="column">
+          <text wrapMode="word" fg={colors.warning}>
+            {pullRequests.message}
+          </text>
+          <text fg={colors.dim}>press r to retry</text>
+        </box>
+      );
+    case "loaded":
+      return (
+        <box flexDirection="column">
+          {pullRequests.value.map((pullRequest) => (
+            <PullRequestItem key={pullRequest.id} pullRequest={pullRequest} />
+          ))}
+        </box>
+      );
+  }
+};
+
+const PullRequestSection = ({
+  count,
+  pullRequests,
+}: {
+  count: number;
+  pullRequests: Remote<readonly PullRequestView[]>;
+}) => (
+  <box marginTop={1} marginBottom={1} flexDirection="column">
+    <text fg={colors.accent}>
+      <b>{`Pull requests (${pullRequests.status === "loaded" ? pullRequests.value.length : count})`}</b>
+    </text>
+    <PullRequestStatus pullRequests={pullRequests} />
+  </box>
 );
 
 const Body = ({ detail }: { detail: StoryDetail }) => (
@@ -46,7 +104,7 @@ const Body = ({ detail }: { detail: StoryDetail }) => (
   </box>
 );
 
-export const StoryDetailPane = ({ summary, detail, scrollRef }: Props) => {
+export const StoryDetailPane = ({ summary, detail, pullRequests, scrollRef }: Props) => {
   const { glyph, color } = typeStyle[summary.storyType];
   return (
     <scrollbox ref={scrollRef} flexGrow={1} scrollY paddingLeft={1} paddingRight={1}>
@@ -64,6 +122,9 @@ export const StoryDetailPane = ({ summary, detail, scrollRef }: Props) => {
         <Field label="Epic" value={epicName(summary.epic)} />
         <Field label="URL" value={summary.appUrl} />
       </box>
+      {pullRequests === null ? null : (
+        <PullRequestSection count={summary.pullRequestCount} pullRequests={pullRequests} />
+      )}
       {detail?.status === "loaded" ? <Body detail={detail.value} /> : null}
       {detail === undefined || detail.status === "loading" ? (
         <box marginTop={1}>

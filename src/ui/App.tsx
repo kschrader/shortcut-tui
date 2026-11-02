@@ -5,6 +5,7 @@ import type { Model, Msg } from "../app/model.ts";
 import type { StorySummary } from "../shortcut/types.ts";
 import { storyCount } from "./format.ts";
 import { StoryDetailPane } from "./StoryDetailPane.tsx";
+import { storyPullRequests } from "./pull-requests.ts";
 import { StoryList } from "./StoryList.tsx";
 import { colors } from "./theme.ts";
 
@@ -42,7 +43,12 @@ const Browser = ({
   return (
     <box flexGrow={1} flexDirection="row">
       <box width={listWidth} flexDirection="column" backgroundColor={colors.background}>
-        <StoryList stories={stories} selectedId={model.selectedStoryId} width={listWidth} />
+        <StoryList
+          stories={stories}
+          selectedId={model.selectedStoryId}
+          pullRequests={model.pullRequests}
+          width={listWidth}
+        />
       </box>
       <box
         flexGrow={1}
@@ -57,6 +63,7 @@ const Browser = ({
           <StoryDetailPane
             summary={selected}
             detail={model.details.get(selected.id)}
+            pullRequests={storyPullRequests(selected, model.pullRequests)}
             scrollRef={scrollRef}
           />
         )}

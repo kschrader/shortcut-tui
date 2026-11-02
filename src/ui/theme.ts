@@ -8,4 +8,7 @@ export const colors = {
   dim: "#6b7394",
   error: "#f7768e",
   ok: "#9ece6a",
+  merged: "#bb9af7",
+  warning: "#e0af68",
+  caution: "#ff9e64",
 };
