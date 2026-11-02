@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript",
+    "react",
+    "unicorn",
+    "oxc",
+    "import"
+  ],
+  "jsPlugins": [
+    "./lint/plugin.ts"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "shortcut-tui/no-comments": "error"
+  },
+  "ignorePatterns": [
+    "node_modules"
+  ]
+}

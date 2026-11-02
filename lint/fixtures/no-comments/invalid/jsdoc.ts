@@ -1,0 +1,2 @@
+/** jsdoc */
+export function f() {}
