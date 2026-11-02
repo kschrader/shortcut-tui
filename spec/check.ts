@@ -25,6 +25,13 @@ const suites: Record<string, readonly ModelCheck[]> = {
       expect: "violation of PullRequestStatusesComeFromLatestLoad",
       budgetSeconds: 60,
     },
+    { cfg: "StoryMoves.cfg", tla: "StoryMoves.tla", expect: "pass", budgetSeconds: 60 },
+    {
+      cfg: "UnserializedMoves.cfg",
+      tla: "StoryMoves.tla",
+      expect: "violation of SettledDisplayMatchesServer",
+      budgetSeconds: 60,
+    },
   ],
   big: [{ cfg: "Big.cfg", tla: "StoryBrowser.tla", expect: "pass", budgetSeconds: 3600 }],
 };
