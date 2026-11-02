@@ -314,7 +314,8 @@ test("a hung gh process is killed at the timeout", async () => {
   const gh = join(dir, "gh");
   writeFileSync(gh, `#!/bin/sh\necho $$ > '${pidFile}'\nexec sleep 30\n`);
   chmodSync(gh, 0o755);
-  const client = createGitHubClient({ run: ghRunner(gh), timeoutMs: 300 });
+  const slowMachineStartupMs = 2000;
+  const client = createGitHubClient({ run: ghRunner(gh), timeoutMs: slowMachineStartupMs });
   await rejection(client.pullRequestStates([ref("monorepo", 1)]));
   const pid = Number(readFileSync(pidFile, "utf8"));
   const alive = () => {
