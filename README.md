@@ -23,6 +23,15 @@ Built on [OpenTUI](https://github.com/anomalyco/opentui) 0.8 and the Shortcut RE
 
 To try the app without a token, run `bun start --demo`.
 
+To start it from any directory, link the launcher onto your `PATH`:
+
+```sh
+ln -s "$PWD/bin/shortcut-tui" ~/.local/bin/shortcut-tui
+shortcut-tui            # or: shortcut-tui --demo
+```
+
+The launcher runs from this directory, so `.env.local` is always found.
+
 ## Keys
 
 | Key | Action |
