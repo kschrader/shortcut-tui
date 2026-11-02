@@ -65,10 +65,14 @@ const runModelCheck = ({ cfg, tla, expect }: ModelCheck): boolean => {
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
   const output = run.stdout.toString() + run.stderr.toString();
   const outcome = outcomeOf(run.exitCode, output);
-  const states = /([\d,]+) distinct states found/.exec(output)?.[1] ?? "?";
+  const finalCount = /^(\d+) states generated, (\d+) distinct states found/m.exec(output);
+  const states =
+    finalCount === null
+      ? "state count not reported"
+      : `${finalCount[1] ?? "?"} generated, ${finalCount[2] ?? "?"} distinct`;
   const ok = outcome === expect;
   say(
-    `${ok ? "ok  " : "FAIL"} ${cfg}: ${outcome ?? `unrecognized TLC result (exit ${String(run.exitCode)})`}, expected ${expect}; ${states} distinct states in ${seconds}s`,
+    `${ok ? "ok  " : "FAIL"} ${cfg}: ${outcome ?? `unrecognized TLC result (exit ${String(run.exitCode)})`}, expected ${expect}; ${states} states in ${seconds}s`,
   );
   if (!ok) say(output.split("\n").slice(-40).join("\n"));
   return ok;
