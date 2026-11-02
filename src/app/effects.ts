@@ -1,28 +1,62 @@
-import type { ShortcutClient } from "../shortcut/types.ts";
-import type { Effect, Msg } from "./model.ts";
+import { pullRequestKey, type GitHubClient } from "../github/types.ts";
+import type { LinkedPullRequest, ShortcutClient, StoryId } from "../shortcut/types.ts";
+import type { Effect, Msg, StoryPullRequests } from "./model.ts";
+
+export type Clients = { shortcut: ShortcutClient; github: GitHubClient };
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-const runEffectUnsafe = async (client: ShortcutClient, effect: Effect): Promise<Msg> => {
+const pullRequestsOf = async (
+  { shortcut, github }: Clients,
+  storyIds: readonly StoryId[],
+): Promise<StoryPullRequests> => {
+  const linked = await Promise.all(
+    storyIds.map(async (id): Promise<[StoryId, readonly LinkedPullRequest[]]> => [
+      id,
+      await shortcut.listPullRequests(id),
+    ]),
+  );
+  const states = await github.pullRequestStates(
+    linked.flatMap(([, pullRequests]) => pullRequests.flatMap((pr) => pr.github ?? [])),
+  );
+  return new Map(
+    linked.map(([id, pullRequests]) => [
+      id,
+      pullRequests.map((pr) => ({
+        ...pr,
+        state:
+          pr.github === null ? "unknown" : (states.get(pullRequestKey(pr.github)) ?? "unknown"),
+      })),
+    ]),
+  );
+};
+
+const runEffectUnsafe = async (clients: Clients, effect: Effect): Promise<Msg> => {
   switch (effect.type) {
     case "loadWorkspace":
       return {
         type: "workspaceLoaded",
         requestId: effect.requestId,
-        workspace: await client.loadWorkspace(),
+        workspace: await clients.shortcut.loadWorkspace(),
       };
     case "searchStories":
       return {
         type: "searchSucceeded",
         requestId: effect.requestId,
-        stories: await client.searchStories(effect.query),
+        stories: await clients.shortcut.searchStories(effect.query),
       };
     case "getStory":
       return {
         type: "detailSucceeded",
         requestId: effect.requestId,
-        story: await client.getStory(effect.storyId),
+        story: await clients.shortcut.getStory(effect.storyId),
+      };
+    case "loadPullRequests":
+      return {
+        type: "pullRequestsLoaded",
+        requestId: effect.requestId,
+        pullRequests: await pullRequestsOf(clients, effect.storyIds),
       };
   }
 };
@@ -40,12 +74,14 @@ const failureMsg = (effect: Effect, message: string): Msg => {
         storyId: effect.storyId,
         message,
       };
+    case "loadPullRequests":
+      return { type: "pullRequestsFailed", requestId: effect.requestId, message };
   }
 };
 
-export const runEffect = async (client: ShortcutClient, effect: Effect): Promise<Msg> => {
+export const runEffect = async (clients: Clients, effect: Effect): Promise<Msg> => {
   try {
-    return await runEffectUnsafe(client, effect);
+    return await runEffectUnsafe(clients, effect);
   } catch (error) {
     return failureMsg(effect, messageOf(error));
   }

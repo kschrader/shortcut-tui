@@ -1,11 +1,13 @@
 #!/usr/bin/env bun
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
+import type { Clients } from "./app/effects.ts";
 import { useStoryBrowser } from "./app/runtime.ts";
+import { createGitHubClient } from "./github/client.ts";
+import { createFakeGitHubClient } from "./github/fake.ts";
 import { createShortcutClient } from "./shortcut/client.ts";
 import { createFakeShortcutClient } from "./shortcut/fake.ts";
 import { describeTokenFailure, resolveTokenFromEnvironment } from "./shortcut/token.ts";
-import type { ShortcutClient } from "./shortcut/types.ts";
 import { App } from "./ui/App.tsx";
 
 const openUrl = (url: string) => {
@@ -24,13 +26,16 @@ const main = async () => {
     process.exitCode = 1;
     return;
   }
-  const client: ShortcutClient =
+  const clients: Clients =
     tokenResult === null
-      ? createFakeShortcutClient()
-      : createShortcutClient({ token: tokenResult.token });
+      ? { shortcut: createFakeShortcutClient(), github: createFakeGitHubClient() }
+      : {
+          shortcut: createShortcutClient({ token: tokenResult.token }),
+          github: createGitHubClient(),
+        };
   const renderer = await createCliRenderer({ exitOnCtrlC: false });
   const Root = () => {
-    const { model, dispatch } = useStoryBrowser(client);
+    const { model, dispatch } = useStoryBrowser(clients);
     return (
       <App model={model} dispatch={dispatch} quit={() => renderer.destroy()} openUrl={openUrl} />
     );

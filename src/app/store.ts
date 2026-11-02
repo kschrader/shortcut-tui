@@ -1,5 +1,4 @@
-import type { ShortcutClient } from "../shortcut/types.ts";
-import { runEffect } from "./effects.ts";
+import { runEffect, type Clients } from "./effects.ts";
 import type { Effect, Model, Msg } from "./model.ts";
 import { init, update } from "./update.ts";
 
@@ -10,7 +9,7 @@ export type StoryStore = {
   start: () => () => void;
 };
 
-export const createStoryStore = (client: ShortcutClient): StoryStore => {
+export const createStoryStore = (clients: Clients): StoryStore => {
   const [initialModel, initialEffects] = init();
   let model = initialModel;
   let alive = true;
@@ -18,7 +17,7 @@ export const createStoryStore = (client: ShortcutClient): StoryStore => {
 
   const run = (effects: readonly Effect[]) => {
     for (const effect of effects) {
-      void runEffect(client, effect).then((msg) => (alive ? dispatch(msg) : undefined));
+      void runEffect(clients, effect).then((msg) => (alive ? dispatch(msg) : undefined));
     }
   };
 

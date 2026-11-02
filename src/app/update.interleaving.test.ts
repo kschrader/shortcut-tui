@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
+import { z } from "zod";
+import type { PullRequestId } from "../shortcut/types.ts";
 import { detail, summary, workspaceFor } from "./fixtures.ts";
-import type { Effect, Model, Msg } from "./model.ts";
+import type { Effect, Model, Msg, PullRequestView } from "./model.ts";
 import { init, update } from "./update.ts";
 
 const seeds = 300;
@@ -31,6 +33,16 @@ const answerMark = (requestId: number) => `answer to request ${String(requestId)
 const storyName = (query: string, requestId: number, id: number) =>
   `${query}::${answerMark(requestId)}::${String(id)}`;
 
+const pullRequestAnswer = (requestId: number, index: number): PullRequestView => ({
+  id: z.custom<PullRequestId>().parse(index + 1),
+  title: answerMark(requestId),
+  url: `https://github.com/acme/app/pull/${String(index + 1)}`,
+  closed: false,
+  draft: false,
+  github: { owner: "acme", repo: "app", number: index + 1 },
+  state: "ready",
+});
+
 const respond = (random: Random, effect: Effect, succeed: boolean): Msg => {
   const { requestId } = effect;
   switch (effect.type) {
@@ -41,7 +53,10 @@ const respond = (random: Random, effect: Effect, succeed: boolean): Msg => {
     case "searchStories": {
       if (!succeed) return { type: "searchFailed", requestId, message: answerMark(requestId) };
       const ids = storyPool.filter(() => random() < 0.6).toSorted(() => random() - 0.5);
-      const stories = ids.map((id) => summary(id, storyName(effect.query, requestId, id)));
+      const stories = ids.map((id) => ({
+        ...summary(id, storyName(effect.query, requestId, id)),
+        pullRequestCount: random() < 0.5 ? 0 : 1 + Math.floor(random() * 2),
+      }));
       return { type: "searchSucceeded", requestId, stories };
     }
     case "getStory":
@@ -57,6 +72,16 @@ const respond = (random: Random, effect: Effect, succeed: boolean): Msg => {
             storyId: effect.storyId,
             message: answerMark(requestId),
           };
+    case "loadPullRequests":
+      return succeed
+        ? {
+            type: "pullRequestsLoaded",
+            requestId,
+            pullRequests: new Map(
+              effect.storyIds.map((id, index) => [id, [pullRequestAnswer(requestId, index)]]),
+            ),
+          }
+        : { type: "pullRequestsFailed", requestId, message: answerMark(requestId) };
   }
 };
 
@@ -69,6 +94,49 @@ const userMsg = (random: Random): Msg =>
     { type: "querySubmitted" },
     { type: "refreshRequested" },
   ]);
+
+const pullRequestViolations = (model: Model, issued: readonly Effect[]): string[] => {
+  const found: string[] = [];
+  const shownStories = model.results.status === "loaded" ? model.results.value.stories : [];
+  const latest = issued.findLast((effect) => effect.type === "loadPullRequests");
+  const { pullRequests } = model;
+  switch (pullRequests.status) {
+    case "loading": {
+      const effect = issued.find((candidate) => candidate.requestId === pullRequests.requestId);
+      const linking = shownStories.filter((story) => story.pullRequestCount > 0);
+      if (
+        effect?.type !== "loadPullRequests" ||
+        !Bun.deepEquals(
+          effect.storyIds,
+          linking.map((story) => story.id),
+        )
+      ) {
+        found.push("pull requests wait on a load that is not for the shown stories");
+      }
+      break;
+    }
+    case "loaded":
+      for (const [storyId, views] of pullRequests.value) {
+        if (!shownStories.some((story) => story.id === storyId)) {
+          found.push(
+            `pull requests shown for story ${String(storyId)}, which is not in the results`,
+          );
+        }
+        const stale = views.filter(
+          (view) => latest === undefined || view.title !== answerMark(latest.requestId),
+        );
+        if (stale.length > 0)
+          found.push(`pull requests from a superseded load: ${stale[0]?.title ?? ""}`);
+      }
+      break;
+    case "failed":
+      if (latest === undefined || pullRequests.message !== answerMark(latest.requestId)) {
+        found.push(`pull requests show a superseded failure: ${pullRequests.message}`);
+      }
+      break;
+  }
+  return found;
+};
 
 const violations = (model: Model, issued: readonly Effect[]): string[] => {
   const found: string[] = [];
@@ -107,6 +175,7 @@ const violations = (model: Model, issued: readonly Effect[]): string[] => {
       found.push(`workspace shows a superseded response: ${shown}`);
     }
   }
+  found.push(...pullRequestViolations(model, issued));
   if (model.selectedStoryId !== null && !model.details.has(model.selectedStoryId)) {
     found.push("selected story has no detail entry");
   }
@@ -147,6 +216,7 @@ const violations = (model: Model, issued: readonly Effect[]): string[] => {
 const awaitedRequests = (model: Model) => [
   ...(model.workspace.status === "loading" ? [model.workspace.requestId] : []),
   ...(model.results.status === "loading" ? [model.results.requestId] : []),
+  ...(model.pullRequests.status === "loading" ? [model.pullRequests.requestId] : []),
   ...[...model.details.values()].flatMap((remote) =>
     remote.status === "loading" ? [remote.requestId] : [],
   ),

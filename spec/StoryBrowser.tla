@@ -10,7 +10,9 @@ CONSTANTS
     DefaultQuery,
     MaxUserRequests,
     MaxRequestId,
-    CheckSearchRequestId
+    StoriesWithPullRequests,
+    CheckSearchRequestId,
+    CheckPullRequestsRequestId
 
 NoStory == 0
 NoQuery == ""
@@ -23,11 +25,13 @@ Statuses == {"absent", "loading", "loaded", "failed"}
 AllQueries == Queries \cup {DefaultQuery, NoQuery}
 RequestIds == 0..MaxRequestId
 
-Request(kind, rid, q, s) == [kind |-> kind, rid |-> rid, query |-> q, story |-> s]
+Request(kind, rid, q, s) == [kind |-> kind, rid |-> rid, query |-> q, story |-> s, stories |-> {}]
+PullRequestsRequest(rid, S) == [kind |-> "prs", rid |-> rid, query |-> NoQuery, story |-> NoStory, stories |-> S]
 
 Loading(rid) == [status |-> "loading", rid |-> rid, query |-> NoQuery, stories |-> {}, story |-> NoStory, answer |-> 0]
 Failed(rid) == [status |-> "failed", rid |-> 0, query |-> NoQuery, stories |-> {}, story |-> NoStory, answer |-> rid]
 Absent == [status |-> "absent", rid |-> 0, query |-> NoQuery, stories |-> {}, story |-> NoStory, answer |-> 0]
+NoPullRequests == [Absent EXCEPT !.status = "loaded"]
 
 Awaiting(remote, rid) == remote.status = "loading" /\ remote.rid = rid
 
@@ -38,13 +42,22 @@ Clamp(i, lo, hi) == IF i < lo THEN lo ELSE IF i > hi THEN hi ELSE i
 
 Search(model, q) ==
     LET rid == model.nextRid
-    IN << [model EXCEPT !.query = q, !.results = Loading(rid), !.nextRid = rid + 1],
+    IN << [model EXCEPT !.query = q, !.results = Loading(rid), !.prs = NoPullRequests,
+                            !.nextRid = rid + 1],
           {Request("search", rid, q, NoStory)} >>
 
 FetchDetail(model, s) ==
     LET rid == model.nextRid
     IN << [model EXCEPT !.details[s] = Loading(rid), !.nextRid = rid + 1],
           {Request("detail", rid, NoQuery, s)} >>
+
+LoadPullRequests(model, found) ==
+    LET linking == found \cap StoriesWithPullRequests
+        rid == model.nextRid
+    IN IF linking = {}
+       THEN <<[model EXCEPT !.prs = NoPullRequests], {}>>
+       ELSE << [model EXCEPT !.prs = Loading(rid), !.nextRid = rid + 1],
+               {PullRequestsRequest(rid, linking)} >>
 
 Select(model, s) ==
     LET picked == [model EXCEPT !.selected = s]
@@ -82,7 +95,9 @@ OnSearchSucceeded(model, req, found) ==
     ELSE LET loaded == [model EXCEPT !.results =
                             [Absent EXCEPT !.status = "loaded", !.query = req.query,
                                            !.stories = found, !.answer = req.rid]]
-         IN Select(loaded, IF model.selected \in found THEN model.selected ELSE FirstOf(found))
+             selected == Select(loaded, IF model.selected \in found THEN model.selected ELSE FirstOf(found))
+             checking == LoadPullRequests(selected[1], found)
+         IN <<checking[1], selected[2] \cup checking[2]>>
 
 OnSearchFailed(model, req) ==
     IF ~SearchResponseApplies(model, req) THEN <<model, {}>>
@@ -96,6 +111,18 @@ OnDetailSucceeded(model, req) ==
 OnDetailFailed(model, req) ==
     IF ~Awaiting(model.details[req.story], req.rid) THEN <<model, {}>>
     ELSE <<[model EXCEPT !.details[req.story] = Failed(req.rid)], {}>>
+
+PullRequestsResponseApplies(model, req) ==
+    ~CheckPullRequestsRequestId \/ Awaiting(model.prs, req.rid)
+
+OnPullRequestsLoaded(model, req) ==
+    IF ~PullRequestsResponseApplies(model, req) THEN <<model, {}>>
+    ELSE <<[model EXCEPT !.prs =
+               [Absent EXCEPT !.status = "loaded", !.stories = req.stories, !.answer = req.rid]], {}>>
+
+OnPullRequestsFailed(model, req) ==
+    IF ~Awaiting(model.prs, req.rid) THEN <<model, {}>>
+    ELSE <<[model EXCEPT !.prs = Failed(req.rid)], {}>>
 
 OnSelectionMoved(model, delta) ==
     IF model.results.status # "loaded" \/ model.results.stories = {} THEN <<model, {}>>
@@ -124,6 +151,7 @@ Init ==
              results |-> [Absent EXCEPT !.status = "loaded"],
              selected |-> NoStory,
              details |-> [s \in Stories |-> Absent],
+             prs |-> NoPullRequests,
              focus |-> [mode |-> "browsing", draft |-> NoQuery],
              nextRid |-> 2 ]
     /\ network = {Request("workspace", 1, NoQuery, NoStory)}
@@ -159,6 +187,8 @@ Answer(req) ==
                 \/ Apply(OnSearchFailed(m, req))
          [] req.kind = "detail" ->
                 Apply(OnDetailSucceeded(m, req)) \/ Apply(OnDetailFailed(m, req))
+         [] req.kind = "prs" ->
+                Apply(OnPullRequestsLoaded(m, req)) \/ Apply(OnPullRequestsFailed(m, req))
 
 NetworkAnswers(rid) == \E req \in network : req.rid = rid /\ Answer(req)
 
@@ -177,6 +207,7 @@ TypeOK ==
     /\ m.results \in Remote
     /\ m.selected \in Stories \cup {NoStory}
     /\ m.details \in [Stories -> Remote]
+    /\ m.prs \in Remote
     /\ m.focus \in [mode : {"browsing", "editing"}, draft : AllQueries]
     /\ userRequests \in 0..MaxUserRequests
 
@@ -218,6 +249,9 @@ LoadingAwaitsMatchingRequest ==
            Request("search", m.results.rid, m.query, NoStory) \in network
     /\ \A s \in Stories : m.details[s].status = "loading" =>
            Request("detail", m.details[s].rid, NoQuery, s) \in network
+    /\ m.prs.status = "loading" =>
+           /\ m.results.status = "loaded"
+           /\ PullRequestsRequest(m.prs.rid, m.results.stories \cap StoriesWithPullRequests) \in network
 
 LoadedDetailMatchesKey ==
     \A s \in Stories : m.details[s].status = "loaded" => m.details[s].story = s
@@ -226,9 +260,20 @@ DetailComesFromLatestFetch ==
     \A s \in Stories : m.details[s].status \in {"loaded", "failed"} =>
         m.details[s].answer = LatestRid("detail", s)
 
+PullRequestStatusesComeFromLatestLoad ==
+    m.prs.status \in {"loaded", "failed"} /\ m.prs.answer # 0 =>
+        m.prs.answer = LatestRid("prs", NoStory)
+
+PullRequestStatusesCoverOnlyShownStories ==
+    m.prs.status = "loaded" =>
+        m.prs.stories = IF m.results.status = "loaded"
+                        THEN m.results.stories \cap StoriesWithPullRequests
+                        ELSE {}
+
 EverythingSettles ==
     <>[](/\ m.workspace.status # "loading"
          /\ m.results.status # "loading"
+         /\ m.prs.status # "loading"
          /\ \A s \in Stories : m.details[s].status # "loading")
 
 SelectedDetailArrives ==

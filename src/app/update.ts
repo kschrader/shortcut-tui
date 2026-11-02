@@ -1,5 +1,5 @@
 import type { Progress, StoryId, StorySummary } from "../shortcut/types.ts";
-import type { Effect, Model, Msg, Remote, RequestId } from "./model.ts";
+import type { Effect, Model, Msg, Remote, RequestId, StoryPullRequests } from "./model.ts";
 
 type Step = [Model, Effect[]];
 
@@ -15,6 +15,8 @@ const requestIdAfter = (id: RequestId): RequestId => toRequestId(id + 1);
 const isAwaiting = <T>(remote: Remote<T> | undefined, requestId: RequestId): boolean =>
   remote?.status === "loading" && remote.requestId === requestId;
 
+const noPullRequests: Remote<StoryPullRequests> = { status: "loaded", value: new Map() };
+
 const search = (model: Model, query: string): Step => {
   const requestId = model.nextRequestId;
   return [
@@ -22,6 +24,7 @@ const search = (model: Model, query: string): Step => {
       ...model,
       query,
       results: { status: "loading", requestId },
+      pullRequests: noPullRequests,
       nextRequestId: requestIdAfter(requestId),
     },
     [{ type: "searchStories", requestId, query }],
@@ -37,6 +40,20 @@ const fetchDetail = (model: Model, storyId: StoryId): Step => {
       nextRequestId: requestIdAfter(requestId),
     },
     [{ type: "getStory", requestId, storyId }],
+  ];
+};
+
+const loadPullRequests = (model: Model, stories: readonly StorySummary[]): Step => {
+  const storyIds = stories.filter((story) => story.pullRequestCount > 0).map((story) => story.id);
+  if (storyIds.length === 0) return [{ ...model, pullRequests: noPullRequests }, []];
+  const requestId = model.nextRequestId;
+  return [
+    {
+      ...model,
+      pullRequests: { status: "loading", requestId },
+      nextRequestId: requestIdAfter(requestId),
+    },
+    [{ type: "loadPullRequests", requestId, storyIds }],
   ];
 };
 
@@ -93,6 +110,7 @@ export const init = (): Step => {
       results: { status: "loaded", value: { query: "", stories: [] } },
       selectedStoryId: null,
       details: new Map(),
+      pullRequests: noPullRequests,
       focus: { mode: "browsing" },
       nextRequestId: requestIdAfter(requestId),
     },
@@ -119,7 +137,12 @@ export const update = (model: Model, msg: Msg): Step => {
         results: { status: "loaded", value: { query: model.query, stories } },
       };
       const kept = stories.some((story) => story.id === model.selectedStoryId);
-      return select(loaded, kept ? model.selectedStoryId : (stories[0]?.id ?? null));
+      const [selected, detailEffects] = select(
+        loaded,
+        kept ? model.selectedStoryId : (stories[0]?.id ?? null),
+      );
+      const [checking, pullRequestEffects] = loadPullRequests(selected, stories);
+      return [checking, [...detailEffects, ...pullRequestEffects]];
     }
     case "searchFailed": {
       if (!isAwaiting(model.results, msg.requestId)) return [model, []];
@@ -140,6 +163,14 @@ export const update = (model: Model, msg: Msg): Step => {
         message: msg.message,
       });
       return [{ ...model, details }, []];
+    }
+    case "pullRequestsLoaded": {
+      if (!isAwaiting(model.pullRequests, msg.requestId)) return [model, []];
+      return [{ ...model, pullRequests: { status: "loaded", value: msg.pullRequests } }, []];
+    }
+    case "pullRequestsFailed": {
+      if (!isAwaiting(model.pullRequests, msg.requestId)) return [model, []];
+      return [{ ...model, pullRequests: { status: "failed", message: msg.message } }, []];
     }
     case "selectionMoved": {
       if (model.results.status !== "loaded") return [model, []];

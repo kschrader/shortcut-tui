@@ -1,5 +1,6 @@
 import type { Model } from "../src/app/model.ts";
 import { createStoryStore } from "../src/app/store.ts";
+import { createGitHubClient } from "../src/github/client.ts";
 import { createShortcutClient } from "../src/shortcut/client.ts";
 import { describeTokenFailure, resolveTokenFromEnvironment } from "../src/shortcut/token.ts";
 
@@ -42,7 +43,10 @@ const report = (model: Model): boolean => {
 
 const tokenResult = resolveTokenFromEnvironment();
 if (tokenResult.ok) {
-  const store = createStoryStore(createShortcutClient({ token: tokenResult.token }));
+  const store = createStoryStore({
+    shortcut: createShortcutClient({ token: tokenResult.token }),
+    github: createGitHubClient(),
+  });
   const model = await new Promise<Model>((resolve) => {
     const unsubscribe = store.subscribe(() => {
       const current = store.getModel();

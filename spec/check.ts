@@ -19,6 +19,12 @@ const suites: Record<string, readonly ModelCheck[]> = {
       expect: "violation of ResultsComeFromLatestSearch",
       budgetSeconds: 60,
     },
+    {
+      cfg: "NaivePullRequests.cfg",
+      tla: "StoryBrowser.tla",
+      expect: "violation of PullRequestStatusesComeFromLatestLoad",
+      budgetSeconds: 60,
+    },
   ],
   big: [{ cfg: "Big.cfg", tla: "StoryBrowser.tla", expect: "pass", budgetSeconds: 3600 }],
 };
