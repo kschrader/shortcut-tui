@@ -8,9 +8,13 @@ const demoStates: Record<number, PullRequestState> = {
   3948: "merged",
   3951: "ready",
   3955: "checks-failing",
+  3957: "behind",
+  3958: "blocked",
   3960: "draft",
   3962: "checks-running",
   3963: "changes-requested",
+  3964: "conflicts",
+  3965: "needs-review",
 };
 
 const states: ReadonlyMap<string, PullRequestState> = new Map(

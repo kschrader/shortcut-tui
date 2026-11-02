@@ -1,24 +1,41 @@
 import { expect, test } from "bun:test";
+import { z } from "zod";
+import { runEffect } from "../app/effects.ts";
+import type { RequestId } from "../app/model.ts";
 import { createFakeShortcutClient } from "../shortcut/fake.ts";
+import { badgeStyle, storyBadge } from "../ui/pull-requests.ts";
 import { createFakeGitHubClient } from "./fake.ts";
-import { storyMergeStatus } from "./pull-request-state.ts";
-import { pullRequestKey } from "./types.ts";
 
-test("every demo pull request has a GitHub state and the demo stories show varied statuses", async () => {
+const demoPullRequests = async () => {
   const shortcut = createFakeShortcutClient();
-  const github = createFakeGitHubClient();
   const stories = await shortcut.searchStories("");
-  const statuses = await Promise.all(
-    stories.map(async (story) => {
-      const refs = (await shortcut.listPullRequests(story.id)).flatMap((pr) =>
-        pr.github === null ? [] : [pr.github],
-      );
-      const states = await github.pullRequestStates(refs);
-      return storyMergeStatus(refs.map((ref) => states.get(pullRequestKey(ref)) ?? "unknown"));
-    }),
+  const msg = await runEffect(
+    { shortcut, github: createFakeGitHubClient() },
+    {
+      type: "loadPullRequests",
+      requestId: z.custom<RequestId>().parse(1),
+      storyIds: stories.filter((story) => story.pullRequestCount > 0).map((story) => story.id),
+    },
   );
-  expect(statuses).not.toContain("unknown");
-  expect(new Set(statuses)).toEqual(
-    new Set(["none", "merged", "ready", "checks-failing", "draft", "changes-requested"]),
+  if (msg.type !== "pullRequestsLoaded") throw new Error(`expected a load, got ${msg.type}`);
+  return { stories, pullRequests: { status: "loaded", value: msg.pullRequests } as const };
+};
+
+test("the demo shows every pull request badge", async () => {
+  const { pullRequests } = await demoPullRequests();
+  const shown = new Set(
+    [...pullRequests.value.values()].flatMap((list) =>
+      list.status === "loaded" ? list.value.map((pr) => pr.state) : [],
+    ),
   );
+  const badges = Object.keys(badgeStyle).filter((badge) => badge !== "checking");
+  expect(new Set<string>(shown)).toEqual(new Set(badges));
+});
+
+test("the demo list shows behind, blocked, and unknown story badges", async () => {
+  const { stories, pullRequests } = await demoPullRequests();
+  const rows = new Set(stories.map((story) => storyBadge(story, pullRequests)));
+  for (const badge of ["behind", "blocked", "unknown", "merged", "conflicts"] as const) {
+    expect(rows).toContain(badge);
+  }
 });

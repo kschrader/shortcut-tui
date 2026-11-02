@@ -66,7 +66,9 @@ test("stories that link pull requests list exactly as many as their summary coun
   const linked = await Promise.all(stories.map((story) => client.listPullRequests(story.id)));
   expect(linked.map((prs) => prs.length)).toEqual(stories.map((story) => story.pullRequestCount));
   expect(linked.flat().length).toBeGreaterThanOrEqual(5);
-  for (const pr of linked.flat()) expect(pr.github).not.toBeNull();
+  for (const pr of linked.flat()) {
+    expect(pr.github === null).toBe(!pr.url.startsWith("https://github.com/"));
+  }
 });
 
 test("the demo workspace can write and lists the states a story can move to", async () => {

@@ -95,6 +95,15 @@ const pullRequest = (
   github: { ...DEMO_REPOSITORY, number },
 });
 
+const mergeRequest = (iid: number, title: string, { closed = false } = {}): LinkedPullRequest => ({
+  id: pullRequestId.parse(800000 + iid),
+  title,
+  url: `https://gitlab.com/demo/infra/-/merge_requests/${String(iid)}`,
+  closed,
+  draft: false,
+  github: null,
+});
+
 type StorySeed = {
   id: number;
   name: string;
@@ -152,6 +161,7 @@ const seeds: StorySeed[] = [
     comments: [
       comment(3, priya, "Design is in the Figma link on the epic.", "2026-10-29T11:00:00Z"),
     ],
+    pullRequests: [pullRequest(3957, "Add a shortcuts cheat sheet overlay")],
   },
   {
     id: 1003,
@@ -164,6 +174,7 @@ const seeds: StorySeed[] = [
     description: "",
     labels: ["infra"],
     comments: [],
+    pullRequests: [pullRequest(3958, "Bump the Postgres client to 17")],
   },
   {
     id: 1004,
@@ -208,6 +219,10 @@ const seeds: StorySeed[] = [
       "`notifications.spec` fails roughly one run in twenty with a timeout waiting for the toast.",
     labels: ["flaky-test"],
     comments: [],
+    pullRequests: [
+      pullRequest(3964, "Wait for the notification queue to drain"),
+      pullRequest(3965, "Retry the toast assertion once"),
+    ],
   },
   {
     id: 1006,
@@ -236,7 +251,10 @@ const seeds: StorySeed[] = [
     description: "Label text on story cards fails WCAG AA in dark mode.",
     labels: ["a11y"],
     comments: [comment(7, priya, "Verified on the preview build.", "2026-10-25T10:00:00Z")],
-    pullRequests: [pullRequest(3902, "Raise story card label contrast", { closed: true })],
+    pullRequests: [
+      pullRequest(3902, "Raise story card label contrast", { closed: true }),
+      mergeRequest(41, "Raise label contrast in the email templates", { closed: true }),
+    ],
   },
   {
     id: 1008,
@@ -249,6 +267,7 @@ const seeds: StorySeed[] = [
     description: "Collect inputs from each team ahead of the review.",
     labels: [],
     comments: [],
+    pullRequests: [mergeRequest(44, "Add the Q1 roadmap review checklist")],
   },
   {
     id: 1009,
