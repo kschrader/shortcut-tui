@@ -1,22 +1,28 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import { rules } from "./plugin.ts";
 
 const fixturesRoot = join(import.meta.dir, "fixtures");
 const projectRoot = join(import.meta.dir, "..");
 
-type Diagnostic = { code: string; filename: string };
+const OxlintReport = z.object({
+  diagnostics: z.array(z.object({ code: z.string(), filename: z.string() })),
+});
+const OxlintConfig = z.object({ rules: z.record(z.string(), z.unknown()) });
 
-const lintFixtures = (): Diagnostic[] => {
+const lintFixtures = () => {
   const run = Bun.spawnSync(["./node_modules/.bin/oxlint", "--format", "json", "lint/fixtures"], {
     cwd: projectRoot,
   });
-  return JSON.parse(run.stdout.toString()).diagnostics;
+  return OxlintReport.parse(JSON.parse(run.stdout.toString())).diagnostics;
 };
 
 const diagnostics = lintFixtures();
-const configuredRules = JSON.parse(readFileSync(join(projectRoot, ".oxlintrc.json"), "utf8")).rules;
+const configuredRules = OxlintConfig.parse(
+  JSON.parse(readFileSync(join(projectRoot, ".oxlintrc.json"), "utf8")),
+).rules;
 
 for (const ruleName of Object.keys(rules)) {
   const code = `shortcut-tui(${ruleName})`;

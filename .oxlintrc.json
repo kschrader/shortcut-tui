@@ -1,23 +1,43 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "typescript",
-    "react",
-    "unicorn",
-    "oxc",
-    "import"
-  ],
-  "jsPlugins": [
-    "./lint/plugin.ts"
-  ],
-  "categories": {
-    "correctness": "error",
-    "suspicious": "error"
-  },
+  "plugins": ["typescript", "react", "unicorn", "oxc", "import", "promise"],
+  "jsPlugins": ["./lint/plugin.ts"],
+  "categories": { "correctness": "error", "suspicious": "error" },
   "rules": {
-    "shortcut-tui/no-comments": "error"
+    "shortcut-tui/no-comments": "error",
+
+    "no-console": "error",
+    "unicorn/no-process-exit": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/return-await": "error",
+    "typescript/only-throw-error": "error",
+
+    "typescript/switch-exhaustiveness-check": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/no-unsafe-type-assertion": "error",
+    "typescript/restrict-template-expressions": "error",
+    "typescript/consistent-type-imports": "error",
+
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "react/jsx-key": "error",
+    "react/no-array-index-key": "error",
+    "react/react-in-jsx-scope": "off",
+
+    "import/no-cycle": "error",
+    "prefer-const": "error",
+    "eqeqeq": "error",
+    "no-param-reassign": "error",
+    "no-nested-ternary": "error",
+    "max-lines": ["error", { "max": 400, "skipBlankLines": true }]
   },
-  "ignorePatterns": [
-    "node_modules"
-  ]
+  "ignorePatterns": ["node_modules"]
 }

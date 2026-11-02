@@ -1,0 +1,6 @@
+ts	phase	decision	why	evidence	result
+2026-11-02T14:59:48Z	frame	exit predicate: bun start shows my open Shortcut stories live with a detail pane; bun run check (oxlint incl. no-comments + one rule per found issue, tsc, bun test, TLC) green	user asked to loop until something is up and running	user request 2026-11-02	open
+2026-11-02T15:01:36Z	lint	no-comments as an oxlint JS plugin, tested by linting fixture files with the real CLI	oxlint RuleTester refuses to run under Bun; the CLI run is the real artifact anyway	lint/rules.test.ts, 9aa5c84	3 tests green; harness caught shebang false positive, fixed
+2026-11-02T15:02:33Z	tla	need TLC v1.8.0 jar; auto-mode blocked download+run, asking user to fetch it	no tla2tools.jar anywhere on disk; won't route around the block	classifier denial 2026-11-02	blocked
+2026-11-02T15:02:33Z	live	app reads token from SHORTCUT_API_TOKEN or ~/.config/shortcut-cli/config.json at runtime; I can't test the token myself	auto-mode blocked me reading the token (credential materialization); live check needs the user or a permission rule	classifier denial 2026-11-02	blocked
+2026-11-02T15:02:33Z	log	commit decisions.tsv instead of gitignoring it	user asked to keep a decision log as we go	.gitignore	done
