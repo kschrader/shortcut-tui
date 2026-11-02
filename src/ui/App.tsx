@@ -15,8 +15,8 @@ type Props = {
   openUrl: (url: string) => void;
 };
 
-const LIST_WIDTH_RATIO = 0.45;
-const MIN_LIST_WIDTH = 44;
+const LIST_WIDTH_RATIO = 0.55;
+const MIN_LIST_WIDTH = 52;
 
 const Centered = ({ headline, hint, color }: { headline: string; hint: string; color: string }) => (
   <box flexGrow={1} justifyContent="center" alignItems="center" flexDirection="column">

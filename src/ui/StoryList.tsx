@@ -5,6 +5,15 @@ import { estimateLabel, fit, typeStyle } from "./format.ts";
 import { colors } from "./theme.ts";
 
 const STATE_WIDTH = 13;
+const ROW_CHROME_WIDTH = 8;
+const NARROWEST_NAME_BESIDE_STATE = 32;
+
+const rowLayout = (listWidth: number, idWidth: number) => {
+  const nameBesideState = listWidth - idWidth - ROW_CHROME_WIDTH - STATE_WIDTH - 2;
+  return nameBesideState >= NARROWEST_NAME_BESIDE_STATE
+    ? { nameWidth: nameBesideState, showState: true }
+    : { nameWidth: listWidth - idWidth - ROW_CHROME_WIDTH, showState: false };
+};
 
 type Props = {
   stories: readonly StorySummary[];
@@ -24,7 +33,7 @@ export const StoryList = ({ stories, selectedId, width }: Props) => {
         const selected = story.id === selectedId;
         const { glyph, color } = typeStyle[story.storyType];
         const idLabel = String(story.id).padStart(6);
-        const nameWidth = width - 2 - 1 - idLabel.length - 1 - 1 - STATE_WIDTH - 1 - 2 - 1;
+        const { nameWidth, showState } = rowLayout(width, idLabel.length);
         return (
           <box
             key={story.id}
@@ -37,7 +46,9 @@ export const StoryList = ({ stories, selectedId, width }: Props) => {
               <span fg={color}>{glyph}</span>
               <span fg={colors.dim}>{` ${idLabel} `}</span>
               {selected ? <b>{fit(story.name, nameWidth)}</b> : fit(story.name, nameWidth)}
-              <span fg={colors.dim}>{` ${fit(story.state.name, STATE_WIDTH)} `}</span>
+              <span fg={colors.dim}>
+                {showState ? ` ${fit(story.state.name, STATE_WIDTH)} ` : " "}
+              </span>
               <span fg={colors.dim}>{estimateLabel(story.estimate).padStart(2)}</span>
             </text>
           </box>

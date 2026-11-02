@@ -104,7 +104,7 @@ afterEach(async () => {
   current = null;
 });
 
-const show = async (model: Model, options: { height?: number } = {}) => {
+const show = async (model: Model, options: { height?: number; width?: number } = {}) => {
   const dispatched: Msg[] = [];
   const calls = { quit: 0, opened: [] as string[] };
   const screen = await testRender(
@@ -116,7 +116,7 @@ const show = async (model: Model, options: { height?: number } = {}) => {
       }}
       openUrl={(url) => calls.opened.push(url)}
     />,
-    { width: 120, height: options.height ?? 30 },
+    { width: options.width ?? 120, height: options.height ?? 30 },
   );
   current = screen;
   Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", false);
@@ -244,4 +244,25 @@ test("while editing the query, typing edits the draft and does not trigger short
   expect(dispatched).toContainEqual({ type: "queryEditCancelled" });
   expect(dispatched.some((msg) => msg.type === "queryDraftChanged")).toBe(true);
   expect(dispatched.some((msg) => msg.type === "selectionMoved")).toBe(false);
+});
+
+test("an 80-column terminal shows enough of each story name to read it", async () => {
+  const longName = "Add option to limit GitHub PR auto-linking to the first story mention";
+  const { frame } = await show(
+    browsing({
+      results: loaded({ query: "owner:me", stories: [summary(316665, { name: longName })] }),
+      selectedStoryId: storyId(316665),
+      details: new Map(),
+    }),
+    { width: 80 },
+  );
+  expect(frame()).toContain("Add option to limit GitHub PR auto-");
+});
+
+test("a wide terminal shows each story's state in the list", async () => {
+  const { frame } = await show(browsing({ selectedStoryId: stories[0].id }), { width: 160 });
+  const listRow = frame()
+    .split("\n")
+    .find((line) => line.includes("Rotate API keys"));
+  expect(listRow).toContain("Ready");
 });
