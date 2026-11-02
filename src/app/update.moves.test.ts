@@ -286,6 +286,20 @@ describe("moves and search results", () => {
     expect(stateOf(afterStale, 1)).toBe("Finished");
   });
 
+  test("an auto-refresh sent mid-move keeps the picked state whether it is answered before or after the move settles", () => {
+    const [model] = browsing([summary(1)]);
+    const [picked, effects] = pick(model, "Finished");
+    const [refreshing, refreshEffects] = update(picked, { type: "autoRefreshDue" });
+    const stale = first(refreshEffects, "searchStories");
+    const [refreshed] = answer(refreshing, stale, [summary(1)]);
+    expect(stateOf(refreshed, 1)).toBe("Finished");
+    const [done] = succeed(refreshed, only(effects, "moveStory"));
+    expect(stateOf(done, 1)).toBe("Finished");
+    const [settledFirst] = succeed(refreshing, only(effects, "moveStory"));
+    const [answeredLate] = answer(settledFirst, stale, [summary(1)]);
+    expect(stateOf(answeredLate, 1)).toBe("Finished");
+  });
+
   test("a refresh closes the picker", () => {
     const [model] = browsing([summary(1)]);
     const [open] = update(model, { type: "movePickerOpened" });

@@ -16,6 +16,7 @@ const demoPullRequests = async () => {
       requestId: z.custom<RequestId>().parse(1),
       storyIds: stories.filter((story) => story.pullRequestCount > 0).map((story) => story.id),
     },
+    () => new Date(0),
   );
   if (msg.type !== "pullRequestsLoaded") throw new Error(`expected a load, got ${msg.type}`);
   return { stories, pullRequests: { status: "loaded", value: msg.pullRequests } as const };

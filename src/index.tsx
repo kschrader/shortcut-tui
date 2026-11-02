@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
+import { autoRefreshFromEnvironment } from "./app/auto-refresh.ts";
+import { systemClock } from "./app/clock.ts";
 import type { Clients } from "./app/effects.ts";
 import { useStoryBrowser } from "./app/runtime.ts";
 import { createGitHubClient } from "./github/client.ts";
@@ -20,6 +22,12 @@ const openUrl = (url: string) => {
 
 const main = async () => {
   const demo = process.argv.includes("--demo");
+  const refresh = autoRefreshFromEnvironment();
+  if (!refresh.ok) {
+    process.stderr.write(`${refresh.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
   const tokenResult = demo ? null : resolveTokenFromEnvironment();
   if (tokenResult !== null && !tokenResult.ok) {
     process.stderr.write(
@@ -40,9 +48,18 @@ const main = async () => {
         };
   const renderer = await createCliRenderer({ exitOnCtrlC: false });
   const Root = () => {
-    const { model, dispatch } = useStoryBrowser(clients);
+    const { model, dispatch, now } = useStoryBrowser(clients, {
+      clock: systemClock,
+      autoRefresh: refresh.autoRefresh,
+    });
     return (
-      <App model={model} dispatch={dispatch} quit={() => renderer.destroy()} openUrl={openUrl} />
+      <App
+        model={model}
+        now={now}
+        dispatch={dispatch}
+        quit={() => renderer.destroy()}
+        openUrl={openUrl}
+      />
     );
   };
   createRoot(renderer).render(<Root />);

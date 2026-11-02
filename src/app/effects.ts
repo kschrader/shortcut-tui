@@ -53,7 +53,7 @@ const pullRequestsOf = async (
   );
 };
 
-const runEffectUnsafe = async (clients: Clients, effect: Effect): Promise<Msg> => {
+const runEffectUnsafe = async (clients: Clients, effect: Effect, now: () => Date): Promise<Msg> => {
   switch (effect.type) {
     case "loadWorkspace":
       return {
@@ -66,6 +66,7 @@ const runEffectUnsafe = async (clients: Clients, effect: Effect): Promise<Msg> =
         type: "searchSucceeded",
         requestId: effect.requestId,
         stories: await clients.shortcut.searchStories(effect.query),
+        loadedAt: now(),
       };
     case "getStory":
       return {
@@ -114,9 +115,13 @@ const failureMsg = (effect: Effect, message: string): Msg => {
   }
 };
 
-export const runEffect = async (clients: Clients, effect: Effect): Promise<Msg> => {
+export const runEffect = async (
+  clients: Clients,
+  effect: Effect,
+  now: () => Date,
+): Promise<Msg> => {
   try {
-    return await runEffectUnsafe(clients, effect);
+    return await runEffectUnsafe(clients, effect, now);
   } catch (error) {
     return failureMsg(effect, messageOf(error));
   }

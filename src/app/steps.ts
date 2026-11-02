@@ -35,8 +35,9 @@ export const answer = (
   model: Model,
   search: EffectOf<"searchStories">,
   stories: readonly StorySummary[],
+  loadedAt = new Date("2026-11-02T09:00:00Z"),
 ): [Model, Effect[]] =>
-  update(model, { type: "searchSucceeded", requestId: search.requestId, stories });
+  update(model, { type: "searchSucceeded", requestId: search.requestId, stories, loadedAt });
 
 export const browsing = (stories: readonly StorySummary[]): [Model, Effect[]] => {
   const [model, search] = loggedIn();

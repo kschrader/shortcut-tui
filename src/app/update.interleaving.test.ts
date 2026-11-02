@@ -77,7 +77,7 @@ const respond = (
         pullRequestCount: random() < 0.5 ? 0 : 1 + Math.floor(random() * 2),
         state: serverState(seen, summary(id).id),
       }));
-      return { type: "searchSucceeded", requestId, stories };
+      return { type: "searchSucceeded", requestId, stories, loadedAt: new Date(1_000 * requestId) };
     }
     case "getStory":
       return succeed
@@ -141,6 +141,7 @@ const userMsg = (random: Random): Msg =>
     { type: "queryEditCancelled" },
     { type: "querySubmitted" },
     { type: "refreshRequested" },
+    { type: "autoRefreshDue" },
     { type: "movePickerOpened" },
     { type: "movePickerMoved", delta: pick(random, [-1, 1]) },
     { type: "movePickerConfirmed" },

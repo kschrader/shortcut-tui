@@ -50,6 +50,7 @@ export type Model = {
   workspace: Remote<Workspace>;
   query: string;
   results: Remote<SearchResults>;
+  loadedAt: Date | null;
   selectedStoryId: StoryId | null;
   details: ReadonlyMap<StoryId, Remote<StoryDetail>>;
   pullRequests: Remote<StoryPullRequests>;
@@ -61,7 +62,12 @@ export type Model = {
 export type Msg =
   | { type: "workspaceLoaded"; requestId: RequestId; workspace: Workspace }
   | { type: "workspaceFailed"; requestId: RequestId; message: string }
-  | { type: "searchSucceeded"; requestId: RequestId; stories: readonly StorySummary[] }
+  | {
+      type: "searchSucceeded";
+      requestId: RequestId;
+      stories: readonly StorySummary[];
+      loadedAt: Date;
+    }
   | { type: "searchFailed"; requestId: RequestId; message: string }
   | { type: "detailSucceeded"; requestId: RequestId; story: StoryDetail }
   | { type: "detailFailed"; requestId: RequestId; storyId: StoryId; message: string }
@@ -75,6 +81,7 @@ export type Msg =
   | { type: "queryEditCancelled" }
   | { type: "querySubmitted" }
   | { type: "refreshRequested" }
+  | { type: "autoRefreshDue" }
   | { type: "helpOpened" }
   | { type: "helpClosed" }
   | { type: "movePickerOpened" }

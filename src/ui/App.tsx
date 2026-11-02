@@ -4,7 +4,7 @@ import { useRef } from "react";
 import type { Model, Msg } from "../app/model.ts";
 import { pickerStates } from "../app/update.ts";
 import type { StorySummary } from "../shortcut/types.ts";
-import { storyCount } from "./format.ts";
+import { ageLabel, storyCount } from "./format.ts";
 import { StoryDetailPane } from "./StoryDetailPane.tsx";
 import { HelpOverlay } from "./HelpOverlay.tsx";
 import { bindingFor, hintFor } from "./keys.ts";
@@ -16,6 +16,7 @@ import { colors } from "./theme.ts";
 
 type Props = {
   model: Model;
+  now: Date;
   dispatch: (msg: Msg) => void;
   quit: () => void;
   openUrl: (url: string) => void;
@@ -23,6 +24,8 @@ type Props = {
 
 const LIST_WIDTH_RATIO = 0.55;
 const MIN_LIST_WIDTH = 52;
+const STATUS_BAR_PADDING = 2;
+const STATUS_BAR_GAP = 2;
 
 const Centered = ({ headline, hint, color }: { headline: string; hint: string; color: string }) => (
   <box flexGrow={1} justifyContent="center" alignItems="center" flexDirection="column">
@@ -148,6 +151,12 @@ const bottomBar = (
   };
 };
 
+const freshness = (model: Model, now: Date, room: number): string | null => {
+  if (model.results.status !== "loaded" || model.loadedAt === null) return null;
+  const label = `↻ ${ageLabel(model.loadedAt, now)}`;
+  return label.length + STATUS_BAR_GAP <= room ? label : null;
+};
+
 const Overlay = ({ model, height }: { model: Model; height: number }) => {
   const { focus } = model;
   switch (focus.mode) {
@@ -176,7 +185,7 @@ const Overlay = ({ model, height }: { model: Model; height: number }) => {
   }
 };
 
-export const App = ({ model, dispatch, quit, openUrl }: Props) => {
+export const App = ({ model, now, dispatch, quit, openUrl }: Props) => {
   const { width, height } = useTerminalDimensions();
   const detailScroll = useRef<ScrollBoxRenderable>(null);
   const listWidth = Math.min(width, Math.max(MIN_LIST_WIDTH, Math.floor(width * LIST_WIDTH_RATIO)));
@@ -211,6 +220,7 @@ export const App = ({ model, dispatch, quit, openUrl }: Props) => {
 
   const { text, color } = status(model);
   const bottom = bottomBar(model, selectedStory);
+  const age = freshness(model, now, width - STATUS_BAR_PADDING - bottom.text.length);
   return (
     <box flexDirection="column" width="100%" height="100%" backgroundColor={colors.background}>
       <box
@@ -241,10 +251,17 @@ export const App = ({ model, dispatch, quit, openUrl }: Props) => {
         <text fg={color}>{text}</text>
       </box>
       <Body model={model} scrollRef={detailScroll} listWidth={listWidth} />
-      <box height={1} paddingLeft={1} backgroundColor={colors.selection}>
-        <text wrapMode="none" fg={bottom.color}>
+      <box
+        height={1}
+        flexDirection="row"
+        paddingLeft={1}
+        paddingRight={1}
+        backgroundColor={colors.selection}
+      >
+        <text flexGrow={1} wrapMode="none" fg={bottom.color}>
           {bottom.text}
         </text>
+        {age === null ? null : <text fg={colors.dim}>{age}</text>}
       </box>
       <Overlay model={model} height={height} />
     </box>

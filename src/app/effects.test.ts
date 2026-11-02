@@ -19,6 +19,7 @@ import type { RequestId } from "./model.ts";
 
 const requestId = z.custom<RequestId>().parse(7);
 const storyId = z.custom<StoryId>().parse(42);
+const noon = () => new Date("2026-11-02T12:00:00Z");
 
 const unusedGitHub: GitHubClient = {
   pullRequestStates: () => Promise.reject(new Error("GitHub should not be asked")),
@@ -35,7 +36,9 @@ const failingClient: ShortcutClient = {
 };
 
 test("a failing workspace load becomes a workspaceFailed message", async () => {
-  expect(await runEffect(failing(failingClient), { type: "loadWorkspace", requestId })).toEqual({
+  expect(
+    await runEffect(failing(failingClient), { type: "loadWorkspace", requestId }, noon),
+  ).toEqual({
     type: "workspaceFailed",
     requestId,
     message: "offline",
@@ -44,7 +47,7 @@ test("a failing workspace load becomes a workspaceFailed message", async () => {
 
 test("a failing search becomes a searchFailed message", async () => {
   expect(
-    await runEffect(failing(failingClient), { type: "searchStories", requestId, query: "x" }),
+    await runEffect(failing(failingClient), { type: "searchStories", requestId, query: "x" }, noon),
   ).toEqual({
     type: "searchFailed",
     requestId,
@@ -53,14 +56,36 @@ test("a failing search becomes a searchFailed message", async () => {
 });
 
 test("a failing story fetch carries the story id", async () => {
-  expect(await runEffect(failing(failingClient), { type: "getStory", requestId, storyId })).toEqual(
-    {
-      type: "detailFailed",
-      requestId,
-      storyId,
-      message: "not found",
+  expect(
+    await runEffect(failing(failingClient), { type: "getStory", requestId, storyId }, noon),
+  ).toEqual({
+    type: "detailFailed",
+    requestId,
+    storyId,
+    message: "not found",
+  });
+});
+
+test("a successful search records when its answer arrived, not when it was sent", async () => {
+  let clock = new Date("2026-11-02T12:00:00Z");
+  const client: ShortcutClient = {
+    ...failingClient,
+    searchStories: async () => {
+      clock = new Date("2026-11-02T12:00:03Z");
+      return [];
     },
+  };
+  const msg = await runEffect(
+    failing(client),
+    { type: "searchStories", requestId, query: "x" },
+    () => clock,
   );
+  expect(msg).toEqual({
+    type: "searchSucceeded",
+    requestId,
+    stories: [],
+    loadedAt: new Date("2026-11-02T12:00:03Z"),
+  });
 });
 
 test("a non-Error rejection still produces a failure message", async () => {
@@ -68,7 +93,11 @@ test("a non-Error rejection still produces a failure message", async () => {
     ...failingClient,
     searchStories: () => Promise.reject(new Error("x", { cause: "y" }).cause),
   };
-  const msg = await runEffect(failing(client), { type: "searchStories", requestId, query: "x" });
+  const msg = await runEffect(
+    failing(client),
+    { type: "searchStories", requestId, query: "x" },
+    noon,
+  );
   expect(msg).toEqual({ type: "searchFailed", requestId, message: "y" });
 });
 
@@ -112,6 +141,7 @@ test("loading pull requests asks GitHub once for every story's pull requests", a
   const msg = await runEffect(
     { shortcut: linkingShortcut, github },
     { type: "loadPullRequests", requestId, storyIds: [storyId, otherStoryId] },
+    noon,
   );
   expect(asked.length).toBe(1);
   expect(msg).toEqual({
@@ -149,6 +179,7 @@ test("a GitHub failure fails the whole pull request load with GitHub's message",
   const msg = await runEffect(
     { shortcut: linkingShortcut, github },
     { type: "loadPullRequests", requestId, storyIds: [storyId] },
+    noon,
   );
   expect(msg).toEqual({
     type: "pullRequestsFailed",
@@ -160,7 +191,11 @@ test("a GitHub failure fails the whole pull request load with GitHub's message",
 test("a failing move becomes a moveFailed message for its story", async () => {
   const stateId = z.custom<WorkflowStateId>().parse(3);
   expect(
-    await runEffect(failing(failingClient), { type: "moveStory", requestId, storyId, stateId }),
+    await runEffect(
+      failing(failingClient),
+      { type: "moveStory", requestId, storyId, stateId },
+      noon,
+    ),
   ).toEqual({ type: "moveFailed", requestId, storyId, message: "HTTP 403" });
 });
 
@@ -174,6 +209,7 @@ const loadedStates = async (github: GitHubClient, links: readonly LinkedPullRequ
   const msg = await runEffect(
     { shortcut, github },
     { type: "loadPullRequests", requestId, storyIds: [storyId] },
+    noon,
   );
   if (msg.type !== "pullRequestsLoaded") throw new Error(`expected a load, got ${msg.type}`);
   const list = msg.pullRequests.get(storyId);
@@ -255,6 +291,7 @@ test("loading pull requests for 500 stories keeps at most 6 Shortcut requests in
   const msg = await runEffect(
     { shortcut, github: silentGitHub },
     { type: "loadPullRequests", requestId, storyIds: manyStories(500) },
+    noon,
   );
   expect(msg.type).toBe("pullRequestsLoaded");
   expect(inFlight.calls).toBe(500);
@@ -273,6 +310,7 @@ test("a story whose pull request list fails is marked failed while the rest stil
   const msg = await runEffect(
     { shortcut, github: silentGitHub },
     { type: "loadPullRequests", requestId, storyIds: manyStories(20) },
+    noon,
   );
   if (msg.type !== "pullRequestsLoaded") throw new Error(`expected a load, got ${msg.type}`);
   expect(msg.pullRequests.size).toBe(20);
@@ -297,6 +335,7 @@ test("the load fails with the first error only when every story's list fails", a
     await runEffect(
       { shortcut, github: unusedGitHub },
       { type: "loadPullRequests", requestId, storyIds: manyStories(3) },
+      noon,
     ),
   ).toEqual({ type: "pullRequestsFailed", requestId, message: "Shortcut API 429 for story 1" });
 });

@@ -78,6 +78,7 @@ export const modelWith = (overrides: Partial<Model>): Model => ({
   workspace: loaded(workspace),
   query: "owner:me",
   results: loaded<SearchResults>({ query: "owner:me", stories: [] }),
+  loadedAt: null,
   selectedStoryId: null,
   details: new Map(),
   pullRequests: loaded(new Map()),
@@ -133,12 +134,16 @@ export const cleanup = () => {
   current = null;
 };
 
-export const show = async (model: Model, options: { height?: number; width?: number } = {}) => {
+export const show = async (
+  model: Model,
+  options: { height?: number; width?: number; now?: Date } = {},
+) => {
   const dispatched: Msg[] = [];
   const calls = { quit: 0, opened: [] as string[] };
   const screen = await testRender(
     <App
       model={model}
+      now={options.now ?? new Date("2026-11-02T09:00:00Z")}
       dispatch={(msg) => dispatched.push(msg)}
       quit={() => {
         calls.quit += 1;

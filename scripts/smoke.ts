@@ -1,3 +1,4 @@
+import { systemClock } from "../src/app/clock.ts";
 import type { Model, StoryPullRequests } from "../src/app/model.ts";
 import { createStoryStore } from "../src/app/store.ts";
 import { createGitHubClient } from "../src/github/client.ts";
@@ -60,10 +61,13 @@ const report = (model: Model): boolean => {
 
 const tokenResult = resolveTokenFromEnvironment();
 if (tokenResult.ok) {
-  const store = createStoryStore({
-    shortcut: createShortcutClient({ token: tokenResult.token }),
-    github: createGitHubClient(),
-  });
+  const store = createStoryStore(
+    {
+      shortcut: createShortcutClient({ token: tokenResult.token }),
+      github: createGitHubClient(),
+    },
+    { clock: systemClock, autoRefresh: { mode: "off" } },
+  );
   const model = await new Promise<Model>((resolve) => {
     const unsubscribe = store.subscribe(() => {
       const current = store.getModel();

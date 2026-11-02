@@ -182,6 +182,7 @@ const resultsArrived = (
   model: Model,
   requestId: RequestId,
   found: readonly StorySummary[],
+  loadedAt: Date,
 ): Step => {
   const stories = found
     .map((story) => {
@@ -216,6 +217,7 @@ const resultsArrived = (
   const loaded: Model = {
     ...model,
     results: { status: "loaded", value: { query: model.query, stories } },
+    loadedAt,
     moves,
     focus: pickingGone ? browsing : focus,
   };
@@ -235,6 +237,7 @@ export const init = (): Step => {
       workspace: { status: "loading", requestId },
       query: "",
       results: { status: "loaded", value: { query: "", stories: [] } },
+      loadedAt: null,
       selectedStoryId: null,
       details: new Map(),
       pullRequests: noPullRequests,
@@ -259,7 +262,7 @@ export const update = (model: Model, msg: Msg): Step => {
     }
     case "searchSucceeded": {
       if (!isAwaiting(model.results, msg.requestId)) return [model, []];
-      return resultsArrived(model, msg.requestId, msg.stories);
+      return resultsArrived(model, msg.requestId, msg.stories, msg.loadedAt);
     }
     case "searchFailed": {
       if (!isAwaiting(model.results, msg.requestId)) return [model, []];
@@ -345,6 +348,13 @@ export const update = (model: Model, msg: Msg): Step => {
     }
     case "refreshRequested":
       return refresh(model);
+    case "autoRefreshDue": {
+      const idle =
+        model.focus.mode === "browsing" &&
+        model.results.status !== "loading" &&
+        model.pullRequests.status !== "loading";
+      return idle ? refresh(model) : [model, []];
+    }
     case "helpOpened": {
       if (model.focus.mode !== "browsing") return [model, []];
       return [{ ...model, focus: { mode: "help" } }, []];

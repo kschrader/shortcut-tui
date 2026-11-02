@@ -177,3 +177,42 @@ test("an 80-column terminal shows every browsing key hint", async () => {
   ];
   for (const hint of hints) expect(bar).toContain(hint);
 });
+
+const statusBar = (frame: string) => frame.trimEnd().split("\n").at(-1) ?? "";
+const loadedAt = new Date("2026-11-02T09:00:00Z");
+
+test("an 80-column status bar shows how long ago the results loaded beside every key hint", async () => {
+  const { frame } = await show(browsing({ loadedAt }), {
+    width: 80,
+    now: new Date("2026-11-02T09:02:59Z"),
+  });
+  const bar = statusBar(frame());
+  expect(bar).toMatch(/q quit\s+↻ 2m ago\s*$/);
+  expect(bar).toContain("j/k move");
+});
+
+test("results that just loaded say so", async () => {
+  const { frame } = await show(browsing({ loadedAt }), {
+    width: 80,
+    now: new Date("2026-11-02T09:00:40Z"),
+  });
+  expect(statusBar(frame())).toMatch(/q quit\s+↻ just now\s*$/);
+});
+
+test("a narrow terminal drops the load time before any key hint", async () => {
+  const { frame } = await show(browsing({ loadedAt }), {
+    width: 72,
+    now: new Date("2026-11-02T09:02:00Z"),
+  });
+  const bar = statusBar(frame());
+  expect(bar).not.toContain("↻");
+  expect(bar).toContain("q quit");
+});
+
+test("no load time shows while the results are loading", async () => {
+  const { frame } = await show(
+    modelWith({ loadedAt, results: { status: "loading", requestId: requestId(2) } }),
+    { width: 120, now: new Date("2026-11-02T09:02:00Z") },
+  );
+  expect(statusBar(frame())).not.toContain("↻");
+});
