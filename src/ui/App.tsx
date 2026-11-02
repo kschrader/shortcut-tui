@@ -5,7 +5,9 @@ import type { Model, Msg } from "../app/model.ts";
 import type { StorySummary } from "../shortcut/types.ts";
 import { storyCount } from "./format.ts";
 import { StoryDetailPane } from "./StoryDetailPane.tsx";
-import { storyPullRequests } from "./pull-requests.ts";
+import { HelpOverlay } from "./HelpOverlay.tsx";
+import { bindingFor, hintFor } from "./keys.ts";
+import { pullRequestToOpen, storyPullRequests } from "./pull-requests.ts";
 import { StoryList } from "./StoryList.tsx";
 import { colors } from "./theme.ts";
 
@@ -129,35 +131,30 @@ export const App = ({ model, dispatch, quit, openUrl }: Props) => {
   const listWidth = Math.min(width, Math.max(MIN_LIST_WIDTH, Math.floor(width * LIST_WIDTH_RATIO)));
   const editing = model.focus.mode === "editingQuery";
 
+  const selectedStory =
+    model.results.status === "loaded"
+      ? model.results.value.stories.find((story) => story.id === model.selectedStoryId)
+      : undefined;
+
   useKeyboard((key) => {
-    if (key.ctrl && key.name === "c") return quit();
-    if (editing) {
-      if (key.name === "escape") dispatch({ type: "queryEditCancelled" });
-      return;
-    }
-    switch (key.name) {
-      case "q":
+    const action = bindingFor(model.focus.mode, key)?.action;
+    if (action === undefined) return;
+    switch (action.type) {
+      case "quit":
         return quit();
-      case "j":
-      case "down":
-        return dispatch({ type: "selectionMoved", delta: 1 });
-      case "k":
-      case "up":
-        return dispatch({ type: "selectionMoved", delta: -1 });
-      case "/":
-        return dispatch({ type: "queryEditStarted" });
-      case "r":
-        return dispatch({ type: "refreshRequested" });
-      case "pagedown":
-        return detailScroll.current?.scrollBy(0.5, "viewport");
-      case "pageup":
-        return detailScroll.current?.scrollBy(-0.5, "viewport");
-      case "o": {
-        const selected =
-          model.results.status === "loaded"
-            ? model.results.value.stories.find((story) => story.id === model.selectedStoryId)
-            : undefined;
-        if (selected) openUrl(selected.appUrl);
+      case "dispatch":
+        return dispatch(action.msg);
+      case "scrollDetail":
+        return detailScroll.current?.scrollBy(action.viewports, "viewport");
+      case "openStory":
+        if (selectedStory) openUrl(selectedStory.appUrl);
+        return;
+      case "openPullRequest": {
+        const pullRequest = selectedStory
+          ? pullRequestToOpen(selectedStory, model.pullRequests)
+          : null;
+        if (pullRequest) openUrl(pullRequest.url);
+        return;
       }
     }
   });
@@ -195,11 +192,10 @@ export const App = ({ model, dispatch, quit, openUrl }: Props) => {
       <Body model={model} scrollRef={detailScroll} listWidth={listWidth} />
       <box height={1} paddingLeft={1} backgroundColor={colors.selection}>
         <text fg={colors.dim}>
-          {editing
-            ? "enter search  ·  esc cancel"
-            : "j/k move  ·  / query  ·  r refresh  ·  o open  ·  pgup/pgdn scroll  ·  q quit"}
+          {editing ? "enter search  ·  esc cancel" : hintFor(model.focus.mode)}
         </text>
       </box>
+      {model.focus.mode === "help" && <HelpOverlay />}
     </box>
   );
 };

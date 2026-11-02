@@ -105,3 +105,25 @@ test("an 80-column terminal keeps names readable and shows the status as a glyph
   expect(row).toContain("≠");
   expect(row).not.toContain("conflicts");
 });
+
+test("p opens the pull request that decides the badge", async () => {
+  const { screen, calls } = await show(withPullRequests());
+  screen.mockInput.pressKey("p");
+  expect(calls.opened).toEqual(["https://github.com/useshortcut/monorepo/pull/3917"]);
+});
+
+test("p opens the least ready pull request of the selected story", async () => {
+  const { screen, calls } = await show(withPullRequests(loaded(checked), 102));
+  screen.mockInput.pressKey("p");
+  expect(calls.opened).toEqual(["https://github.com/useshortcut/monorepo/pull/3939"]);
+});
+
+test("p does nothing for a story without pull requests or before status loads", async () => {
+  const none = await show(withPullRequests(loaded(checked), 103));
+  none.screen.mockInput.pressKey("p");
+  expect(none.calls.opened).toEqual([]);
+  cleanup();
+  const checking = await show(withPullRequests({ status: "loading", requestId: requestId(4) }));
+  checking.screen.mockInput.pressKey("p");
+  expect(checking.calls.opened).toEqual([]);
+});

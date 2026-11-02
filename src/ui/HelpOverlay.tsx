@@ -1,0 +1,49 @@
+import { keyBindings } from "./keys.ts";
+import { BADGE_LABEL_WIDTH, badgeStyle } from "./pull-requests.ts";
+import { colors } from "./theme.ts";
+
+const KEY_LABEL_WIDTH = Math.max(...keyBindings.map((binding) => binding.label.length));
+
+export const HelpOverlay = () => (
+  <box
+    position="absolute"
+    top={0}
+    left={0}
+    width="100%"
+    height="100%"
+    justifyContent="center"
+    alignItems="center"
+  >
+    <box
+      border
+      borderStyle="rounded"
+      borderColor={colors.accent}
+      backgroundColor={colors.panel}
+      title=" Help "
+      flexDirection="column"
+      paddingLeft={2}
+      paddingRight={2}
+    >
+      <box flexDirection="row" gap={3}>
+        <box flexDirection="column">
+          <text fg={colors.dim}>Keys</text>
+          {keyBindings.map((binding) => (
+            <text key={binding.label}>
+              <span fg={colors.accent}>{binding.label.padEnd(KEY_LABEL_WIDTH)}</span>
+              {`  ${binding.description}`}
+            </text>
+          ))}
+        </box>
+        <box flexDirection="column">
+          <text fg={colors.dim}>Pull request badges</text>
+          {Object.values(badgeStyle).map((style) => (
+            <text key={style.label}>
+              <span fg={style.color}>{style.glyph}</span>
+              {` ${style.label.padEnd(BADGE_LABEL_WIDTH)}  ${style.description}`}
+            </text>
+          ))}
+        </box>
+      </box>
+    </box>
+  </box>
+);
