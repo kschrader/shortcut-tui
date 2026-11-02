@@ -3,3 +3,4 @@ spec/**/states/
 spec/**/*_TTrace_*
 spec/tools/
 *.log
+.env*
