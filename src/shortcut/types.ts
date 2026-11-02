@@ -17,7 +17,7 @@ export type StorySummary = {
   id: StoryId;
   name: string;
   storyType: StoryType;
-  state: { id: WorkflowStateId; name: string; progress: Progress };
+  state: { id: WorkflowStateId; name: string; progress: Progress; position: number };
   estimate: number | null;
   owners: readonly MemberRef[];
   epic: { id: EpicId; name: string } | null;

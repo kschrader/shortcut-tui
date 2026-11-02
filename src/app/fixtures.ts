@@ -35,12 +35,22 @@ export const summary = (id: number, name = `Story ${String(id)}`): StorySummary 
   id: storyId(id),
   name,
   storyType: "feature",
-  state: { id: workflowStateId(1), name: "To Do", progress: "unstarted" },
+  state: { id: workflowStateId(1), name: "To Do", progress: "unstarted", position: 0 },
   estimate: null,
   owners: [{ id: memberId("me"), name: "Me" }],
   epic: null,
   appUrl: `https://app.shortcut.com/story/${String(id)}`,
   updatedAt: new Date(0),
+});
+
+export const inState = (
+  story: StorySummary,
+  state: Pick<StorySummary["state"], "name" | "progress" | "position">,
+  updatedAt = story.updatedAt,
+): StorySummary => ({
+  ...story,
+  state: { ...state, id: workflowStateId(100 + state.position) },
+  updatedAt,
 });
 
 export const detail = (id: number): StoryDetail => ({

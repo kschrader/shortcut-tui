@@ -65,7 +65,30 @@ const summaryFields = {
 
 const summarySchema = z.object(summaryFields);
 
-const toSummary = (raw: z.infer<typeof summarySchema>): StorySummary => ({
+export type UnplacedSummary = Omit<StorySummary, "state"> & {
+  state: Omit<StorySummary["state"], "position">;
+};
+
+export type StatePositions = ReadonlyMap<WorkflowStateId, number>;
+
+export const WORKFLOW_STATE_FIELDS = "id,position";
+
+export const WorkflowStatePositionSchema = z.object({ id: workflowStateId, position: z.number() });
+
+export const placeInWorkflow = <T extends UnplacedSummary>(
+  story: T,
+  positions: StatePositions,
+): Omit<T, "state"> & { state: StorySummary["state"] } => {
+  const position = positions.get(story.state.id);
+  if (position === undefined) {
+    throw new Error(
+      `Shortcut sent a story in workflow state ${String(story.state.id)}, which the workflow state list does not include`,
+    );
+  }
+  return { ...story, state: { ...story.state, position } };
+};
+
+const toSummary = (raw: z.infer<typeof summarySchema>): UnplacedSummary => ({
   id: raw.id,
   name: raw.name,
   storyType: raw.story_type,
@@ -89,7 +112,7 @@ export const StoryBodySchema = z
     description: z.string(),
     labels: nestedList(z.object({ name: z.string() })),
   })
-  .transform((raw): Omit<StoryDetail, "comments"> => ({
+  .transform((raw): Omit<StoryDetail, "comments" | "state"> & UnplacedSummary => ({
     ...toSummary(raw),
     description: raw.description,
     labels: raw.labels.map((label) => label.name),

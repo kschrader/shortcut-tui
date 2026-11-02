@@ -23,17 +23,23 @@ const sam = member("00000000-0000-4000-8000-000000000004", "Sam Okafor");
 
 const workspace: Workspace = { me: { ...me, mentionName: "demo" }, slug: "demo" };
 
-const state = (id: number, name: string, progress: Progress): StorySummary["state"] => ({
+const state = (
+  id: number,
+  name: string,
+  progress: Progress,
+  position: number,
+): StorySummary["state"] => ({
   id: workflowStateId.parse(id),
   name,
   progress,
+  position,
 });
 
-const backlog = state(500000001, "Backlog", "unstarted");
-const ready = state(500000002, "Ready for Development", "unstarted");
-const inProgress = state(500000003, "In Progress", "started");
-const inReview = state(500000004, "In Review", "started");
-const done = state(500000005, "Done", "done");
+const backlog = state(500000001, "Backlog", "unstarted", 0);
+const ready = state(500000002, "Ready for Development", "unstarted", 1);
+const inProgress = state(500000003, "In Progress", "started", 2);
+const inReview = state(500000004, "In Review", "started", 3);
+const done = state(500000005, "Done", "done", 4);
 
 const epics = {
   shortcuts: { id: epicId.parse(90), name: "Keyboard-first navigation" },

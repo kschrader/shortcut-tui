@@ -25,11 +25,17 @@ const grace: MemberRef = { id: memberId("grace"), name: "Grace Hopper" };
 
 const workspace: Workspace = { me: { ...ada, mentionName: "ada" }, slug: "acme" };
 
-const ready: StorySummary["state"] = { id: stateId(1), name: "Ready", progress: "unstarted" };
+const ready: StorySummary["state"] = {
+  id: stateId(1),
+  name: "Ready",
+  progress: "unstarted",
+  position: 1,
+};
 const inProgress: StorySummary["state"] = {
   id: stateId(2),
   name: "In Progress",
   progress: "started",
+  position: 2,
 };
 
 const summary = (id: number, overrides: Partial<StorySummary> = {}): StorySummary => ({

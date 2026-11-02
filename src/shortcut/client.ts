@@ -9,12 +9,17 @@ import {
   DETAIL_FIELDS,
   StoryBodySchema,
   StoryCommentSchema,
+  placeInWorkflow,
   StorySummarySchema,
   SUMMARY_FIELDS,
   WhoamiSchema,
+  WORKFLOW_STATE_FIELDS,
+  WorkflowStatePositionSchema,
+  type StatePositions,
+  type UnplacedSummary,
 } from "./schemas.ts";
 import type { ApiToken } from "./token.ts";
-import type { ShortcutClient, StoryComment, StoryId, StorySummary, Workspace } from "./types.ts";
+import type { ShortcutClient, StoryComment, StoryId, WorkflowStateId, Workspace } from "./types.ts";
 
 export type ClientOptions = {
   token: ApiToken;
@@ -25,7 +30,11 @@ export type ClientOptions = {
 const SEARCH_LIMIT = 500;
 const PAGE_SIZE = 100;
 
-type Session = { workspace: Workspace; api: ShortcutWorkspaceApi };
+type Session = {
+  workspace: Workspace;
+  api: ShortcutWorkspaceApi;
+  positions: Promise<StatePositions> | null;
+};
 
 const describeFailure = (error: unknown): Error => {
   if (error instanceof z.ZodError) {
@@ -53,7 +62,29 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
 
   const openSession = async (): Promise<Session> => {
     const workspace = WhoamiSchema.parse(await client.getWhoami());
-    return { workspace, api: client.workspace(workspace.slug) };
+    return { workspace, api: client.workspace(workspace.slug), positions: null };
+  };
+
+  const loadPositions = async (api: ShortcutWorkspaceApi): Promise<StatePositions> => {
+    const positions = new Map<WorkflowStateId, number>();
+    for await (const raw of client.paginate(
+      api.listWorkflowStates({ fields: WORKFLOW_STATE_FIELDS, limit: PAGE_SIZE }),
+    )) {
+      const state = WorkflowStatePositionSchema.parse(raw);
+      positions.set(state.id, state.position);
+    }
+    return positions;
+  };
+
+  const positionsCovering = async (
+    current: Session,
+    stories: readonly UnplacedSummary[],
+  ): Promise<StatePositions> => {
+    current.positions ??= loadPositions(current.api);
+    const cached = await current.positions;
+    if (stories.every((story) => cached.has(story.state.id))) return cached;
+    current.positions = loadPositions(current.api);
+    return current.positions;
   };
 
   const connect = async (): Promise<Session> => {
@@ -83,25 +114,30 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
 
     searchStories: (query) =>
       attempt(async () => {
-        const { api } = await connect();
-        const stories: StorySummary[] = [];
+        const current = await connect();
+        const { api } = current;
+        const stories: UnplacedSummary[] = [];
         for await (const raw of client.paginate(
           api.searchStories({ query, limit: PAGE_SIZE, fields: SUMMARY_FIELDS }),
         )) {
           stories.push(StorySummarySchema.parse(raw));
           if (stories.length === SEARCH_LIMIT) break;
         }
-        return stories;
+        const positions = await positionsCovering(current, stories);
+        return stories.map((story) => placeInWorkflow(story, positions));
       }),
 
     getStory: (id) =>
       attempt(async () => {
-        const { api } = await connect();
+        const current = await connect();
+        const { api } = current;
         const [{ entity }, comments] = await Promise.all([
           api.getStory(id, { fields: DETAIL_FIELDS }),
           listComments(api, id),
         ]);
-        return { ...StoryBodySchema.parse(entity), comments };
+        const body = StoryBodySchema.parse(entity);
+        const positions = await positionsCovering(current, [body]);
+        return { ...placeInWorkflow(body, positions), comments };
       }),
   };
 };

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { StorySummary } from "../shortcut/types.ts";
-import { detail, storyId, summary, workspaceFor } from "./fixtures.ts";
+import { detail, inState, storyId, summary, workspaceFor } from "./fixtures.ts";
 import type { Effect, Model, Msg } from "./model.ts";
 import { init, update } from "./update.ts";
 
@@ -224,6 +224,48 @@ describe("selection and detail", () => {
       story: detail(1),
     });
     expect(afterStale.details.get(storyId(1))?.status).toBe("loading");
+  });
+});
+
+describe("default order", () => {
+  const backlog = { name: "Backlog", progress: "unstarted", position: 0 } as const;
+  const ready = { name: "Ready for Development", progress: "unstarted", position: 4 } as const;
+  const inDevelopment = { name: "In Development", progress: "started", position: 5 } as const;
+  const inReview = { name: "Waiting for Review", progress: "started", position: 6 } as const;
+
+  test("stories further right in the workflow come first", () => {
+    const [model] = browsing([
+      inState(summary(1), backlog),
+      inState(summary(2), inReview),
+      inState(summary(3), ready),
+      inState(summary(4), inDevelopment),
+    ]);
+    if (model.results.status !== "loaded") throw new Error("results not loaded");
+    expect(model.results.value.stories.map((story) => story.state.name)).toEqual([
+      "Waiting for Review",
+      "In Development",
+      "Ready for Development",
+      "Backlog",
+    ]);
+    expect(model.selectedStoryId).toBe(storyId(2));
+  });
+
+  test("a started state outranks an unstarted one from another workflow at a higher position", () => {
+    const [model] = browsing([
+      inState(summary(1), { name: "Ideas", progress: "unstarted", position: 9 }),
+      inState(summary(2), { name: "In Progress", progress: "started", position: 1 }),
+    ]);
+    if (model.results.status !== "loaded") throw new Error("results not loaded");
+    expect(model.results.value.stories.map((story) => story.id)).toEqual([storyId(2), storyId(1)]);
+  });
+
+  test("stories in the same state put the most recently updated first", () => {
+    const [model] = browsing([
+      inState(summary(1), ready, new Date("2026-10-01T00:00:00Z")),
+      inState(summary(2), ready, new Date("2026-10-20T00:00:00Z")),
+    ]);
+    if (model.results.status !== "loaded") throw new Error("results not loaded");
+    expect(model.results.value.stories.map((story) => story.id)).toEqual([storyId(2), storyId(1)]);
   });
 });
 

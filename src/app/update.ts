@@ -1,4 +1,4 @@
-import type { StoryId } from "../shortcut/types.ts";
+import type { Progress, StoryId, StorySummary } from "../shortcut/types.ts";
 import type { Effect, Model, Msg, Remote, RequestId } from "./model.ts";
 
 type Step = [Model, Effect[]];
@@ -47,6 +47,13 @@ const select = (model: Model, storyId: StoryId | null): Step => {
   if (detail === undefined || detail.status === "failed") return fetchDetail(selected, storyId);
   return [selected, []];
 };
+
+const progressRank: Record<Progress, number> = { unstarted: 0, started: 1, done: 2 };
+
+const furthestAlongFirst = (a: StorySummary, b: StorySummary) =>
+  progressRank[b.state.progress] - progressRank[a.state.progress] ||
+  b.state.position - a.state.position ||
+  b.updatedAt.getTime() - a.updatedAt.getTime();
 
 const refresh = (model: Model): Step => {
   switch (model.workspace.status) {
@@ -101,12 +108,13 @@ export const update = (model: Model, msg: Msg): Step => {
     }
     case "searchSucceeded": {
       if (!isAwaiting(model.results, msg.requestId)) return [model, []];
+      const stories = msg.stories.toSorted(furthestAlongFirst);
       const loaded: Model = {
         ...model,
-        results: { status: "loaded", value: { query: model.query, stories: msg.stories } },
+        results: { status: "loaded", value: { query: model.query, stories } },
       };
-      const kept = msg.stories.some((story) => story.id === model.selectedStoryId);
-      return select(loaded, kept ? model.selectedStoryId : (msg.stories[0]?.id ?? null));
+      const kept = stories.some((story) => story.id === model.selectedStoryId);
+      return select(loaded, kept ? model.selectedStoryId : (stories[0]?.id ?? null));
     }
     case "searchFailed": {
       if (!isAwaiting(model.results, msg.requestId)) return [model, []];

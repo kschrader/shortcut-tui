@@ -86,6 +86,11 @@ const inProgress = {
   workflow_name: "Engineering",
 };
 
+const workflowStates = [
+  { entity_type: "workflow-state", id: 500000002, position: 4 },
+  { entity_type: "workflow-state", id: 500000003, position: 5 },
+];
+
 const page = (entities: unknown[], next: string | null, total: number) => ({
   $schema: `${API}/api/v4/schemas/StoryEntityListWrapper`,
   entities,
@@ -111,7 +116,7 @@ const stub = (...routes: Route[]) => {
   const handler = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : input);
     calls.push({ url, authorization: new Headers(init?.headers).get("Authorization") });
-    for (const route of routes) {
+    for (const route of [...routes, workflowStatesRoute]) {
       const response = route(url);
       if (response !== undefined) return response;
     }
@@ -129,6 +134,11 @@ const at =
 const json = (body: unknown) => () => Response.json(body);
 
 const whoamiRoute = at("/api/v4/whoami", json(whoami));
+
+const workflowStatesRoute: Route = (url) =>
+  url.pathname === "/api/v4/acme/workflow-states"
+    ? Response.json(page(workflowStates, null, workflowStates.length))
+    : undefined;
 
 const rejection = async (promise: Promise<unknown>): Promise<Error> => {
   try {
@@ -197,7 +207,12 @@ test("searchStories reads every page and maps embedded names", async () => {
     id: storyId.parse(1),
     name: "Fix login redirect",
     storyType: "bug",
-    state: { id: workflowStateId.parse(500000003), name: "In Progress", progress: "started" },
+    state: {
+      id: workflowStateId.parse(500000003),
+      name: "In Progress",
+      progress: "started",
+      position: 5,
+    },
     estimate: 3,
     owners: [meRef, samRef],
     epic: { id: epicId.parse(90), name: "Auth hardening" },
@@ -217,7 +232,55 @@ test("searchStories reads every page and maps embedded names", async () => {
     "/api/v4/whoami",
     "/api/v4/acme/stories/search",
     "/api/v4/acme/stories/search",
+    "/api/v4/acme/workflow-states",
   ]);
+});
+
+const searchReturning = (...stories: unknown[]) =>
+  at("/api/v4/acme/stories/search", json(page(stories, null, stories.length)));
+
+const statesListing = (...lists: (typeof workflowStates)[]): Route => {
+  let served = 0;
+  return (url) => {
+    if (url.pathname !== "/api/v4/acme/workflow-states") return undefined;
+    const list = lists[Math.min(served, lists.length - 1)] ?? [];
+    served += 1;
+    return Response.json(page(list, null, list.length));
+  };
+};
+
+const workflowStateCalls = (calls: readonly Call[]) =>
+  calls.filter((call) => call.url.pathname === "/api/v4/acme/workflow-states").length;
+
+test("workflow state positions are loaded once and reused across searches", async () => {
+  const { client, calls } = stub(whoamiRoute, searchReturning(storyJson(1)));
+  await client.searchStories(QUERY);
+  const [story] = await client.searchStories(QUERY);
+  expect(story?.state.position).toBe(4);
+  expect(workflowStateCalls(calls)).toBe(1);
+});
+
+test("a story in a state missing from the cached positions reloads them", async () => {
+  const withoutInProgress = workflowStates.filter((state) => state.id !== 500000003);
+  const { client, calls } = stub(
+    whoamiRoute,
+    statesListing(withoutInProgress, workflowStates),
+    at(
+      "/api/v4/acme/stories/search",
+      json(
+        page([storyJson(1), storyJson(2, { workflow_state: inProgress, started: true })], null, 2),
+      ),
+    ),
+  );
+  const stories = await client.searchStories(QUERY);
+  expect(stories.map((story) => story.state.position)).toEqual([4, 5]);
+  expect(workflowStateCalls(calls)).toBe(2);
+});
+
+test("a story whose state Shortcut does not list rejects naming the state", async () => {
+  const { client } = stub(whoamiRoute, statesListing([]), searchReturning(storyJson(1)));
+  const error = await rejection(client.searchStories(QUERY));
+  expect(error.message).toContain("workflow state 500000002");
 });
 
 const endless: Route = (url) => {
