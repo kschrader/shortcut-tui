@@ -1,0 +1,151 @@
+import type { StoryId } from "../shortcut/types.ts";
+import type { Effect, Model, Msg, Remote, RequestId } from "./model.ts";
+
+type Step = [Model, Effect[]];
+
+const isRequestId = (n: number): n is RequestId => Number.isSafeInteger(n) && n > 0;
+
+const toRequestId = (n: number): RequestId => {
+  if (!isRequestId(n)) throw new RangeError(`request id ${String(n)} is out of range`);
+  return n;
+};
+
+const requestIdAfter = (id: RequestId): RequestId => toRequestId(id + 1);
+
+const isAwaiting = <T>(remote: Remote<T> | undefined, requestId: RequestId): boolean =>
+  remote?.status === "loading" && remote.requestId === requestId;
+
+const search = (model: Model, query: string): Step => {
+  const requestId = model.nextRequestId;
+  return [
+    {
+      ...model,
+      query,
+      results: { status: "loading", requestId },
+      nextRequestId: requestIdAfter(requestId),
+    },
+    [{ type: "searchStories", requestId, query }],
+  ];
+};
+
+const fetchDetail = (model: Model, storyId: StoryId): Step => {
+  const requestId = model.nextRequestId;
+  return [
+    {
+      ...model,
+      details: new Map(model.details).set(storyId, { status: "loading", requestId }),
+      nextRequestId: requestIdAfter(requestId),
+    },
+    [{ type: "getStory", requestId, storyId }],
+  ];
+};
+
+const select = (model: Model, storyId: StoryId | null): Step => {
+  const selected = { ...model, selectedStoryId: storyId };
+  if (storyId === null) return [selected, []];
+  const detail = model.details.get(storyId);
+  if (detail === undefined || detail.status === "failed") return fetchDetail(selected, storyId);
+  return [selected, []];
+};
+
+const refresh = (model: Model): Step => {
+  if (model.workspace.status === "loading") return [model, []];
+  if (model.workspace.status === "failed") {
+    const requestId = model.nextRequestId;
+    return [
+      {
+        ...model,
+        workspace: { status: "loading", requestId },
+        nextRequestId: requestIdAfter(requestId),
+      },
+      [{ type: "loadWorkspace", requestId }],
+    ];
+  }
+  const [searching, searchEffects] = search(model, model.query);
+  if (model.selectedStoryId === null) return [searching, searchEffects];
+  const [fetching, detailEffects] = fetchDetail(searching, model.selectedStoryId);
+  return [fetching, [...searchEffects, ...detailEffects]];
+};
+
+export const init = (): Step => {
+  const requestId = toRequestId(1);
+  return [
+    {
+      workspace: { status: "loading", requestId },
+      query: "",
+      results: { status: "loaded", value: { query: "", stories: [] } },
+      selectedStoryId: null,
+      details: new Map(),
+      focus: { mode: "browsing" },
+      nextRequestId: requestIdAfter(requestId),
+    },
+    [{ type: "loadWorkspace", requestId }],
+  ];
+};
+
+export const update = (model: Model, msg: Msg): Step => {
+  switch (msg.type) {
+    case "workspaceLoaded": {
+      if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
+      const loaded: Model = { ...model, workspace: { status: "loaded", value: msg.workspace } };
+      return search(loaded, `owner:${msg.workspace.me.mentionName} !is:done !is:archived`);
+    }
+    case "workspaceFailed": {
+      if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
+      return [{ ...model, workspace: { status: "failed", message: msg.message } }, []];
+    }
+    case "searchSucceeded": {
+      if (!isAwaiting(model.results, msg.requestId)) return [model, []];
+      const loaded: Model = {
+        ...model,
+        results: { status: "loaded", value: { query: model.query, stories: msg.stories } },
+      };
+      const kept = msg.stories.some((story) => story.id === model.selectedStoryId);
+      return select(loaded, kept ? model.selectedStoryId : (msg.stories[0]?.id ?? null));
+    }
+    case "searchFailed": {
+      if (!isAwaiting(model.results, msg.requestId)) return [model, []];
+      return [{ ...model, results: { status: "failed", message: msg.message } }, []];
+    }
+    case "detailSucceeded": {
+      if (!isAwaiting(model.details.get(msg.story.id), msg.requestId)) return [model, []];
+      const details = new Map(model.details).set(msg.story.id, {
+        status: "loaded",
+        value: msg.story,
+      });
+      return [{ ...model, details }, []];
+    }
+    case "detailFailed": {
+      if (!isAwaiting(model.details.get(msg.storyId), msg.requestId)) return [model, []];
+      const details = new Map(model.details).set(msg.storyId, {
+        status: "failed",
+        message: msg.message,
+      });
+      return [{ ...model, details }, []];
+    }
+    case "selectionMoved": {
+      if (model.results.status !== "loaded") return [model, []];
+      const { stories } = model.results.value;
+      if (stories.length === 0) return [model, []];
+      const current = stories.findIndex((story) => story.id === model.selectedStoryId);
+      const target = Math.min(Math.max(current + msg.delta, 0), stories.length - 1);
+      return select(model, stories[target]?.id ?? null);
+    }
+    case "queryEditStarted": {
+      if (model.workspace.status !== "loaded") return [model, []];
+      return [{ ...model, focus: { mode: "editingQuery", draft: model.query } }, []];
+    }
+    case "queryDraftChanged": {
+      if (model.focus.mode !== "editingQuery") return [model, []];
+      return [{ ...model, focus: { mode: "editingQuery", draft: msg.draft } }, []];
+    }
+    case "queryEditCancelled":
+      return [{ ...model, focus: { mode: "browsing" } }, []];
+    case "querySubmitted": {
+      if (model.focus.mode !== "editingQuery") return [model, []];
+      return search({ ...model, focus: { mode: "browsing" } }, model.focus.draft);
+    }
+    case "refreshRequested":
+      return refresh(model);
+  }
+};

@@ -26,6 +26,7 @@
     "typescript/return-await": "error",
     "typescript/only-throw-error": "error",
     "typescript/switch-exhaustiveness-check": "error",
+    "consistent-return": "off",
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
     "typescript/no-unsafe-argument": "error",
