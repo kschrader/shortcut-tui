@@ -34,9 +34,13 @@ The launcher runs from this directory, so `.env.local` is always found.
 
 ## Pull request status
 
-Each story that links pull requests shows a merge status after its name. The detail pane lists every linked pull request with its number, status, and title. Shortcut supplies the links; GitHub supplies the status through the [`gh` CLI](https://cli.github.com), so install it and run `gh auth login` once. Without `gh`, the app still works and the detail pane says how to set it up. When `gh` is logged in but cannot see any linked repository, for example because single sign-on is not authorized for its token, the detail pane shows GitHub's error. A query that fails or takes longer than 20 seconds marks only its own pull requests unknown. When every query fails, the detail pane shows the first error.
+Each story that links pull requests shows a merge status after its name. The detail pane lists every linked pull request with its number, status, and title. Shortcut supplies the links; GitHub supplies the status through the [`gh` CLI](https://cli.github.com), so install it and run `gh auth login` once. Without `gh`, the app still works and the status bar says how to set it up. When `gh` is logged in but cannot see any linked repository, for example because single sign-on is not authorized for its token, the status bar shows GitHub's error. A query that fails or takes longer than 20 seconds affects only its own pull requests. When every query fails, the status bar shows the first error.
 
-A story shows the status of its least ready open pull request. When none is open, it shows merged if any was merged, otherwise closed.
+For a pull request GitHub does not answer, including links to other hosts such as GitLab, the badge uses what Shortcut records: closed, then draft, otherwise unknown. Shortcut cannot tell merged from closed, so a merged GitLab merge request shows as closed.
+
+The app asks Shortcut for at most 6 stories' pull requests at a time and runs at most 4 `gh` queries at once. If Shortcut cannot list one story's pull requests, that story shows `? unknown`, its detail pane shows the error, and the status bar counts the stories that failed. The whole load fails only when every story fails.
+
+A story shows the status of its least ready open pull request. An unknown link counts as open, because Shortcut records it as open. When none is open, the story shows merged if any was merged, otherwise closed.
 
 | Badge | Meaning |
 | --- | --- |
@@ -48,9 +52,9 @@ A story shows the status of its least ready open pull request. When none is open
 | `○ review` | A review is required before merging |
 | `⊟ blocked` | A branch rule other than review blocks merging, such as unresolved conversations or required signed commits |
 | `◔ CI running` | Checks are still running |
-| `? unknown` | GitHub did not report a status. The link is not a GitHub pull request, `gh` cannot see it, the query failed or timed out, or GitHub was still computing mergeability after a second look. Press `r` to ask again; that helps only in the last two cases |
+| `? unknown` | Open, with no status from GitHub. The link is not a GitHub pull request, `gh` cannot see it, the query failed or timed out, GitHub was still computing mergeability after a second look, or Shortcut could not list the story's pull requests. Press `r` to ask again; that does not help for links to other hosts or pull requests `gh` cannot see |
 | `✓ ready` | GitHub reports the pull request can be merged |
-| `◉ merged` | Merged |
+| `◉ merged` | Merged into any base branch, as GitHub's `MERGED` state reports. This need not be the repository's default branch |
 | `⊘ closed` | Closed without merging |
 
 In narrow terminals the badge shows only its symbol. Press `?` for the same legend in the app.
