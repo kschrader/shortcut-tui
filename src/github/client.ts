@@ -8,9 +8,9 @@ import {
 import { pullRequestKey, type GitHubClient, type PullRequestRef } from "./types.ts";
 
 export type GhOutput = { exitCode: number; stdout: string; stderr: string };
-export type GhRunner = (args: readonly string[]) => Promise<GhOutput>;
+export type GhRunner = (args: readonly string[], signal: AbortSignal) => Promise<GhOutput>;
 
-export type GitHubClientOptions = { run?: GhRunner; recheckAfterMs?: number };
+export type GitHubClientOptions = { run?: GhRunner; recheckAfterMs?: number; timeoutMs?: number };
 
 export const GH_SETUP_HINT = "GitHub status needs the gh CLI: gh auth login";
 
@@ -21,8 +21,9 @@ const PULL_REQUEST_FIELDS =
 
 export const ghRunner =
   (executable = "gh"): GhRunner =>
-  async (args) => {
+  async (args, signal) => {
     const gh = Bun.spawn([executable, ...args], {
+      signal,
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
@@ -40,6 +41,10 @@ const GraphQlResponse = z.object({
     .record(z.string(), z.record(z.string(), RawPullRequestSchema.nullable()).nullable())
     .nullable()
     .optional(),
+  errors: z
+    .array(z.object({ message: z.string().optional() }))
+    .optional()
+    .catch(undefined),
 });
 
 type Repository = { owner: string; repo: string; numbers: readonly number[] };
@@ -111,12 +116,25 @@ const firstLine = (text: string) => text.trim().split("\n")[0] ?? "";
 const isMissingExecutable = (error: unknown) =>
   error instanceof Error && "code" in error && error.code === "ENOENT";
 
-const ask = async (run: GhRunner, args: readonly string[]): Promise<GhOutput> => {
+type Gh = { run: GhRunner; timeoutMs: number };
+
+const ask = async ({ run, timeoutMs }: Gh, args: readonly string[]): Promise<GhOutput> => {
+  const timeout = new AbortController();
+  const timer = setTimeout(() => {
+    timeout.abort(new Error(`GitHub query failed: gh did not answer within ${timeoutMs / 1000} s`));
+  }, timeoutMs);
+  const timedOut = new Promise<never>((_, reject) => {
+    timeout.signal.addEventListener("abort", () => {
+      reject(timeout.signal.reason);
+    });
+  });
   try {
-    return await run(args);
+    return await Promise.race([run(args, timeout.signal), timedOut]);
   } catch (error) {
     if (isMissingExecutable(error)) throw new Error(GH_SETUP_HINT, { cause: error });
     throw error;
+  } finally {
+    clearTimeout(timer);
   }
 };
 
@@ -128,52 +146,70 @@ const parseJson = (text: string): unknown => {
   }
 };
 
+const queryFailed = (message: string) => new Error(`GitHub query failed: ${message}`);
+
 const parseOutput = ({ exitCode, stdout, stderr }: GhOutput) => {
   if (exitCode === GH_AUTH_REQUIRED_EXIT_CODE) throw new Error(GH_SETUP_HINT);
   const parsed = GraphQlResponse.safeParse(parseJson(stdout));
   if (parsed.success && parsed.data.data !== undefined && parsed.data.data !== null) {
-    return parsed.data.data;
+    return { data: parsed.data.data, errors: parsed.data.errors ?? [] };
   }
-  if (exitCode !== 0) {
-    throw new Error(`GitHub query failed: ${firstLine(stderr) || `gh exited ${exitCode}`}`);
-  }
+  if (exitCode !== 0) throw queryFailed(firstLine(stderr) || `gh exited ${exitCode}`);
   throw new Error("GitHub sent an unexpected response");
 };
 
 type Answer = { ref: PullRequestRef; raw: RawPullRequest | null };
 
 const answersTo = async (
-  run: GhRunner,
+  gh: Gh,
   repositories: readonly Repository[],
 ): Promise<[string, Answer][]> => {
-  const data = parseOutput(await ask(run, queryArgs(repositories)));
-  return repositories.flatMap(({ owner, repo, numbers }, i) =>
+  const output = await ask(gh, queryArgs(repositories));
+  const { data, errors } = parseOutput(output);
+  const answers = repositories.flatMap(({ owner, repo, numbers }, i) =>
     numbers.map((number): [string, Answer] => {
       const ref = { owner, repo, number };
       return [pullRequestKey(ref), { ref, raw: data[`r${i}`]?.[`p${number}`] ?? null }];
     }),
   );
+  const [firstError] = errors;
+  if (firstError !== undefined && answers.every(([, { raw }]) => raw === null)) {
+    throw queryFailed(
+      firstError.message ?? (firstLine(output.stderr) || `gh exited ${output.exitCode}`),
+    );
+  }
+  return answers;
 };
 
-const lookUp = async (run: GhRunner, refs: readonly PullRequestRef[]) => {
-  const answers = await Promise.all(
-    queriesFor(refs).map((repositories) => answersTo(run, repositories)),
+const lookUp = async (gh: Gh, refs: readonly PullRequestRef[]) => {
+  const settled = await Promise.allSettled(
+    queriesFor(refs).map((repositories) => answersTo(gh, repositories)),
   );
-  return answers.flat();
+  const answered = settled.flatMap((query) => (query.status === "fulfilled" ? query.value : []));
+  const failures = settled.flatMap((query): unknown[] =>
+    query.status === "rejected" ? [query.reason] : [],
+  );
+  if (answered.length === 0 && failures.length > 0) throw failures[0];
+  return answered;
 };
 
 export const createGitHubClient = ({
   run = ghRunner(),
   recheckAfterMs = 2000,
+  timeoutMs = 20_000,
 }: GitHubClientOptions = {}): GitHubClient => ({
   async pullRequestStates(refs) {
-    const answers = new Map(await lookUp(run, refs));
+    const gh = { run, timeoutMs };
+    const answers = new Map(await lookUp(gh, refs));
     const computing = [...answers.values()].flatMap(({ ref, raw }) =>
       raw !== null && awaitsMergeability(raw) ? [ref] : [],
     );
     if (computing.length > 0) {
       await Bun.sleep(recheckAfterMs);
-      for (const [key, answer] of await lookUp(run, computing)) answers.set(key, answer);
+      const rechecked = await lookUp(gh, computing).catch(() => []);
+      for (const [key, answer] of rechecked) {
+        if (answer.raw !== null) answers.set(key, answer);
+      }
     }
     return new Map(
       [...answers].map(([key, { raw }]) => [key, raw === null ? "unknown" : classify(raw)]),

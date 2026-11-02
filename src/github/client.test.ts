@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createGitHubClient, ghRunner, GH_SETUP_HINT, type GhRunner } from "./client.ts";
 import { pullRequestKey, type PullRequestRef } from "./types.ts";
 
@@ -68,8 +71,14 @@ const fakeGitHub = (...answersPerCall: [Table, ...Table[]]) => {
       stderr: missing ? "gh: Could not resolve to a Repository\n" : "",
     };
   };
-  return { calls, concurrency, client: createGitHubClient({ run, recheckAfterMs: 0 }) };
+  return { calls, concurrency, run, client: createGitHubClient({ run, recheckAfterMs: 0 }) };
 };
+
+const badGateway = (status: number) => ({
+  exitCode: 1,
+  stdout: "",
+  stderr: `HTTP ${status}: Bad Gateway (https://api.github.com/graphql)\n`,
+});
 
 const rejection = async (promise: Promise<unknown>): Promise<Error> => {
   try {
@@ -104,7 +113,7 @@ test("one gh call classifies every pull request across repositories", async () =
 });
 
 test("owner and repository names travel as variables, not inside the query", async () => {
-  const { calls, client } = fakeGitHub({});
+  const { calls, client } = fakeGitHub({ 'evil/x") { viewer { login } } ##1': raw() });
   await client.pullRequestStates([ref('x") { viewer { login } } #', 1, "evil")]);
   const query = flags(calls[0] ?? []).get("query") ?? "";
   expect(query).not.toContain("evil");
@@ -204,4 +213,118 @@ test("pull requests whose merge state GitHub is still computing are asked about 
   const states = await client.pullRequestStates([ref("monorepo", 3940)]);
   expect(calls.length).toBe(2);
   expect([...states.values()]).toEqual(["behind"]);
+});
+
+test("a failed query leaves only its own pull requests unanswered", async () => {
+  const numbers = Array.from({ length: 11 }, (_, i) => i + 1);
+  const github = fakeGitHub(
+    Object.fromEntries(
+      numbers.map((n) => [`useshortcut/monorepo#${n}`, raw({ mergeStateStatus: "CLEAN" })]),
+    ),
+  );
+  const client = createGitHubClient({
+    run: async (args, signal) =>
+      (flags(args).get("query") ?? "").includes("p11:")
+        ? badGateway(502)
+        : github.run(args, signal),
+    recheckAfterMs: 0,
+  });
+  const states = await client.pullRequestStates(numbers.map((n) => ref("monorepo", n)));
+  expect(states).toEqual(
+    new Map(numbers.slice(0, 10).map((n) => [pullRequestKey(ref("monorepo", n)), "ready"])),
+  );
+});
+
+test("when every query fails, the first one's error rejects", async () => {
+  const client = createGitHubClient({
+    run: async (args) =>
+      (flags(args).get("query") ?? "").includes("p11:") ? badGateway(503) : badGateway(502),
+  });
+  const refs = Array.from({ length: 11 }, (_, i) => ref("monorepo", i + 1));
+  expect((await rejection(client.pullRequestStates(refs))).message).toBe(
+    "GitHub query failed: HTTP 502: Bad Gateway (https://api.github.com/graphql)",
+  );
+});
+
+test("a failed second look keeps the first round's answers", async () => {
+  const github = fakeGitHub({
+    "useshortcut/monorepo#3729": raw({ mergeable: "UNKNOWN", reviewDecision: "CHANGES_REQUESTED" }),
+    "useshortcut/monorepo#3911": raw({ mergeStateStatus: "CLEAN" }),
+  });
+  let calls = 0;
+  const client = createGitHubClient({
+    run: async (args, signal) => {
+      calls += 1;
+      return calls === 1 ? github.run(args, signal) : badGateway(502);
+    },
+    recheckAfterMs: 0,
+  });
+  const states = await client.pullRequestStates([ref("monorepo", 3729), ref("monorepo", 3911)]);
+  expect(calls).toBe(2);
+  expect([...states.values()]).toEqual(["changes-requested", "ready"]);
+});
+
+test("a second look that loses a pull request keeps its first answer", async () => {
+  const { calls, client } = fakeGitHub(
+    {
+      "useshortcut/monorepo#3729": raw({
+        mergeable: "UNKNOWN",
+        reviewDecision: "CHANGES_REQUESTED",
+      }),
+      "useshortcut/monorepo#3730": raw({ mergeable: "UNKNOWN" }),
+    },
+    { "useshortcut/monorepo#3730": raw({ mergeStateStatus: "CLEAN" }) },
+  );
+  const states = await client.pullRequestStates([ref("monorepo", 3729), ref("monorepo", 3730)]);
+  expect(calls.length).toBe(2);
+  expect([...states.values()]).toEqual(["changes-requested", "ready"]);
+});
+
+test("gh that cannot see any requested repository rejects with GitHub's error", async () => {
+  const message = "Could not resolve to a Repository with the name 'useshortcut/monorepo'.";
+  const client = createGitHubClient({
+    run: async () => ({
+      exitCode: 1,
+      stdout: JSON.stringify({ data: { r0: null }, errors: [{ type: "NOT_FOUND", message }] }),
+      stderr: `gh: ${message} (NOT_FOUND)\n`,
+    }),
+  });
+  expect(
+    (await rejection(client.pullRequestStates([ref("monorepo", 1), ref("monorepo", 2)]))).message,
+  ).toBe(`GitHub query failed: ${message}`);
+});
+
+test("gh that never answers is abandoned after the timeout", async () => {
+  const signals: AbortSignal[] = [];
+  const client = createGitHubClient({
+    run: (_, signal) => {
+      signals.push(signal);
+      return new Promise(() => {});
+    },
+    timeoutMs: 10,
+  });
+  const error = await rejection(client.pullRequestStates([ref("monorepo", 1)]));
+  expect(error.message).toContain("gh did not answer");
+  expect(signals.map((signal) => signal.aborted)).toEqual([true]);
+});
+
+test("a hung gh process is killed at the timeout", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "shortcut-tui-gh-"));
+  const pidFile = join(dir, "pid");
+  const gh = join(dir, "gh");
+  writeFileSync(gh, `#!/bin/sh\necho $$ > '${pidFile}'\nexec sleep 30\n`);
+  chmodSync(gh, 0o755);
+  const client = createGitHubClient({ run: ghRunner(gh), timeoutMs: 300 });
+  await rejection(client.pullRequestStates([ref("monorepo", 1)]));
+  const pid = Number(readFileSync(pidFile, "utf8"));
+  const alive = () => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  for (let waited = 0; alive() && waited < 2000; waited += 20) await Bun.sleep(20);
+  expect(alive()).toBe(false);
 });

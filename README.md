@@ -34,7 +34,7 @@ The launcher runs from this directory, so `.env.local` is always found.
 
 ## Pull request status
 
-Each story that links pull requests shows a merge status after its name. The detail pane lists every linked pull request with its number, status, and title. Shortcut supplies the links; GitHub supplies the status through the [`gh` CLI](https://cli.github.com), so install it and run `gh auth login` once. Without `gh`, the app still works and the detail pane says how to set it up.
+Each story that links pull requests shows a merge status after its name. The detail pane lists every linked pull request with its number, status, and title. Shortcut supplies the links; GitHub supplies the status through the [`gh` CLI](https://cli.github.com), so install it and run `gh auth login` once. Without `gh`, the app still works and the detail pane says how to set it up. When `gh` is logged in but cannot see any linked repository, for example because single sign-on is not authorized for its token, the detail pane shows GitHub's error. A query that fails or takes longer than 20 seconds marks only its own pull requests unknown. When every query fails, the detail pane shows the first error.
 
 A story shows the status of its least ready open pull request. When none is open, it shows merged if any was merged, otherwise closed.
 
@@ -48,7 +48,7 @@ A story shows the status of its least ready open pull request. When none is open
 | `○ review` | A review is required before merging |
 | `⊟ blocked` | A branch rule other than review blocks merging, such as unresolved conversations or required signed commits |
 | `◔ CI running` | Checks are still running |
-| `? unknown` | GitHub did not report a status: the link is not a GitHub pull request, `gh` cannot see it, GitHub did not answer, or GitHub was still computing mergeability after a second look. Press `r` to ask again |
+| `? unknown` | GitHub did not report a status. The link is not a GitHub pull request, `gh` cannot see it, the query failed or timed out, or GitHub was still computing mergeability after a second look. Press `r` to ask again; that helps only in the last two cases |
 | `✓ ready` | GitHub reports the pull request can be merged |
 | `◉ merged` | Merged |
 | `⊘ closed` | Closed without merging |
