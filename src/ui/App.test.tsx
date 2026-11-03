@@ -2,6 +2,9 @@ import { afterEach, expect, test } from "bun:test";
 import { queryQuestion } from "../app/filters.ts";
 import { init } from "../app/update.ts";
 import {
+  ada,
+  grace,
+  memberId,
   storyId,
   requestId,
   summary,
@@ -26,6 +29,24 @@ test("lists stories with id, name, state and estimate", async () => {
   expect(text).toContain("Rotate API keys");
   expect(text).toContain("3 stories");
   expect(text).toContain("owner:me");
+});
+
+test("a long shared-owner divider keeps its count at 80 columns", async () => {
+  const katherine = { id: memberId("katherine"), name: "Katherine Johnson" };
+  const margaret = { id: memberId("margaret"), name: "Margaret Hamilton" };
+  const shared = summary(201, {
+    name: "Land the lunar module",
+    owners: [margaret, ada, katherine, grace],
+  });
+  const { frame } = await show(
+    browsing({
+      question: { kind: "inReview" },
+      results: loaded({ question: { kind: "inReview" }, stories: [shared] }),
+      selectedStoryId: shared.id,
+    }),
+    { width: 80 },
+  );
+  expect(frame()).toMatch(/── Ada Lovelace \+ Grace Hopper \+ Kath[^\n]*…  1 ─ │/);
 });
 
 test("a divider names each workflow state group above its stories", async () => {

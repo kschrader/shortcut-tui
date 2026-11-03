@@ -1,6 +1,8 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useEffect, useRef } from "react";
+import type { Grouping } from "../app/filters.ts";
 import type { Cached, Change, StoryMove, StoryPullRequests } from "../app/model.ts";
+import { ownerGroupLabel } from "../app/order.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { estimateLabel, fit, typeStyle } from "./format.ts";
 import { badgeStyle, BADGE_LABEL_WIDTH, storyBadge, type Badge } from "./pull-requests.ts";
@@ -40,32 +42,54 @@ type Props = {
   pullRequests: Cached<StoryPullRequests>;
   moves: ReadonlyMap<StoryId, StoryMove>;
   unseen: ReadonlyMap<StoryId, readonly Change[]>;
+  grouping: Grouping;
   width: number;
   onSelect: (id: StoryId) => void;
 };
 
-type StateGroup = { state: StorySummary["state"]; stories: StorySummary[] };
+type Group = { key: string; first: StorySummary; stories: StorySummary[] };
 
-const groupByState = (stories: readonly StorySummary[]): StateGroup[] => {
-  const groups: StateGroup[] = [];
+const groupKey = (grouping: Grouping, story: StorySummary): string => {
+  switch (grouping) {
+    case "state":
+      return String(story.state.id);
+    case "owner":
+      return ownerGroupLabel(story);
+  }
+};
+
+const groupBy = (grouping: Grouping, stories: readonly StorySummary[]): Group[] => {
+  const groups: Group[] = [];
   for (const story of stories) {
+    const key = groupKey(grouping, story);
     const current = groups.at(-1);
-    if (current?.state.id === story.state.id) current.stories.push(story);
-    else groups.push({ state: story.state, stories: [story] });
+    if (current?.key === key) current.stories.push(story);
+    else groups.push({ key, first: story, stories: [story] });
   }
   return groups;
 };
 
-const Divider = ({ group, width }: { group: StateGroup; width: number }) => {
-  const label = `── ${group.state.name}  ${String(group.stories.length)}  · ${group.state.workflow.name} `;
-  return (
-    <box height={1}>
-      <text wrapMode="none" fg={colors.dim}>
-        {label.padEnd(width - 1, "─").slice(0, width - 1)}
-      </text>
-    </box>
-  );
+const DIVIDER_CHROME_WIDTH = "── ".length + "  ".length + " ─".length + 1;
+
+const dividerLabel = (grouping: Grouping, group: Group, width: number): string => {
+  const count = String(group.stories.length);
+  switch (grouping) {
+    case "state":
+      return `── ${group.first.state.name}  ${count}  · ${group.first.state.workflow.name} `;
+    case "owner": {
+      const owners = fit(group.key, width - count.length - DIVIDER_CHROME_WIDTH).trimEnd();
+      return `── ${owners}  ${count} `;
+    }
+  }
 };
+
+const Divider = ({ label, width }: { label: string; width: number }) => (
+  <box height={1}>
+    <text wrapMode="none" fg={colors.dim}>
+      {label.padEnd(width - 1, "─").slice(0, width - 1)}
+    </text>
+  </box>
+);
 
 const badgeText = (badge: Badge | null, column: BadgeColumn): string => {
   const style = badge === null ? null : badgeStyle[badge];
@@ -154,6 +178,7 @@ export const StoryList = ({
   pullRequests,
   moves,
   unseen,
+  grouping,
   width,
   onSelect,
 }: Props) => {
@@ -168,8 +193,12 @@ export const StoryList = ({
   const badgeColumn = badgeColumnFor(stories, width, markColumnWidth);
   return (
     <scrollbox ref={scroll} flexGrow={1} scrollY>
-      {groupByState(stories).flatMap((group, index) => [
-        <Divider key={`divider-${String(index)}`} group={group} width={width} />,
+      {groupBy(grouping, stories).flatMap((group, index) => [
+        <Divider
+          key={`divider-${String(index)}`}
+          label={dividerLabel(grouping, group, width)}
+          width={width}
+        />,
         ...group.stories.map((story) => (
           <StoryRow
             key={story.id}

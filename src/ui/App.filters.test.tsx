@@ -76,3 +76,29 @@ test("/ from the review view starts an empty query", async () => {
   await press("/");
   expect(header()).toContain("search stories");
 });
+
+const dividers = (text: string) =>
+  text
+    .split("\n")
+    .filter((line) => line.startsWith("──"))
+    .map((line) => (line.split("│")[0] ?? "").replace(/ ─+\s*$/, ""));
+
+test("the review view groups stories under each owner, shared stories under their owners together", async () => {
+  const { frame, until, press } = await launch();
+  await press("f");
+  await until(() => frame().includes("Paginate the iteration list"));
+  expect(dividers(frame())).toEqual(["── Priya Shah  1", "── Priya Shah + Sam Okafor  1"]);
+  const lines = frame().split("\n");
+  const rowOf = (needle: string) => lines.findIndex((line) => line.includes(needle));
+  expect(rowOf("── Priya Shah  1")).toBeLessThan(rowOf("Paginate the iteration list"));
+  expect(rowOf("Paginate the iteration list")).toBeLessThan(rowOf("── Priya Shah + Sam"));
+  expect(rowOf("── Priya Shah + Sam")).toBeLessThan(rowOf("Fix flaky label sync test"));
+});
+
+test("my stories keep their workflow state dividers", async () => {
+  const { frame } = await launch();
+  expect(dividers(frame())).toEqual([
+    "── In Review  2  · Engineering",
+    "── In Progress  2  · Engineering",
+  ]);
+});

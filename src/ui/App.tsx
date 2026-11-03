@@ -3,7 +3,7 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef, useState } from "react";
 import { changesOf, unseenChanges } from "../app/glance.ts";
 import type { Change, Model, Msg } from "../app/model.ts";
-import { questionLabel } from "../app/filters.ts";
+import { groupingOf, questionLabel, type Grouping } from "../app/filters.ts";
 import { pickerStates } from "../app/moves.ts";
 import { reloadFailure } from "../app/remote.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
@@ -46,6 +46,7 @@ const Centered = ({ headline, hint, color }: { headline: string; hint: string; c
 const Browser = ({
   model,
   stories,
+  grouping,
   scrollRef,
   unseen,
   listWidth,
@@ -54,6 +55,7 @@ const Browser = ({
 }: {
   model: Model;
   stories: readonly StorySummary[];
+  grouping: Grouping;
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
   unseen: ReadonlyMap<StoryId, readonly Change[]>;
   listWidth: number;
@@ -70,6 +72,7 @@ const Browser = ({
           pullRequests={model.pullRequests}
           moves={model.moves}
           unseen={unseen}
+          grouping={grouping}
           width={listWidth}
           onSelect={onSelect}
         />
@@ -122,7 +125,11 @@ const Results = (props: BodyProps) => {
           color={colors.dim}
         />
       ) : (
-        <Browser {...props} stories={results.value.stories} />
+        <Browser
+          {...props}
+          stories={results.value.stories}
+          grouping={groupingOf(results.value.question)}
+        />
       );
   }
 };

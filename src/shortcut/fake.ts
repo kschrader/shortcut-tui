@@ -308,7 +308,7 @@ const seeds: StorySeed[] = [
     storyType: "chore",
     state: inReview,
     estimate: 1,
-    owners: [alex, sam],
+    owners: [sam, priya],
     updatedAt: "2026-11-01T16:00:00Z",
     description: "The label sync test races the webhook fixture.",
     labels: [],
