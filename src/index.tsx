@@ -48,10 +48,9 @@ const main = async () => {
         };
   const renderer = await createCliRenderer({ exitOnCtrlC: false });
   const copyText = (text: string) => {
-    if (renderer.copyToClipboardOSC52(text)) return true;
-    if (process.platform !== "darwin") return false;
-    Bun.spawn(["pbcopy"], { stdin: new Blob([text]), stdout: "ignore", stderr: "ignore" });
-    return true;
+    const sent = renderer.copyToClipboardOSC52(text);
+    if (process.platform !== "darwin") return sent;
+    return Bun.spawnSync(["pbcopy"], { stdin: Buffer.from(text) }).exitCode === 0;
   };
   const Root = () => {
     const { model, dispatch, now } = useStoryBrowser(clients, {
