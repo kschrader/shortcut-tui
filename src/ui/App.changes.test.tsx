@@ -8,12 +8,9 @@ afterEach(cleanup);
 
 const [fixLogin, darkMode, rotateKeys] = stories;
 
-const seenBefore = (model: Model): Model["seen"] =>
-  new Map(stories.map((story) => [story.id, glanceOf(story, model.pullRequests)]));
-
 const afterRefresh = (): Model => {
   const model = browsing();
-  const seen = new Map(seenBefore(model)).set(rotateKeys.id, {
+  const seen = new Map(model.seen).set(rotateKeys.id, {
     ...glanceOf(rotateKeys, model.pullRequests),
     state: inProgress,
   });
@@ -36,8 +33,7 @@ test("a story that changed while you were away gets a gutter mark and the header
 });
 
 test("a frame with nothing changed shows no marks and no count", async () => {
-  const model = browsing();
-  const { frame } = await show({ ...model, seen: seenBefore(model) });
+  const { frame } = await show(browsing());
   expect(frame()).not.toContain("•");
   expect(frame()).not.toContain("updated");
 });
@@ -73,7 +69,7 @@ test("the detail line names a new story, a pull request change and an edit", asy
     cleanup();
     return found ?? "";
   };
-  const seen = seenBefore(model);
+  const { seen } = model;
   const without = new Map(seen);
   without.delete(rotateKeys.id);
   expect(await lines(without, 103)).toContain("Changed since you last looked: new in this list");

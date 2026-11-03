@@ -12,6 +12,7 @@ import type {
   Settled,
 } from "../app/model.ts";
 import { queryQuestion } from "../app/filters.ts";
+import { glanceOf } from "../app/glance.ts";
 import { idle } from "../app/remote.ts";
 import type {
   EpicId,
@@ -98,7 +99,14 @@ export const reloading = (id: RequestId): Reload => ({ status: "inFlight", reque
 
 export const reloadFailed = (message: string): Reload => ({ status: "failed", message });
 
-export const modelWith = (overrides: Partial<Model>): Model => ({
+const seenAsShown = (model: Model): Model["seen"] =>
+  new Map(
+    model.results.status === "loaded"
+      ? model.results.value.stories.map((story) => [story.id, glanceOf(story, model.pullRequests)])
+      : [],
+  );
+
+const defaultsWith = (overrides: Partial<Model>): Model => ({
   workspace: loaded(workspace),
   question: queryQuestion("owner:me"),
   results: loaded<SearchResults>({ question: queryQuestion("owner:me"), stories: [] }),
@@ -112,6 +120,11 @@ export const modelWith = (overrides: Partial<Model>): Model => ({
   nextRequestId: requestId(10),
   ...overrides,
 });
+
+export const modelWith = (overrides: Partial<Model>): Model => {
+  const model = defaultsWith(overrides);
+  return overrides.seen === undefined ? { ...model, seen: seenAsShown(model) } : model;
+};
 
 export const stories = [
   summary(101, { name: "Fix login redirect", storyType: "bug", state: inProgress }),
