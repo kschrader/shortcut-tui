@@ -91,7 +91,7 @@ test("shows a loading screen while searching", async () => {
   expect(frame()).toContain("Loading stories…");
 });
 
-test.failing("shows a loading screen, not an empty result, until the workspace loads", async () => {
+test("shows a loading screen, not an empty result, until the workspace loads", async () => {
   const [starting] = init();
   const { frame } = await show(starting);
   const text = frame();
@@ -119,6 +119,7 @@ test("shows a workspace failure", async () => {
   const { frame } = await show(modelWith({ workspace: { status: "failed", message: "HTTP 401" } }));
   expect(frame()).toContain("Could not load your workspace");
   expect(frame()).toContain("HTTP 401");
+  expect(frame()).not.toContain("0 stories");
 });
 
 test("keeps the selected row visible in a short window", async () => {

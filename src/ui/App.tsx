@@ -86,24 +86,16 @@ const Browser = ({
   );
 };
 
-const Body = (props: {
+type BodyProps = {
   model: Model;
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
   listWidth: number;
   onSelect: (id: StoryId) => void;
   onResize: (column: number) => void;
-}) => {
-  const { model } = props;
-  if (model.workspace.status === "failed") {
-    return (
-      <Centered
-        headline="Could not load your workspace"
-        hint={`${model.workspace.message}  ·  press r to retry`}
-        color={colors.error}
-      />
-    );
-  }
-  const { results } = model;
+};
+
+const Results = (props: BodyProps) => {
+  const { results } = props.model;
   switch (results.status) {
     case "firstLoad":
       return <Centered headline="Loading stories…" hint="Asking Shortcut" color={colors.accent} />;
@@ -128,14 +120,36 @@ const Body = (props: {
   }
 };
 
-const loadingStatus = { text: "loading…", color: colors.accent };
+const Body = (props: BodyProps) => {
+  const { workspace } = props.model;
+  switch (workspace.status) {
+    case "firstLoad":
+      return <Centered headline="Loading…" hint="Connecting to Shortcut" color={colors.accent} />;
+    case "failed":
+      return (
+        <Centered
+          headline="Could not load your workspace"
+          hint={`${workspace.message}  ·  press r to retry`}
+          color={colors.error}
+        />
+      );
+    case "loaded":
+      return <Results {...props} />;
+  }
+};
 
-const status = ({ results }: Model): { text: string; color: string } => {
+type Status = { text: string; color: string };
+
+const loadingStatus: Status = { text: "loading…", color: colors.accent };
+
+const errorStatus: Status = { text: "error", color: colors.error };
+
+const resultsStatus = (results: Model["results"]): Status => {
   switch (results.status) {
     case "firstLoad":
       return loadingStatus;
     case "failed":
-      return { text: "error", color: colors.error };
+      return errorStatus;
     case "loaded": {
       const text = storyCount(results.value.stories.length);
       switch (results.reload.status) {
@@ -147,6 +161,27 @@ const status = ({ results }: Model): { text: string; color: string } => {
           return { text, color: colors.ok };
       }
     }
+  }
+};
+
+const status = ({ workspace, results }: Model): Status => {
+  switch (workspace.status) {
+    case "firstLoad":
+      return loadingStatus;
+    case "failed":
+      return errorStatus;
+    case "loaded":
+      return resultsStatus(results);
+  }
+};
+
+const queryLabel = ({ workspace, query }: Model): string => {
+  switch (workspace.status) {
+    case "firstLoad":
+    case "failed":
+      return "";
+    case "loaded":
+      return query === "" ? "all stories" : query;
   }
 };
 
@@ -294,7 +329,7 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
           />
         ) : (
           <text flexGrow={1} fg={colors.text}>
-            {model.query === "" ? "all stories" : model.query}
+            {queryLabel(model)}
           </text>
         )}
         <text fg={color}>{text}</text>
