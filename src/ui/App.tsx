@@ -12,6 +12,7 @@ import { bindingFor, hintFor } from "./keys.ts";
 import { MovePicker } from "./MovePicker.tsx";
 import { pullRequestToOpen, pullRequestTrouble, storyPullRequests } from "./pull-requests.ts";
 import { ReadOnlyNotice } from "./ReadOnlyNotice.tsx";
+import { listWidthFor, Splitter } from "./Splitter.tsx";
 import { StoryList } from "./StoryList.tsx";
 import { colors } from "./theme.ts";
 
@@ -28,8 +29,6 @@ type CopyNotice =
   | { kind: "copied"; storyId: StoryId; url: string }
   | { kind: "copyFailed"; storyId: StoryId };
 
-const LIST_WIDTH_RATIO = 0.55;
-const MIN_LIST_WIDTH = 52;
 const STATUS_BAR_PADDING = 2;
 const STATUS_BAR_GAP = 2;
 
@@ -48,12 +47,14 @@ const Browser = ({
   scrollRef,
   listWidth,
   onSelect,
+  onResize,
 }: {
   model: Model;
   stories: readonly StorySummary[];
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
   listWidth: number;
   onSelect: (id: StoryId) => void;
+  onResize: (column: number) => void;
 }) => {
   const selected = stories.find((story) => story.id === model.selectedStoryId) ?? null;
   return (
@@ -68,13 +69,8 @@ const Browser = ({
           onSelect={onSelect}
         />
       </box>
-      <box
-        flexGrow={1}
-        flexDirection="column"
-        backgroundColor={colors.panel}
-        border={["left"]}
-        borderColor={colors.dim}
-      >
+      <Splitter onDrag={onResize} />
+      <box flexGrow={1} flexDirection="column" backgroundColor={colors.panel}>
         {selected === null ? (
           <Centered headline="No story selected" hint="Pick one from the list" color={colors.dim} />
         ) : (
@@ -95,6 +91,7 @@ const Body = (props: {
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
   listWidth: number;
   onSelect: (id: StoryId) => void;
+  onResize: (column: number) => void;
 }) => {
   const { model } = props;
   if (model.workspace.status === "failed") {
@@ -230,7 +227,8 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
   const { width, height } = useTerminalDimensions();
   const detailScroll = useRef<ScrollBoxRenderable>(null);
   const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
-  const listWidth = Math.min(width, Math.max(MIN_LIST_WIDTH, Math.floor(width * LIST_WIDTH_RATIO)));
+  const [draggedListWidth, setDraggedListWidth] = useState<number | null>(null);
+  const listWidth = listWidthFor(width, draggedListWidth);
 
   const selectedStory =
     model.results.status === "loaded"
@@ -306,6 +304,7 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
         scrollRef={detailScroll}
         listWidth={listWidth}
         onSelect={(storyId) => dispatch({ type: "storyClicked", storyId })}
+        onResize={(column) => setDraggedListWidth(listWidthFor(width, column))}
       />
       <box
         height={1}
