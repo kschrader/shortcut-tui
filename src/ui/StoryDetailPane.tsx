@@ -120,7 +120,10 @@ export const StoryDetailPane = ({ summary, detail, pullRequests, scrollRef }: Pr
         <Field label="Estimate" value={estimateLabel(summary.estimate)} />
         <Field label="Owners" value={ownerNames(summary.owners)} />
         <Field label="Epic" value={epicName(summary.epic)} />
-        <Field label="URL" value={summary.appUrl} />
+        <text wrapMode="word">
+          <span fg={colors.dim}>{"URL".padEnd(10)}</span>
+          <a href={summary.appUrl}>{summary.appUrl}</a>
+        </text>
       </box>
       {pullRequests === null ? null : (
         <PullRequestSection count={summary.pullRequestCount} pullRequests={pullRequests} />

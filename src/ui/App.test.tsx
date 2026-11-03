@@ -55,6 +55,17 @@ test("marks the selected row and shows its detail", async () => {
   expect(text).toContain("Unknown  2026-10-06");
 });
 
+test("the detail pane URL is a terminal hyperlink to the story", async () => {
+  const { screen, frame } = await show(browsing());
+  const url = "https://app.shortcut.com/acme/story/102";
+  const lines = frame().split("\n");
+  const row = lines.findIndex((line) => line.includes(url));
+  const column = lines[row].indexOf(url);
+  expect(screen.renderer.getLinkAt(column, row)).toBe(url);
+  expect(screen.renderer.getLinkAt(column + url.length - 1, row)).toBe(url);
+  expect(screen.renderer.getLinkAt(column - 2, row)).toBeNull();
+});
+
 test("shows a loading note while the selected story detail is loading", async () => {
   const { frame } = await show(
     browsing({ details: new Map([[detail.id, { status: "loading", requestId: requestId(5) }]]) }),
