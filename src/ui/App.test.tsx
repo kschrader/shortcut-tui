@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
+import { init } from "../app/update.ts";
 import {
   storyId,
   requestId,
@@ -88,6 +89,17 @@ test("shows a loading screen while searching", async () => {
     modelWith({ results: { status: "firstLoad", requestId: requestId(2) } }),
   );
   expect(frame()).toContain("Loading stories…");
+});
+
+test.failing("shows a loading screen, not an empty result, until the workspace loads", async () => {
+  const [starting] = init();
+  const { frame } = await show(starting);
+  const text = frame();
+  expect(text).not.toContain("No stories match");
+  expect(text).not.toContain("0 stories");
+  expect(text).not.toContain("all stories");
+  expect(text).toContain("Connecting to Shortcut");
+  expect(text).toContain("loading…");
 });
 
 test("shows an empty state when nothing matches", async () => {
