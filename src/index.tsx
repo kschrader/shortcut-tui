@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
+import { useEffect } from "react";
 import { autoRefreshFromEnvironment } from "./app/auto-refresh.ts";
 import { systemClock } from "./app/clock.ts";
 import type { Clients } from "./app/effects.ts";
@@ -57,6 +58,13 @@ const main = async () => {
       clock: systemClock,
       autoRefresh: refresh.autoRefresh,
     });
+    useEffect(() => {
+      const focused = () => dispatch({ type: "terminalFocused", at: systemClock.now() });
+      renderer.on("focus", focused);
+      return () => {
+        renderer.off("focus", focused);
+      };
+    }, [dispatch]);
     return (
       <App
         model={model}
