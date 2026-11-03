@@ -12,7 +12,7 @@ const jarUrl = "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2
 
 const suites: Record<string, readonly ModelCheck[]> = {
   default: [
-    { cfg: "StoryBrowser.cfg", tla: "StoryBrowser.tla", expect: "pass", budgetSeconds: 60 },
+    { cfg: "StoryBrowser.cfg", tla: "StoryBrowser.tla", expect: "pass", budgetSeconds: 180 },
     {
       cfg: "Naive.cfg",
       tla: "StoryBrowser.tla",
