@@ -1,3 +1,4 @@
+import type { StoryMergeStatus } from "../github/pull-request-state.ts";
 import type { PullRequestState } from "../github/types.ts";
 import type {
   LinkedPullRequest,
@@ -32,6 +33,18 @@ export type SearchResults = { question: Question; stories: readonly StorySummary
 export type PullRequestView = LinkedPullRequest & { state: PullRequestState };
 
 export type StoryPullRequests = ReadonlyMap<StoryId, Settled<readonly PullRequestView[]>>;
+
+export type Glance = {
+  state: WorkflowState;
+  updatedAt: Date;
+  mergeStatus: StoryMergeStatus | null;
+};
+
+export type Change =
+  | { kind: "new" }
+  | { kind: "state"; from: WorkflowState; to: WorkflowState }
+  | { kind: "pullRequests"; from: StoryMergeStatus; to: StoryMergeStatus }
+  | { kind: "edited" };
 
 export type Focus =
   | { mode: "browsing" }
