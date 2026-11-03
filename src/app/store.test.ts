@@ -4,16 +4,17 @@ import { createFakeShortcutClient } from "../shortcut/fake.ts";
 import type { AutoRefresh } from "./auto-refresh.ts";
 import { createFakeClock } from "./fake-clock.ts";
 import type { Model } from "./model.ts";
+import { awaited, inFlight } from "./remote.ts";
 import { createStoryStore } from "./store.ts";
 
 const MINUTE = 60_000;
 const every5Minutes: AutoRefresh = { mode: "every", ms: 5 * MINUTE };
 
 const loading = (model: Model) =>
-  model.workspace.status === "loading" ||
-  model.results.status === "loading" ||
-  model.pullRequests.status === "loading" ||
-  [...model.details.values()].some((detail) => detail.status === "loading");
+  awaited(model.workspace) !== null ||
+  awaited(model.results) !== null ||
+  inFlight(model.pullRequests.reload) !== null ||
+  [...model.details.values()].some((detail) => awaited(detail) !== null);
 
 const started = async (autoRefresh: AutoRefresh = every5Minutes) => {
   const clock = createFakeClock(new Date("2026-11-02T09:00:00Z"));

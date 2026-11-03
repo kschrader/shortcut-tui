@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { storyId, summary, workspaceFor } from "./fixtures.ts";
+import { detail, storyId, summary, workspaceFor } from "./fixtures.ts";
 import type { Model, Msg } from "./model.ts";
+import { awaited, loaded } from "./remote.ts";
 import { answer, browsing, first, loggedIn, only, submitQuery } from "./steps.ts";
 import { update } from "./update.ts";
 
@@ -8,8 +9,13 @@ const due: Msg = { type: "autoRefreshDue" };
 
 const idle = (): Model => {
   const [model] = browsing([summary(1), summary(2), summary(3)]);
-  const [selected] = update(model, { type: "selectionMoved", delta: 1 });
-  return selected;
+  const [selected, effects] = update(model, { type: "selectionMoved", delta: 1 });
+  const [shown] = update(selected, {
+    type: "detailSucceeded",
+    requestId: first(effects, "getStory").requestId,
+    story: detail(2),
+  });
+  return shown;
 };
 
 describe("auto-refresh", () => {
@@ -30,7 +36,9 @@ describe("auto-refresh", () => {
       new Date("2026-11-02T09:05:00Z"),
     );
     expect(refreshed.selectedStoryId).toBe(storyId(2));
-    expect(refreshed.details.get(storyId(2))?.status).toBe("loading");
+    const kept = refreshed.details.get(storyId(2));
+    expect(kept?.status === "loaded" ? kept.value : null).toEqual(detail(2));
+    expect(awaited(kept)).toBe(first(effects, "getStory").requestId);
     expect(refreshedEffects.filter((effect) => effect.type === "getStory")).toEqual([]);
     expect(refreshed.loadedAt).toEqual(new Date("2026-11-02T09:05:00Z"));
   });
@@ -49,7 +57,7 @@ describe("auto-refresh", () => {
     const [initial, search] = loggedIn();
     const readOnly: Model = {
       ...initial,
-      workspace: { status: "loaded", value: workspaceFor("kurt", false) },
+      workspace: loaded(workspaceFor("kurt", false)),
     };
     const [model] = answer(readOnly, search, [summary(1)]);
     const [notice] = update(model, { type: "movePickerOpened" });
@@ -65,7 +73,7 @@ describe("auto-refresh", () => {
 
   test("does nothing while pull request status is loading", () => {
     const [model] = browsing([{ ...summary(1), pullRequestCount: 1 }]);
-    expect(model.pullRequests.status).toBe("loading");
+    expect(model.pullRequests.reload.status).toBe("inFlight");
     expect(update(model, due)).toEqual([model, []]);
   });
 

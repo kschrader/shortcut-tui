@@ -2,7 +2,8 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef, useState } from "react";
 import type { Model, Msg } from "../app/model.ts";
-import { pickerStates } from "../app/update.ts";
+import { pickerStates } from "../app/moves.ts";
+import { reloadFailure } from "../app/remote.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { ageLabel, storyCount } from "./format.ts";
 import { StoryDetailPane } from "./StoryDetailPane.tsx";
@@ -103,7 +104,7 @@ const Body = (props: {
   }
   const { results } = model;
   switch (results.status) {
-    case "loading":
+    case "firstLoad":
       return <Centered headline="Loading stories…" hint="Asking Shortcut" color={colors.accent} />;
     case "failed":
       return (
@@ -126,14 +127,25 @@ const Body = (props: {
   }
 };
 
+const loadingStatus = { text: "loading…", color: colors.accent };
+
 const status = ({ results }: Model): { text: string; color: string } => {
   switch (results.status) {
-    case "loading":
-      return { text: "loading…", color: colors.accent };
+    case "firstLoad":
+      return loadingStatus;
     case "failed":
       return { text: "error", color: colors.error };
-    case "loaded":
-      return { text: storyCount(results.value.stories.length), color: colors.ok };
+    case "loaded": {
+      const text = storyCount(results.value.stories.length);
+      switch (results.reload.status) {
+        case "inFlight":
+          return loadingStatus;
+        case "failed":
+          return { text, color: colors.warning };
+        case "idle":
+          return { text, color: colors.ok };
+      }
+    }
   }
 };
 
@@ -160,6 +172,10 @@ const bottomBar = (
   const move = selectedStory === undefined ? undefined : model.moves.get(selectedStory.id);
   if (model.focus.mode === "browsing" && move?.status === "failed") {
     return { text: `✗ Move failed  ·  m to retry  ·  ${move.message}`, color: colors.error };
+  }
+  const refreshFailed = model.focus.mode === "browsing" ? reloadFailure(model.results) : null;
+  if (refreshFailed !== null) {
+    return { text: `✗ Refresh failed  ·  r to retry  ·  ${refreshFailed}`, color: colors.warning };
   }
   const trouble = model.focus.mode === "browsing" ? pullRequestTrouble(model.pullRequests) : null;
   if (trouble !== null) return { text: `✗ ${trouble}  ·  r to retry`, color: colors.warning };

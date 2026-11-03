@@ -1,7 +1,7 @@
 import type { StoryId, WorkflowState, WorkflowStateId } from "../shortcut/types.ts";
 import { toDo, workflowStates } from "./fixtures.ts";
 import type { Effect, Model, RequestId } from "./model.ts";
-import { pickerStates } from "./update.ts";
+import { pickerStates } from "./moves.ts";
 
 export const stateById = (id: WorkflowStateId): WorkflowState => {
   const state = workflowStates.find((candidate) => candidate.id === id);
@@ -18,6 +18,7 @@ export type World = {
   delivered: Set<RequestId>;
   moveOutcomes: Map<RequestId, boolean>;
   intents: Map<StoryId, WorkflowStateId>;
+  applied: Map<string, RequestId>;
 };
 
 export const serverState = (states: ServerStates, id: StoryId): WorkflowState =>

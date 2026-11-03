@@ -1,15 +1,16 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { Ref } from "react";
 import type { PullRequestView, Remote } from "../app/model.ts";
+import { reloadFailure } from "../app/remote.ts";
 import type { StoryDetail, StorySummary } from "../shortcut/types.ts";
 import { dateLabel, epicName, estimateLabel, ownerNames, typeStyle } from "./format.ts";
-import { badgeStyle } from "./pull-requests.ts";
+import { badgeStyle, type StoryPullRequestList } from "./pull-requests.ts";
 import { colors } from "./theme.ts";
 
 type Props = {
   summary: StorySummary;
   detail: Remote<StoryDetail> | undefined;
-  pullRequests: Remote<readonly PullRequestView[]> | null;
+  pullRequests: StoryPullRequestList | null;
   scrollRef: Ref<ScrollBoxRenderable>;
 };
 
@@ -33,13 +34,9 @@ const PullRequestItem = ({ pullRequest }: { pullRequest: PullRequestView }) => {
   );
 };
 
-const PullRequestStatus = ({
-  pullRequests,
-}: {
-  pullRequests: Remote<readonly PullRequestView[]>;
-}) => {
+const PullRequestStatus = ({ pullRequests }: { pullRequests: StoryPullRequestList }) => {
   switch (pullRequests.status) {
-    case "loading":
+    case "checking":
       return <text fg={colors.dim}>checking GitHub…</text>;
     case "failed":
       return (
@@ -66,7 +63,7 @@ const PullRequestSection = ({
   pullRequests,
 }: {
   count: number;
-  pullRequests: Remote<readonly PullRequestView[]>;
+  pullRequests: StoryPullRequestList;
 }) => (
   <box marginTop={1} marginBottom={1} flexDirection="column">
     <text fg={colors.accent}>
@@ -104,6 +101,38 @@ const Body = ({ detail }: { detail: StoryDetail }) => (
   </box>
 );
 
+const Note = ({ text, color }: { text: string; color: string }) => (
+  <box marginTop={1}>
+    <text wrapMode="word" fg={color}>
+      {text}
+    </text>
+  </box>
+);
+
+const Detail = ({ detail }: { detail: Remote<StoryDetail> | undefined }) => {
+  switch (detail?.status) {
+    case undefined:
+    case "firstLoad":
+      return <Note text="Loading details…" color={colors.dim} />;
+    case "failed":
+      return <Note text={`Could not load details: ${detail.message}`} color={colors.error} />;
+    case "loaded": {
+      const failure = reloadFailure(detail);
+      return (
+        <box flexDirection="column">
+          {failure === null ? null : (
+            <Note
+              text={`Could not refresh details: ${failure}  ·  r to retry`}
+              color={colors.warning}
+            />
+          )}
+          <Body detail={detail.value} />
+        </box>
+      );
+    }
+  }
+};
+
 export const StoryDetailPane = ({ summary, detail, pullRequests, scrollRef }: Props) => {
   const { glyph, color } = typeStyle[summary.storyType];
   return (
@@ -128,17 +157,7 @@ export const StoryDetailPane = ({ summary, detail, pullRequests, scrollRef }: Pr
       {pullRequests === null ? null : (
         <PullRequestSection count={summary.pullRequestCount} pullRequests={pullRequests} />
       )}
-      {detail?.status === "loaded" ? <Body detail={detail.value} /> : null}
-      {detail === undefined || detail.status === "loading" ? (
-        <box marginTop={1}>
-          <text fg={colors.dim}>Loading details…</text>
-        </box>
-      ) : null}
-      {detail?.status === "failed" ? (
-        <box marginTop={1}>
-          <text fg={colors.error}>{`Could not load details: ${detail.message}`}</text>
-        </box>
-      ) : null}
+      <Detail detail={detail} />
     </scrollbox>
   );
 };

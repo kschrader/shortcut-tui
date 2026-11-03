@@ -1,6 +1,6 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useEffect, useRef } from "react";
-import type { Remote, StoryMove, StoryPullRequests } from "../app/model.ts";
+import type { Cached, StoryMove, StoryPullRequests } from "../app/model.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { estimateLabel, fit, typeStyle } from "./format.ts";
 import { badgeStyle, BADGE_LABEL_WIDTH, storyBadge, type Badge } from "./pull-requests.ts";
@@ -36,7 +36,7 @@ const MOVE_MARK_WIDTH = 1 + Math.max(...["⟳ saving", "✗ failed"].map((text) 
 type Props = {
   stories: readonly StorySummary[];
   selectedId: StoryId | null;
-  pullRequests: Remote<StoryPullRequests>;
+  pullRequests: Cached<StoryPullRequests>;
   moves: ReadonlyMap<StoryId, StoryMove>;
   width: number;
 };

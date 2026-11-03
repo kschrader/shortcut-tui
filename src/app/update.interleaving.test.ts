@@ -10,6 +10,15 @@ import {
   stateById,
   type World,
 } from "./interleaving.moves.ts";
+import {
+  answerMark,
+  awaitedBy,
+  awaitedRequests,
+  hiddenShownData,
+  remoteViolations,
+  slotOf,
+  storyName,
+} from "./interleaving.remotes.ts";
 import type { Effect, Model, Msg, PullRequestView } from "./model.ts";
 import { init, update } from "./update.ts";
 
@@ -36,10 +45,6 @@ const pick = <T>(random: Random, items: readonly T[]): T => {
   if (item === undefined) throw new Error("pick from empty list");
   return item;
 };
-
-const answerMark = (requestId: number) => `answer to request ${String(requestId)}`;
-const storyName = (query: string, requestId: number, id: number) =>
-  `${query}::${answerMark(requestId)}::${String(id)}`;
 
 const pullRequestAnswer = (requestId: number, index: number): PullRequestView => ({
   id: z.custom<PullRequestId>().parse(index + 1),
@@ -149,137 +154,18 @@ const userMsg = (random: Random): Msg =>
     { type: "readOnlyNoticeClosed" },
   ]);
 
-const pullRequestViolations = (model: Model, issued: readonly Effect[]): string[] => {
-  const found: string[] = [];
-  const shown = shownStories(model);
-  const latest = issued.findLast((effect) => effect.type === "loadPullRequests");
-  const { pullRequests } = model;
-  switch (pullRequests.status) {
-    case "loading": {
-      const effect = issued.find((candidate) => candidate.requestId === pullRequests.requestId);
-      const linking = shown.filter((story) => story.pullRequestCount > 0);
-      if (
-        effect?.type !== "loadPullRequests" ||
-        !Bun.deepEquals(
-          effect.storyIds.toSorted((a, b) => a - b),
-          linking.map((story) => story.id).toSorted((a, b) => a - b),
-        )
-      ) {
-        found.push("pull requests wait on a load that is not for the shown stories");
-      }
-      break;
-    }
-    case "loaded":
-      for (const [storyId, list] of pullRequests.value) {
-        const views = list.status === "loaded" ? list.value : [];
-        if (!shown.some((story) => story.id === storyId)) {
-          found.push(
-            `pull requests shown for story ${String(storyId)}, which is not in the results`,
-          );
-        }
-        const stale = views.filter(
-          (view) => latest === undefined || view.title !== answerMark(latest.requestId),
-        );
-        if (stale.length > 0)
-          found.push(`pull requests from a superseded load: ${stale[0]?.title ?? ""}`);
-      }
-      break;
-    case "failed":
-      if (latest === undefined || pullRequests.message !== answerMark(latest.requestId)) {
-        found.push(`pull requests show a superseded failure: ${pullRequests.message}`);
-      }
-      break;
-  }
-  return found;
-};
-
 const violations = (model: Model, issued: readonly Effect[], world: World): string[] => {
   const found: string[] = [];
-  const issuedById = new Map(issued.map((effect) => [effect.requestId, effect]));
-  if (issuedById.size !== issued.length) found.push("two effects share a request id");
-
-  if (model.results.status === "loaded") {
-    const { query, stories } = model.results.value;
-    if (query !== model.query) found.push(`results for "${query}" shown under "${model.query}"`);
-    const latest = issued.findLast((effect) => effect.type === "searchStories");
-    const stale = stories.filter(
-      (story) =>
-        latest?.type !== "searchStories" ||
-        story.name !== storyName(model.query, latest.requestId, story.id),
-    );
-    if (stale.length > 0) found.push(`stories from a superseded search: ${stale[0]?.name ?? ""}`);
-    const selected = model.selectedStoryId;
-    if (selected === null && stories.length > 0) found.push("stories loaded but none selected");
-    if (selected !== null && !stories.some((story) => story.id === selected)) {
-      found.push(`selected story ${String(selected)} is not in the results`);
-    }
+  if (new Set(issued.map((effect) => effect.requestId)).size !== issued.length) {
+    found.push("two effects share a request id");
   }
-  if (model.results.status === "failed") {
-    const latest = issued.findLast((effect) => effect.type === "searchStories");
-    if (latest === undefined || model.results.message !== answerMark(latest.requestId)) {
-      found.push(`results show a superseded search failure: ${model.results.message}`);
-    }
-  }
-  if (model.workspace.status !== "loading") {
-    const latest = issued.findLast((effect) => effect.type === "loadWorkspace");
-    const shown =
-      model.workspace.status === "loaded"
-        ? model.workspace.value.me.mentionName
-        : model.workspace.message;
-    if (latest === undefined || shown !== answerMark(latest.requestId)) {
-      found.push(`workspace shows a superseded response: ${shown}`);
-    }
-  }
-  found.push(...pullRequestViolations(model, issued));
+  found.push(...remoteViolations(model, issued, world));
   found.push(...moveViolations(model, issued, world));
   if (model.selectedStoryId !== null && !model.details.has(model.selectedStoryId)) {
     found.push("selected story has no detail entry");
   }
-
-  if (model.workspace.status === "loading") {
-    const effect = issuedById.get(model.workspace.requestId);
-    if (effect?.type !== "loadWorkspace") found.push("workspace waits on a request never sent");
-  }
-  if (model.results.status === "loading") {
-    const effect = issuedById.get(model.results.requestId);
-    if (effect?.type !== "searchStories" || effect.query !== model.query) {
-      found.push("results wait on a search that is not for the current query");
-    }
-  }
-  for (const [storyId, remote] of model.details) {
-    if (remote.status === "loading") {
-      const effect = issuedById.get(remote.requestId);
-      if (effect?.type !== "getStory" || effect.storyId !== storyId) {
-        found.push(`detail ${String(storyId)} waits on a request for another story`);
-      }
-    }
-    if (remote.status === "loaded" && remote.value.id !== storyId) {
-      found.push(`detail ${String(storyId)} holds story ${String(remote.value.id)}`);
-    }
-    if (remote.status !== "loading") {
-      const latest = issued.findLast(
-        (effect) => effect.type === "getStory" && effect.storyId === storyId,
-      );
-      const shown = remote.status === "loaded" ? remote.value.description : remote.message;
-      if (latest === undefined || shown !== answerMark(latest.requestId)) {
-        found.push(`detail ${String(storyId)} shows a superseded response: ${shown}`);
-      }
-    }
-  }
   return found;
 };
-
-const awaitedRequests = (model: Model) => [
-  ...(model.workspace.status === "loading" ? [model.workspace.requestId] : []),
-  ...(model.results.status === "loading" ? [model.results.requestId] : []),
-  ...(model.pullRequests.status === "loading" ? [model.pullRequests.requestId] : []),
-  ...[...model.details.values()].flatMap((remote) =>
-    remote.status === "loading" ? [remote.requestId] : [],
-  ),
-  ...[...model.moves.values()].flatMap((move) =>
-    move.status === "saving" ? [move.requestId] : [],
-  ),
-];
 
 const explore = (seed: number): string[] => {
   const random = mulberry32(seed);
@@ -290,15 +176,28 @@ const explore = (seed: number): string[] => {
     delivered: new Set(),
     moveOutcomes: new Map(),
     intents: new Map(),
+    applied: new Map(),
   };
   let [model, issued] = init();
   const trail: string[] = [];
-  const apply = (msg: Msg, isResponse: boolean) => {
+  const recordApplied = (answered: Effect): string[] => {
+    const slot = slotOf(answered);
+    if (slot === null || awaitedBy(model, answered) !== answered.requestId) return [];
+    const previous = world.applied.get(slot);
+    world.applied.set(slot, answered.requestId);
+    return previous !== undefined && previous >= answered.requestId
+      ? [`${slot} applied request ${String(answered.requestId)} after ${String(previous)}`]
+      : [];
+  };
+  const apply = (msg: Msg, answered: Effect | null, succeeded: boolean) => {
     if (msg.type === "movePickerConfirmed") {
       const picked = pickedTarget(model);
       if (picked !== null) world.intents.set(picked[0], picked[1]);
     }
+    const isResponse = answered !== null;
     if (isResponse && "requestId" in msg) world.delivered.add(msg.requestId);
+    const outOfOrder = answered !== null && succeeded ? recordApplied(answered) : [];
+    const before = model;
     const [next, effects] = update(model, msg);
     model = next;
     issued = [...issued, ...effects];
@@ -312,6 +211,8 @@ const explore = (seed: number): string[] => {
     const redeliveryChanged =
       isResponse && (redeliveryEffects.length > 0 || !Bun.deepEquals(redelivered, model));
     const problems = [
+      ...outOfOrder,
+      ...hiddenShownData(before, model),
       ...violations(model, issued, world),
       ...(redeliveryChanged ? ["redelivering the same response changed the model"] : []),
     ];
@@ -321,12 +222,15 @@ const explore = (seed: number): string[] => {
   };
 
   for (let step = 0; step < stepsPerSeed; step++) {
-    const deliver = random() < 0.55;
-    const msg = deliver
-      ? respond(random, pick(random, issued), random() < 0.8, world, model)
-      : userMsg(random);
-    const problems = apply(msg, deliver);
-    if (problems.length > 0) return problems;
+    if (random() < 0.55) {
+      const effect = pick(random, issued);
+      const succeed = random() < 0.8;
+      const problems = apply(respond(random, effect, succeed, world, model), effect, succeed);
+      if (problems.length > 0) return problems;
+    } else {
+      const problems = apply(userMsg(random), null, false);
+      if (problems.length > 0) return problems;
+    }
   }
 
   for (let round = 0; round < 10; round++) {
@@ -335,7 +239,7 @@ const explore = (seed: number): string[] => {
     for (const requestId of awaited) {
       const effect = issued.find((candidate) => candidate.requestId === requestId);
       if (effect === undefined) return [`seed ${String(seed)}: awaited request never sent`];
-      const problems = apply(respond(random, effect, true, world, model), true);
+      const problems = apply(respond(random, effect, true, world, model), effect, true);
       if (problems.length > 0) return problems;
     }
   }

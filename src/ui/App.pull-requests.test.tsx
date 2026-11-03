@@ -1,9 +1,22 @@
 import { afterEach, expect, test } from "bun:test";
 import { z } from "zod";
-import type { PullRequestView, Remote, StoryPullRequests } from "../app/model.ts";
+import type { Cached, PullRequestView, StoryPullRequests } from "../app/model.ts";
 import type { PullRequestState } from "../github/types.ts";
 import type { PullRequestId } from "../shortcut/types.ts";
-import { browsing, cleanup, detail, loaded, requestId, show, storyId, summary } from "./frame.tsx";
+import {
+  browsing,
+  cached,
+  cleanup,
+  detail,
+  reloading,
+  loaded,
+  reloadFailed,
+  requestId,
+  settled,
+  show,
+  storyId,
+  summary,
+} from "./frame.tsx";
 
 afterEach(cleanup);
 
@@ -26,16 +39,19 @@ const linked = [
 const checked: StoryPullRequests = new Map([
   [
     storyId(101),
-    loaded<readonly PullRequestView[]>([
+    settled<readonly PullRequestView[]>([
       view(3917, "ready", "Forward the next param through SSO"),
       view(3911, "merged", "Add a redirect test"),
     ]),
   ],
-  [storyId(102), loaded<readonly PullRequestView[]>([view(3939, "conflicts", "Add a dark theme")])],
+  [
+    storyId(102),
+    settled<readonly PullRequestView[]>([view(3939, "conflicts", "Add a dark theme")]),
+  ],
 ]);
 
 const withPullRequests = (
-  pullRequests: Remote<StoryPullRequests> = loaded(checked),
+  pullRequests: Cached<StoryPullRequests> = cached(checked),
   selected = 101,
 ) =>
   browsing({
@@ -66,12 +82,12 @@ test("the detail pane lists each pull request with its number, state and title",
 });
 
 test("a story without pull requests has no pull request section", async () => {
-  const { frame } = await show(withPullRequests(loaded(checked), 103));
+  const { frame } = await show(withPullRequests(cached(checked), 103));
   expect(frame()).not.toContain("Pull requests");
 });
 
 test("while GitHub is checked, rows show a checking mark and the detail says so", async () => {
-  const { frame } = await show(withPullRequests({ status: "loading", requestId: requestId(4) }));
+  const { frame } = await show(withPullRequests(cached(new Map(), reloading(requestId(4)))));
   expect(rowOf(frame(), 101)).toContain("… checking");
   expect(rowOf(frame(), 103)).not.toContain("…");
   expect(frame()).toContain("Pull requests (2)");
@@ -80,10 +96,9 @@ test("while GitHub is checked, rows show a checking mark and the detail says so"
 
 test("without the gh CLI the detail pane says how to set it up", async () => {
   const { frame } = await show(
-    withPullRequests({
-      status: "failed",
-      message: "GitHub status needs the gh CLI: gh auth login",
-    }),
+    withPullRequests(
+      cached(new Map(), reloadFailed("GitHub status needs the gh CLI: gh auth login")),
+    ),
   );
   const text = frame();
   expect(text).toContain("GitHub status needs the gh CLI: gh auth login");
@@ -99,9 +114,9 @@ test("an 80-column terminal keeps names readable and shows the status as a glyph
       results: loaded({ query: "owner:me", stories: [story] }),
       selectedStoryId: story.id,
       details: new Map(),
-      pullRequests: loaded(
+      pullRequests: cached(
         new Map([
-          [story.id, loaded<readonly PullRequestView[]>([view(3917, "conflicts", "Toggle")])],
+          [story.id, settled<readonly PullRequestView[]>([view(3917, "conflicts", "Toggle")])],
         ]),
       ),
     }),
@@ -120,19 +135,28 @@ test("p opens the pull request that decides the badge", async () => {
 });
 
 test("p opens the least ready pull request of the selected story", async () => {
-  const { screen, calls } = await show(withPullRequests(loaded(checked), 102));
+  const { screen, calls } = await show(withPullRequests(cached(checked), 102));
   screen.mockInput.pressKey("p");
   expect(calls.opened).toEqual(["https://github.com/useshortcut/monorepo/pull/3939"]);
 });
 
 test("p does nothing for a story without pull requests or before status loads", async () => {
-  const none = await show(withPullRequests(loaded(checked), 103));
+  const none = await show(withPullRequests(cached(checked), 103));
   none.screen.mockInput.pressKey("p");
   expect(none.calls.opened).toEqual([]);
   cleanup();
-  const checking = await show(withPullRequests({ status: "loading", requestId: requestId(4) }));
+  const checking = await show(withPullRequests(cached(new Map(), reloading(requestId(4)))));
   checking.screen.mockInput.pressKey("p");
   expect(checking.calls.opened).toEqual([]);
+});
+
+test("p opens the kept pull request and the row keeps its badge while status reloads", async () => {
+  const { screen, calls, frame } = await show(
+    withPullRequests(cached(checked, reloading(requestId(4)))),
+  );
+  expect(rowOf(frame(), 101)).toMatch(/Fix login redirect\s+✓ ready/);
+  screen.mockInput.pressKey("p");
+  expect(calls.opened).toEqual(["https://github.com/useshortcut/monorepo/pull/3917"]);
 });
 
 test("a story whose pull requests could not be listed shows unknown and says why", async () => {
@@ -140,7 +164,7 @@ test("a story whose pull requests could not be listed shows unknown and says why
     ...checked,
     [storyId(101), { status: "failed", message: "Shortcut API 429" } as const],
   ]);
-  const { frame } = await show(withPullRequests(loaded(partly)), { height: 40 });
+  const { frame } = await show(withPullRequests(cached(partly)), { height: 40 });
   const text = frame();
   expect(rowOf(text, 101)).toContain("? unknown");
   expect(rowOf(text, 102)).toContain("≠ conflicts");
@@ -152,7 +176,7 @@ const statusBar = (frame: string) => frame.trimEnd().split("\n").at(-1) ?? "";
 test("a failed pull request load shows in the status bar at 80 columns whatever is selected", async () => {
   const { frame } = await show(
     withPullRequests(
-      { status: "failed", message: "GitHub status needs the gh CLI: gh auth login" },
+      cached(new Map(), reloadFailed("GitHub status needs the gh CLI: gh auth login")),
       103,
     ),
     { width: 80 },
@@ -169,14 +193,14 @@ test("stories whose pull requests could not be listed are counted in the status 
     [storyId(101), { status: "failed", message: "Shortcut API 429" } as const],
     [storyId(102), { status: "failed", message: "Shortcut API 429" } as const],
   ]);
-  const { frame } = await show(withPullRequests(loaded(partly), 103), { width: 80 });
+  const { frame } = await show(withPullRequests(cached(partly), 103), { width: 80 });
   expect(statusBar(frame())).toContain("PR status for 2 stories: Shortcut API 429  ·  r to retry");
 });
 
 test("the status bar keeps its key hints while pull request status is fine or loading", async () => {
-  const fine = await show(withPullRequests(loaded(checked), 103), { width: 80 });
+  const fine = await show(withPullRequests(cached(checked), 103), { width: 80 });
   expect(statusBar(fine.frame())).not.toContain("PR status");
   cleanup();
-  const checking = await show(withPullRequests({ status: "loading", requestId: requestId(4) }));
+  const checking = await show(withPullRequests(cached(new Map(), reloading(requestId(4)))));
   expect(statusBar(checking.frame())).not.toContain("PR status");
 });

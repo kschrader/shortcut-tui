@@ -1,7 +1,17 @@
 import { z } from "zod";
 import { testRender } from "@opentui/react/test-utils";
 import { useEffect, useState } from "react";
-import type { Model, Msg, RequestId, Remote, SearchResults } from "../app/model.ts";
+import type {
+  Cached,
+  Model,
+  Msg,
+  Reload,
+  Remote,
+  RequestId,
+  SearchResults,
+  Settled,
+} from "../app/model.ts";
+import { idle } from "../app/remote.ts";
 import type {
   EpicId,
   MemberId,
@@ -70,10 +80,22 @@ export const summary = (id: number, overrides: Partial<StorySummary> = {}): Stor
   ...overrides,
 });
 
-export const loaded = <T,>(value: T): Extract<Remote<T>, { status: "loaded" }> => ({
+export const loaded = <T,>(
+  value: T,
+  reload: Reload = idle,
+): Extract<Remote<T>, { status: "loaded" }> => ({
   status: "loaded",
   value,
+  reload,
 });
+
+export const settled = <T,>(value: T): Settled<T> => ({ status: "loaded", value });
+
+export const cached = <T,>(value: T, reload: Reload = idle): Cached<T> => ({ value, reload });
+
+export const reloading = (id: RequestId): Reload => ({ status: "inFlight", requestId: id });
+
+export const reloadFailed = (message: string): Reload => ({ status: "failed", message });
 
 export const modelWith = (overrides: Partial<Model>): Model => ({
   workspace: loaded(workspace),
@@ -82,7 +104,7 @@ export const modelWith = (overrides: Partial<Model>): Model => ({
   loadedAt: null,
   selectedStoryId: null,
   details: new Map(),
-  pullRequests: loaded(new Map()),
+  pullRequests: cached(new Map()),
   moves: new Map(),
   focus: { mode: "browsing" },
   nextRequestId: requestId(10),

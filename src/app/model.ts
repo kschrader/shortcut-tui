@@ -11,16 +11,23 @@ import type {
 
 export type RequestId = number & { readonly brand: "RequestId" };
 
-export type Remote<T> =
-  | { status: "loading"; requestId: RequestId }
-  | { status: "loaded"; value: T }
+export type Reload =
+  | { status: "idle" }
+  | { status: "inFlight"; requestId: RequestId }
   | { status: "failed"; message: string };
+
+export type Cached<T> = { value: T; reload: Reload };
+
+export type Remote<T> =
+  | { status: "firstLoad"; requestId: RequestId }
+  | { status: "failed"; message: string }
+  | ({ status: "loaded" } & Cached<T>);
+
+export type Settled<T> = { status: "loaded"; value: T } | { status: "failed"; message: string };
 
 export type SearchResults = { query: string; stories: readonly StorySummary[] };
 
 export type PullRequestView = LinkedPullRequest & { state: PullRequestState };
-
-export type Settled<T> = Exclude<Remote<T>, { status: "loading" }>;
 
 export type StoryPullRequests = ReadonlyMap<StoryId, Settled<readonly PullRequestView[]>>;
 
@@ -53,7 +60,7 @@ export type Model = {
   loadedAt: Date | null;
   selectedStoryId: StoryId | null;
   details: ReadonlyMap<StoryId, Remote<StoryDetail>>;
-  pullRequests: Remote<StoryPullRequests>;
+  pullRequests: Cached<StoryPullRequests>;
   moves: ReadonlyMap<StoryId, StoryMove>;
   focus: Focus;
   nextRequestId: RequestId;
@@ -89,6 +96,8 @@ export type Msg =
   | { type: "movePickerConfirmed" }
   | { type: "movePickerClosed" }
   | { type: "readOnlyNoticeClosed" };
+
+export type Step = [Model, Effect[]];
 
 export type Effect =
   | { type: "loadWorkspace"; requestId: RequestId }

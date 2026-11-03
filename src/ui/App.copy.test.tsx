@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { browsing, cleanup, show, stories } from "./frame.tsx";
+import { browsing, cached, cleanup, reloadFailed, show, stories } from "./frame.tsx";
 import { hintFor } from "./keys.ts";
 
 afterEach(cleanup);
@@ -59,7 +59,7 @@ test("y with no story selected copies nothing and shows no notice", async () => 
 
 test("the copy notice shows over pull request trouble until the next key", async () => {
   const { screen, frame } = await show(
-    browsing({ pullRequests: { status: "failed", message: "gh is not logged in" } }),
+    browsing({ pullRequests: cached(new Map(), reloadFailed("gh is not logged in")) }),
     { width: 80 },
   );
   const trouble = "PR status: gh is not logged in";

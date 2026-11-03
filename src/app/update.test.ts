@@ -2,13 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { detail, inState, storyId, summary } from "./fixtures.ts";
 import { answer, browsing, first, loggedIn, ofType, only, submitQuery } from "./steps.ts";
 import type { Msg } from "./model.ts";
+import { awaited, loaded } from "./remote.ts";
 import { init, update } from "./update.ts";
 
 describe("startup", () => {
   test("init loads the workspace before anything else", () => {
     const [model, effects] = init();
     only(effects, "loadWorkspace");
-    expect(model.workspace.status).toBe("loading");
+    expect(model.workspace.status).toBe("firstLoad");
     expect(model.selectedStoryId).toBeNull();
   });
 
@@ -16,7 +17,7 @@ describe("startup", () => {
     const [model, search] = loggedIn();
     expect(search.query).toBe("owner:kurt is:started !is:archived");
     expect(model.query).toBe("owner:kurt is:started !is:archived");
-    expect(model.results.status).toBe("loading");
+    expect(model.results.status).toBe("firstLoad");
   });
 
   test("a failed workspace is retried by refresh", () => {
@@ -64,10 +65,7 @@ describe("search results", () => {
     expect(staleEffects).toEqual([]);
 
     const [afterFresh] = answer(afterStale, second, [summary(7)]);
-    expect(afterFresh.results).toEqual({
-      status: "loaded",
-      value: { query: "label:urgent", stories: [summary(7)] },
-    });
+    expect(afterFresh.results).toEqual(loaded({ query: "label:urgent", stories: [summary(7)] }));
   });
 
   test("a duplicated search response is applied once", () => {
@@ -132,12 +130,12 @@ describe("selection and detail", () => {
   test("a loaded detail is stored under its story", () => {
     const [model, effects] = browsing([summary(1)]);
     const fetch = only(effects, "getStory");
-    const [loaded] = update(model, {
+    const [shown] = update(model, {
       type: "detailSucceeded",
       requestId: fetch.requestId,
       story: detail(1),
     });
-    expect(loaded.details.get(storyId(1))).toEqual({ status: "loaded", value: detail(1) });
+    expect(shown.details.get(storyId(1))).toEqual(loaded(detail(1)));
   });
 
   test("selecting a story whose detail failed fetches it again", () => {
@@ -168,7 +166,9 @@ describe("selection and detail", () => {
       requestId: original.requestId,
       story: detail(1),
     });
-    expect(afterStale.details.get(storyId(1))?.status).toBe("loading");
+    expect(awaited(afterStale.details.get(storyId(1)))).toBe(
+      first(refreshEffects, "getStory").requestId,
+    );
   });
 });
 

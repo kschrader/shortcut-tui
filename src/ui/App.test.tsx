@@ -4,10 +4,12 @@ import {
   requestId,
   summary,
   loaded,
+  reloading,
   modelWith,
   detail,
   browsing,
   show,
+  stories,
   cleanup,
 } from "./frame.tsx";
 
@@ -68,7 +70,7 @@ test("the detail pane URL is a terminal hyperlink to the story", async () => {
 
 test("shows a loading note while the selected story detail is loading", async () => {
   const { frame } = await show(
-    browsing({ details: new Map([[detail.id, { status: "loading", requestId: requestId(5) }]]) }),
+    browsing({ details: new Map([[detail.id, { status: "firstLoad", requestId: requestId(5) }]]) }),
   );
   expect(frame()).toContain("Loading details…");
   expect(frame()).toContain("Add dark mode");
@@ -83,7 +85,7 @@ test("shows the failure when the detail cannot load", async () => {
 
 test("shows a loading screen while searching", async () => {
   const { frame } = await show(
-    modelWith({ results: { status: "loading", requestId: requestId(2) } }),
+    modelWith({ results: { status: "firstLoad", requestId: requestId(2) } }),
   );
   expect(frame()).toContain("Loading stories…");
 });
@@ -220,10 +222,22 @@ test("a narrow terminal drops the load time before any key hint", async () => {
   expect(bar).toContain("q quit");
 });
 
-test("no load time shows while the results are loading", async () => {
+test("no load time shows while the first results load", async () => {
   const { frame } = await show(
-    modelWith({ loadedAt, results: { status: "loading", requestId: requestId(2) } }),
+    modelWith({ loadedAt, results: { status: "firstLoad", requestId: requestId(2) } }),
     { width: 120, now: new Date("2026-11-02T09:02:00Z") },
   );
   expect(statusBar(frame())).not.toContain("↻");
+});
+
+test("the load time of the shown results stays while they reload", async () => {
+  const { frame } = await show(
+    browsing({
+      loadedAt,
+      results: loaded({ query: "owner:me", stories }, reloading(requestId(2))),
+    }),
+    { width: 120, now: new Date("2026-11-02T09:02:00Z") },
+  );
+  expect(statusBar(frame())).toContain("↻ 2m ago");
+  expect(frame().split("\n")[0]).toContain("loading…");
 });

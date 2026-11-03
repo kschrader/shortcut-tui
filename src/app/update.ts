@@ -1,48 +1,42 @@
+import type { StoryDetail, StoryId, StorySummary } from "../shortcut/types.ts";
 import type {
-  Progress,
-  StoryId,
-  StorySummary,
-  WorkflowState,
-  Workspace,
-} from "../shortcut/types.ts";
-import type {
-  Effect,
+  Cached,
   Model,
   Msg,
+  Reload,
   Remote,
   RequestId,
-  StoryMove,
+  Step,
   StoryPullRequests,
 } from "./model.ts";
+import { carryMoves, pickerStates, restate, startMove } from "./moves.ts";
+import {
+  awaited,
+  fail,
+  firstLoad,
+  firstRequestId,
+  idle,
+  inFlight,
+  isAwaiting,
+  loaded,
+  refetch,
+  reloadFailure,
+  requestIdAfter,
+} from "./remote.ts";
 
-type Step = [Model, Effect[]];
-
-const isRequestId = (n: number): n is RequestId => Number.isSafeInteger(n) && n > 0;
-
-const toRequestId = (n: number): RequestId => {
-  if (!isRequestId(n)) throw new RangeError(`request id ${String(n)} is out of range`);
-  return n;
-};
-
-const requestIdAfter = (id: RequestId): RequestId => toRequestId(id + 1);
-
-const firstRequestId = toRequestId(1);
-
-const isAwaiting = <T>(remote: Remote<T> | undefined, requestId: RequestId): boolean =>
-  remote?.status === "loading" && remote.requestId === requestId;
-
-const noPullRequests: Remote<StoryPullRequests> = { status: "loaded", value: new Map() };
+const noPullRequests: Cached<StoryPullRequests> = { value: new Map(), reload: idle };
 
 const browsing: Model["focus"] = { mode: "browsing" };
 
 const search = (model: Model, query: string): Step => {
   const requestId = model.nextRequestId;
+  const sameQuestion = model.results.status === "loaded" && model.results.value.query === query;
   return [
     {
       ...model,
       query,
-      results: { status: "loading", requestId },
-      pullRequests: noPullRequests,
+      results: sameQuestion ? refetch(model.results, requestId) : firstLoad(requestId),
+      pullRequests: sameQuestion ? model.pullRequests : noPullRequests,
       focus: model.focus.mode === "picking" ? browsing : model.focus,
       nextRequestId: requestIdAfter(requestId),
     },
@@ -55,7 +49,7 @@ const fetchDetail = (model: Model, storyId: StoryId): Step => {
   return [
     {
       ...model,
-      details: new Map(model.details).set(storyId, { status: "loading", requestId }),
+      details: new Map(model.details).set(storyId, refetch(model.details.get(storyId), requestId)),
       nextRequestId: requestIdAfter(requestId),
     },
     [{ type: "getStory", requestId, storyId }],
@@ -66,104 +60,54 @@ const loadPullRequests = (model: Model, stories: readonly StorySummary[]): Step 
   const storyIds = stories.filter((story) => story.pullRequestCount > 0).map((story) => story.id);
   if (storyIds.length === 0) return [{ ...model, pullRequests: noPullRequests }, []];
   const requestId = model.nextRequestId;
+  const kept = new Map([...model.pullRequests.value].filter(([id]) => storyIds.includes(id)));
   return [
     {
       ...model,
-      pullRequests: { status: "loading", requestId },
+      pullRequests: { value: kept, reload: { status: "inFlight", requestId } },
       nextRequestId: requestIdAfter(requestId),
     },
     [{ type: "loadPullRequests", requestId, storyIds }],
   ];
 };
 
+const needsFetch = (detail: Remote<StoryDetail> | undefined): boolean => {
+  switch (detail?.status) {
+    case undefined:
+    case "failed":
+      return true;
+    case "firstLoad":
+      return false;
+    case "loaded":
+      return reloadFailure(detail) !== null;
+  }
+};
+
 const select = (model: Model, storyId: StoryId | null): Step => {
   const selected = { ...model, selectedStoryId: storyId };
   if (storyId === null) return [selected, []];
-  const detail = model.details.get(storyId);
-  if (detail === undefined || detail.status === "failed") return fetchDetail(selected, storyId);
+  if (needsFetch(model.details.get(storyId))) return fetchDetail(selected, storyId);
   return [selected, []];
 };
 
 export const defaultQueryFor = (mentionName: string) =>
   `owner:${mentionName} is:started !is:archived`;
 
-const progressRank: Record<Progress, number> = { unstarted: 0, started: 1, done: 2 };
-
-const furthestAlongFirst = (a: StorySummary, b: StorySummary) =>
-  progressRank[b.state.progress] - progressRank[a.state.progress] ||
-  b.state.position - a.state.position ||
-  a.state.workflow.name.localeCompare(b.state.workflow.name) ||
-  a.state.id - b.state.id ||
-  b.updatedAt.getTime() - a.updatedAt.getTime();
-
-export const pickerStates = (workspace: Workspace, story: StorySummary): readonly WorkflowState[] =>
-  workspace.workflowStates
-    .filter((state) => state.workflow.id === story.state.workflow.id)
-    .toSorted((a, b) => a.position - b.position || a.id - b.id);
-
-const intentOf = (move: StoryMove): WorkflowState => {
-  switch (move.status) {
-    case "saving":
-      return move.pending ?? move.target;
-    case "moved":
-    case "failed":
-      return move.known;
-  }
-};
-
 const storyIn = (model: Model, storyId: StoryId | null): StorySummary | null =>
   model.results.status === "loaded"
     ? (model.results.value.stories.find((story) => story.id === storyId) ?? null)
     : null;
 
-const restate = (
-  model: Model,
-  storyId: StoryId,
-  state: WorkflowState,
-  replacement?: StorySummary,
-): Model => {
-  if (model.results.status !== "loaded") return model;
-  const stories = model.results.value.stories
-    .map((story) => (story.id === storyId ? { ...(replacement ?? story), state } : story))
-    .toSorted(furthestAlongFirst);
-  return { ...model, results: { status: "loaded", value: { ...model.results.value, stories } } };
-};
-
-const startMove = (
-  model: Model,
-  storyId: StoryId,
-  target: WorkflowState,
-  known: WorkflowState,
-  trustFrom: RequestId,
-): Step => {
-  const requestId = model.nextRequestId;
-  return [
-    {
-      ...restate(model, storyId, target),
-      moves: new Map(model.moves).set(storyId, {
-        status: "saving",
-        requestId,
-        target,
-        pending: null,
-        known,
-        trustFrom,
-      }),
-      nextRequestId: requestIdAfter(requestId),
-    },
-    [{ type: "moveStory", requestId, storyId, stateId: target.id }],
-  ];
-};
-
 const refresh = (model: Model): Step => {
   switch (model.workspace.status) {
-    case "loading":
+    case "firstLoad":
       return [model, []];
     case "failed": {
       const requestId = model.nextRequestId;
       return [
         {
           ...model,
-          workspace: { status: "loading", requestId },
+          workspace: firstLoad(requestId),
           nextRequestId: requestIdAfter(requestId),
         },
         [{ type: "loadWorkspace", requestId }],
@@ -184,46 +128,20 @@ const resultsArrived = (
   found: readonly StorySummary[],
   loadedAt: Date,
 ): Step => {
-  const stories = found
-    .map((story) => {
-      const move = model.moves.get(story.id);
-      if (move === undefined) return story;
-      switch (move.status) {
-        case "saving":
-          return { ...story, state: intentOf(move) };
-        case "moved":
-        case "failed":
-          return requestId >= move.trustFrom ? story : { ...story, state: move.known };
-      }
-    })
-    .toSorted(furthestAlongFirst);
-  const moves = new Map(model.moves);
-  for (const [storyId, move] of model.moves) {
-    if (requestId < move.trustFrom) continue;
-    const fresh = found.find((story) => story.id === storyId);
-    switch (move.status) {
-      case "saving":
-        if (fresh !== undefined) moves.set(storyId, { ...move, known: fresh.state });
-        break;
-      case "moved":
-      case "failed":
-        moves.delete(storyId);
-        break;
-    }
-  }
+  const { stories, moves } = carryMoves(model, requestId, found);
   const { focus } = model;
   const pickingGone =
     focus.mode === "picking" && !stories.some((story) => story.id === focus.storyId);
-  const loaded: Model = {
+  const shown: Model = {
     ...model,
-    results: { status: "loaded", value: { query: model.query, stories } },
+    results: loaded({ query: model.query, stories }),
     loadedAt,
     moves,
     focus: pickingGone ? browsing : focus,
   };
   const kept = stories.some((story) => story.id === model.selectedStoryId);
   const [selected, detailEffects] = select(
-    loaded,
+    shown,
     kept ? model.selectedStoryId : (stories[0]?.id ?? null),
   );
   const [checking, pullRequestEffects] = loadPullRequests(selected, stories);
@@ -234,9 +152,9 @@ export const init = (): Step => {
   const requestId = firstRequestId;
   return [
     {
-      workspace: { status: "loading", requestId },
+      workspace: firstLoad(requestId),
       query: "",
-      results: { status: "loaded", value: { query: "", stories: [] } },
+      results: loaded({ query: "", stories: [] }),
       loadedAt: null,
       selectedStoryId: null,
       details: new Map(),
@@ -253,12 +171,12 @@ export const update = (model: Model, msg: Msg): Step => {
   switch (msg.type) {
     case "workspaceLoaded": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
-      const loaded: Model = { ...model, workspace: { status: "loaded", value: msg.workspace } };
-      return search(loaded, defaultQueryFor(msg.workspace.me.mentionName));
+      const withWorkspace: Model = { ...model, workspace: loaded(msg.workspace) };
+      return search(withWorkspace, defaultQueryFor(msg.workspace.me.mentionName));
     }
     case "workspaceFailed": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
-      return [{ ...model, workspace: { status: "failed", message: msg.message } }, []];
+      return [{ ...model, workspace: fail(model.workspace, msg.message) }, []];
     }
     case "searchSucceeded": {
       if (!isAwaiting(model.results, msg.requestId)) return [model, []];
@@ -266,31 +184,27 @@ export const update = (model: Model, msg: Msg): Step => {
     }
     case "searchFailed": {
       if (!isAwaiting(model.results, msg.requestId)) return [model, []];
-      return [{ ...model, results: { status: "failed", message: msg.message } }, []];
+      return [{ ...model, results: fail(model.results, msg.message) }, []];
     }
     case "detailSucceeded": {
       if (!isAwaiting(model.details.get(msg.story.id), msg.requestId)) return [model, []];
-      const details = new Map(model.details).set(msg.story.id, {
-        status: "loaded",
-        value: msg.story,
-      });
+      const details = new Map(model.details).set(msg.story.id, loaded(msg.story));
       return [{ ...model, details }, []];
     }
     case "detailFailed": {
-      if (!isAwaiting(model.details.get(msg.storyId), msg.requestId)) return [model, []];
-      const details = new Map(model.details).set(msg.storyId, {
-        status: "failed",
-        message: msg.message,
-      });
+      const detail = model.details.get(msg.storyId);
+      if (detail === undefined || !isAwaiting(detail, msg.requestId)) return [model, []];
+      const details = new Map(model.details).set(msg.storyId, fail(detail, msg.message));
       return [{ ...model, details }, []];
     }
     case "pullRequestsLoaded": {
-      if (!isAwaiting(model.pullRequests, msg.requestId)) return [model, []];
-      return [{ ...model, pullRequests: { status: "loaded", value: msg.pullRequests } }, []];
+      if (inFlight(model.pullRequests.reload) !== msg.requestId) return [model, []];
+      return [{ ...model, pullRequests: { value: msg.pullRequests, reload: idle } }, []];
     }
     case "pullRequestsFailed": {
-      if (!isAwaiting(model.pullRequests, msg.requestId)) return [model, []];
-      return [{ ...model, pullRequests: { status: "failed", message: msg.message } }, []];
+      if (inFlight(model.pullRequests.reload) !== msg.requestId) return [model, []];
+      const reload: Reload = { status: "failed", message: msg.message };
+      return [{ ...model, pullRequests: { ...model.pullRequests, reload } }, []];
     }
     case "moveSucceeded": {
       const move = model.moves.get(msg.storyId);
@@ -349,11 +263,11 @@ export const update = (model: Model, msg: Msg): Step => {
     case "refreshRequested":
       return refresh(model);
     case "autoRefreshDue": {
-      const idle =
+      const nothingInFlight =
         model.focus.mode === "browsing" &&
-        model.results.status !== "loading" &&
-        model.pullRequests.status !== "loading";
-      return idle ? refresh(model) : [model, []];
+        awaited(model.results) === null &&
+        inFlight(model.pullRequests.reload) === null;
+      return nothingInFlight ? refresh(model) : [model, []];
     }
     case "helpOpened": {
       if (model.focus.mode !== "browsing") return [model, []];

@@ -1,5 +1,6 @@
 import { systemClock } from "../src/app/clock.ts";
-import type { Model, StoryPullRequests } from "../src/app/model.ts";
+import type { Model } from "../src/app/model.ts";
+import { awaited, inFlight } from "../src/app/remote.ts";
 import { createStoryStore } from "../src/app/store.ts";
 import { createGitHubClient } from "../src/github/client.ts";
 import { storyMergeStatus } from "../src/github/pull-request-state.ts";
@@ -9,11 +10,15 @@ import { describeTokenFailure, resolveTokenFromEnvironment } from "../src/shortc
 const say = (line: string) => process.stdout.write(`${line}\n`);
 
 const settled = (model: Model): boolean => {
-  if (model.workspace.status !== "loaded") return model.workspace.status === "failed";
-  if (model.results.status !== "loaded") return model.results.status === "failed";
-  if (model.pullRequests.status === "loading") return false;
+  if (awaited(model.workspace) !== null || model.workspace.status === "failed") {
+    return model.workspace.status === "failed";
+  }
+  if (awaited(model.results) !== null || model.results.status === "failed") {
+    return model.results.status === "failed";
+  }
+  if (inFlight(model.pullRequests.reload) !== null) return false;
   if (model.selectedStoryId === null) return true;
-  return model.details.get(model.selectedStoryId)?.status !== "loading";
+  return awaited(model.details.get(model.selectedStoryId)) === null;
 };
 
 const report = (model: Model): boolean => {
@@ -30,11 +35,11 @@ const report = (model: Model): boolean => {
   const { stories } = model.results.value;
   say(`search: ${stories.length} stories`);
   const { pullRequests } = model;
-  if (pullRequests.status === "failed") say(`pull requests failed: ${pullRequests.message}`);
-  const linked: StoryPullRequests =
-    pullRequests.status === "loaded" ? pullRequests.value : new Map();
+  if (pullRequests.reload.status === "failed") {
+    say(`pull requests failed: ${pullRequests.reload.message}`);
+  }
   for (const story of stories) {
-    const list = linked.get(story.id);
+    const list = pullRequests.value.get(story.id);
     if (list?.status === "failed")
       say(`  pull requests failed for ${String(story.id)}: ${list.message}`);
     const views = list?.status === "loaded" ? list.value : [];
@@ -44,7 +49,7 @@ const report = (model: Model): boolean => {
       say(`      #${String(pr.github?.number ?? "?")} ${pr.state.padEnd(17)} ${pr.title}`);
     }
   }
-  if (pullRequests.status === "failed") return false;
+  if (pullRequests.reload.status === "failed") return false;
   const detail =
     model.selectedStoryId === null ? undefined : model.details.get(model.selectedStoryId);
   if (detail === undefined) return stories.length === 0;

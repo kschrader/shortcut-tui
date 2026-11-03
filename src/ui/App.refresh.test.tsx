@@ -129,25 +129,22 @@ const launch = async () => {
   };
 };
 
-test.failing(
-  "r keeps the list on screen while the search is out, then swaps in the answer",
-  async () => {
-    const { searchGate, frame, header, selectedRow, until, press } = await launch();
-    searchGate.hold();
-    await press("r");
-    await until(() => header().includes("loading…"));
-    expect(header()).toContain("loading…");
-    expect(frame()).toContain("Export iteration report as CSV");
-    expect(frame()).not.toContain("Loading stories…");
-    searchGate.release();
-    await until(() => frame().includes("Add keyboard shortcuts cheat sheet"));
-    expect(frame()).toContain("Add keyboard shortcuts cheat sheet");
-    expect(header()).not.toContain("loading…");
-    expect(selectedRow()).toContain("1004");
-  },
-);
+test("r keeps the list on screen while the search is out, then swaps in the answer", async () => {
+  const { searchGate, frame, header, selectedRow, until, press } = await launch();
+  searchGate.hold();
+  await press("r");
+  await until(() => header().includes("loading…"));
+  expect(header()).toContain("loading…");
+  expect(frame()).toContain("Export iteration report as CSV");
+  expect(frame()).not.toContain("Loading stories…");
+  searchGate.release();
+  await until(() => frame().includes("Add keyboard shortcuts cheat sheet"));
+  expect(frame()).toContain("Add keyboard shortcuts cheat sheet");
+  expect(header()).not.toContain("loading…");
+  expect(selectedRow()).toContain("1004");
+});
 
-test.failing("r keeps the selected story's detail while it reloads", async () => {
+test("r keeps the selected story's detail while it reloads", async () => {
   const { detailGate, frame, header, until, press } = await launch();
   detailGate.hold();
   await press("r");
@@ -157,59 +154,50 @@ test.failing("r keeps the selected story's detail while it reloads", async () =>
   detailGate.release();
 });
 
-test.failing(
-  "a story keeps its badge while pull request status reloads, and a new one says checking",
-  async () => {
-    const { githubGate, rowOf, until, press } = await launch();
-    githubGate.hold();
-    await press("r");
-    await until(() => rowOf(1002) !== "");
-    expect(rowOf(1001)).toContain("CI failing");
-    expect(rowOf(1001)).not.toContain("checking");
-    expect(rowOf(1002)).toContain("… checking");
-    githubGate.release();
-    await until(() => rowOf(1002).includes("behind"));
-    expect(rowOf(1002)).toContain("↓ behind");
-  },
-);
+test("a story keeps its badge while pull request status reloads, and a new one says checking", async () => {
+  const { githubGate, rowOf, until, press } = await launch();
+  githubGate.hold();
+  await press("r");
+  await until(() => rowOf(1002) !== "");
+  expect(rowOf(1001)).toContain("CI failing");
+  expect(rowOf(1001)).not.toContain("checking");
+  expect(rowOf(1002)).toContain("… checking");
+  githubGate.release();
+  await until(() => rowOf(1002).includes("behind"));
+  expect(rowOf(1002)).toContain("↓ behind");
+});
 
-test.failing(
-  "a failed refresh keeps the list and reports the failure in the status bar",
-  async () => {
-    const { searchGate, frame, header, statusBar, until, press } = await launch();
-    searchGate.hold();
-    await press("r");
-    await until(() => header().includes("loading…"));
-    searchGate.reject("HTTP 503");
-    await until(() => !header().includes("loading…"));
-    expect(frame()).toContain("Export iteration report as CSV");
-    expect(frame()).not.toContain("Search failed");
-    expect(statusBar()).toContain("Refresh failed");
-    expect(statusBar()).toContain("r to retry");
-    expect(statusBar()).toContain("HTTP 503");
-  },
-);
+test("a failed refresh keeps the list and reports the failure in the status bar", async () => {
+  const { searchGate, frame, header, statusBar, until, press } = await launch();
+  searchGate.hold();
+  await press("r");
+  await until(() => header().includes("loading…"));
+  searchGate.reject("HTTP 503");
+  await until(() => !header().includes("loading…"));
+  expect(frame()).toContain("Export iteration report as CSV");
+  expect(frame()).not.toContain("Search failed");
+  expect(statusBar()).toContain("Refresh failed");
+  expect(statusBar()).toContain("r to retry");
+  expect(statusBar()).toContain("HTTP 503");
+});
 
-test.failing(
-  "the auto-refresh keeps the list on screen and does not stack a second search",
-  async () => {
-    const { clock, searches, searchGate, frame, header, until } = await launch();
-    searchGate.hold();
-    clock.advance(5 * MINUTE);
-    await until(() => header().includes("loading…"));
-    expect(searches.length).toBe(2);
-    expect(frame()).toContain("Export iteration report as CSV");
-    expect(frame()).not.toContain("Loading stories…");
-    clock.advance(5 * MINUTE);
-    await until(() => searches.length > 2);
-    expect(searches.length).toBe(2);
-    searchGate.release();
-    await until(() => !header().includes("loading…"));
-    expect(frame()).toContain("Add keyboard shortcuts cheat sheet");
-  },
-);
+test("the auto-refresh keeps the list on screen and does not stack a second search", async () => {
+  const { clock, searches, searchGate, frame, header, until } = await launch();
+  searchGate.hold();
+  clock.advance(5 * MINUTE);
+  await until(() => header().includes("loading…"));
+  expect(searches.length).toBe(2);
+  expect(frame()).toContain("Export iteration report as CSV");
+  expect(frame()).not.toContain("Loading stories…");
+  clock.advance(5 * MINUTE);
+  await until(() => searches.length > 2);
+  expect(searches.length).toBe(2);
+  searchGate.release();
+  await until(() => !header().includes("loading…"));
+  expect(frame()).toContain("Add keyboard shortcuts cheat sheet");
+});
 
-test.failing("j and y act on the shown list while a refresh is out", async () => {
+test("j and y act on the shown list while a refresh is out", async () => {
   const { copied, searchGate, header, selectedRow, until, press } = await launch();
   searchGate.hold();
   await press("r");

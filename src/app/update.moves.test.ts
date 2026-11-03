@@ -13,7 +13,8 @@ import {
 } from "./fixtures.ts";
 import type { Effect, Model } from "./model.ts";
 import { answer, browsing, first, only, type EffectOf } from "./steps.ts";
-import { init, pickerStates, update } from "./update.ts";
+import { pickerStates } from "./moves.ts";
+import { init, update } from "./update.ts";
 
 const shown = (model: Model): readonly StorySummary[] => {
   if (model.results.status !== "loaded") throw new Error("results not loaded");

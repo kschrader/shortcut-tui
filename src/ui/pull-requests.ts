@@ -1,4 +1,5 @@
-import type { PullRequestView, Remote, StoryPullRequests } from "../app/model.ts";
+import type { Cached, PullRequestView, Settled, StoryPullRequests } from "../app/model.ts";
+import { inFlight } from "../app/remote.ts";
 import { storyMergeStatus, type StoryMergeStatus } from "../github/pull-request-state.ts";
 import type { StorySummary } from "../shortcut/types.ts";
 import { storyCount } from "./format.ts";
@@ -63,42 +64,46 @@ export const BADGE_LABEL_WIDTH = Math.max(
   ...Object.values(badgeStyle).map((style) => style.label.length),
 );
 
+export type StoryPullRequestList = { status: "checking" } | Settled<readonly PullRequestView[]>;
+
+export const storyPullRequests = (
+  story: StorySummary,
+  pullRequests: Cached<StoryPullRequests>,
+): StoryPullRequestList | null => {
+  if (story.pullRequestCount === 0) return null;
+  const list = pullRequests.value.get(story.id);
+  if (list !== undefined) return list;
+  const { reload } = pullRequests;
+  switch (reload.status) {
+    case "inFlight":
+      return { status: "checking" };
+    case "failed":
+      return { status: "failed", message: reload.message };
+    case "idle":
+      return { status: "loaded", value: [] };
+  }
+};
+
 export const storyBadge = (
   story: StorySummary,
-  pullRequests: Remote<StoryPullRequests>,
+  pullRequests: Cached<StoryPullRequests>,
 ): Badge | null => {
   if (story.pullRequestCount === 0) return null;
-  switch (pullRequests.status) {
-    case "loading":
-      return "checking";
+  const list = pullRequests.value.get(story.id);
+  if (list === undefined) return inFlight(pullRequests.reload) === null ? null : "checking";
+  switch (list.status) {
     case "failed":
-      return null;
+      return "unknown";
     case "loaded": {
-      const list = pullRequests.value.get(story.id);
-      if (list?.status === "failed") return "unknown";
-      const status = storyMergeStatus((list?.value ?? []).map((pr) => pr.state));
+      const status = storyMergeStatus(list.value.map((pr) => pr.state));
       return status === "none" ? null : status;
     }
   }
 };
 
-export const storyPullRequests = (
-  story: StorySummary,
-  pullRequests: Remote<StoryPullRequests>,
-): Remote<readonly PullRequestView[]> | null => {
-  if (story.pullRequestCount === 0) return null;
-  switch (pullRequests.status) {
-    case "loading":
-    case "failed":
-      return pullRequests;
-    case "loaded":
-      return pullRequests.value.get(story.id) ?? { status: "loaded", value: [] };
-  }
-};
-
 export const pullRequestToOpen = (
   story: StorySummary,
-  pullRequests: Remote<StoryPullRequests>,
+  pullRequests: Cached<StoryPullRequests>,
 ): PullRequestView | null => {
   const list = storyPullRequests(story, pullRequests);
   if (list?.status !== "loaded") return null;
@@ -112,18 +117,12 @@ export const pullRequestToOpen = (
   );
 };
 
-export const pullRequestTrouble = (pullRequests: Remote<StoryPullRequests>): string | null => {
-  switch (pullRequests.status) {
-    case "loading":
-      return null;
-    case "failed":
-      return `PR status: ${pullRequests.message}`;
-    case "loaded": {
-      const failures = [...pullRequests.value.values()].flatMap((list) =>
-        list.status === "failed" ? [list.message] : [],
-      );
-      const [first] = failures;
-      return first === undefined ? null : `PR status for ${storyCount(failures.length)}: ${first}`;
-    }
-  }
+export const pullRequestTrouble = (pullRequests: Cached<StoryPullRequests>): string | null => {
+  const { reload } = pullRequests;
+  if (reload.status === "failed") return `PR status: ${reload.message}`;
+  const failures = [...pullRequests.value.values()].flatMap((list) =>
+    list.status === "failed" ? [list.message] : [],
+  );
+  const [first] = failures;
+  return first === undefined ? null : `PR status for ${storyCount(failures.length)}: ${first}`;
 };

@@ -4,6 +4,7 @@ import type { PullRequestState } from "../github/types.ts";
 import type { PullRequestId, StorySummary } from "../shortcut/types.ts";
 import { storyId, summary } from "./fixtures.ts";
 import type { Model, PullRequestView, StoryPullRequests } from "./model.ts";
+import { idle } from "./remote.ts";
 import {
   answer,
   browsing,
@@ -47,13 +48,16 @@ test("search results ask for the pull requests of exactly the stories that link 
   const load = first(effects, "loadPullRequests");
   expect(ofType(effects, "loadPullRequests").length).toBe(1);
   expect(load.storyIds).toEqual([storyId(1), storyId(3)]);
-  expect(model.pullRequests).toEqual({ status: "loading", requestId: load.requestId });
+  expect(model.pullRequests).toEqual({
+    value: new Map(),
+    reload: { status: "inFlight", requestId: load.requestId },
+  });
 });
 
 test("results that link no pull requests ask for nothing and show none", () => {
   const [model, effects] = browsing([summary(1), summary(2)]);
   only(effects, "getStory");
-  expect(model.pullRequests).toEqual({ status: "loaded", value: new Map() });
+  expect(model.pullRequests).toEqual({ value: new Map(), reload: idle });
 });
 
 test("loaded pull requests are shown, and a duplicate delivery changes nothing", () => {
@@ -64,7 +68,7 @@ test("loaded pull requests are shown, and a duplicate delivery changes nothing",
     [3, [view(12, "conflicts")]],
   ]);
   const [shown] = deliver(model, load, loaded);
-  expect(shown.pullRequests).toEqual({ status: "loaded", value: loaded });
+  expect(shown.pullRequests).toEqual({ value: loaded, reload: idle });
   expect(deliver(shown, load, statuses([[1, [view(10, "closed")]]]))).toEqual([shown, []]);
 });
 
@@ -77,25 +81,33 @@ test("a failed load is shown with its message", () => {
     message: "GitHub status needs the gh CLI: gh auth login",
   });
   expect(failed.pullRequests).toEqual({
-    status: "failed",
-    message: "GitHub status needs the gh CLI: gh auth login",
+    value: new Map(),
+    reload: { status: "failed", message: "GitHub status needs the gh CLI: gh auth login" },
   });
 });
 
-test("refresh asks again once the results reload, and drops the older answer", () => {
+test("refresh keeps the shown statuses, asks again once the results reload, and drops the older answer", () => {
   const [model, effects] = browsing(results);
   const older = first(effects, "loadPullRequests");
-  const [refreshing, refreshEffects] = update(model, { type: "refreshRequested" });
-  expect(refreshing.pullRequests).toEqual({ status: "loaded", value: new Map() });
-  const [reloaded, reloadEffects] = answer(
-    refreshing,
-    first(refreshEffects, "searchStories"),
-    results,
-  );
+  const known = statuses([
+    [1, [view(10, "ready")]],
+    [3, [view(12, "conflicts")]],
+  ]);
+  const [shown] = deliver(model, older, known);
+  const [refreshing, refreshEffects] = update(shown, { type: "refreshRequested" });
+  expect(refreshing.pullRequests).toEqual({ value: known, reload: idle });
+  const [reloaded, reloadEffects] = answer(refreshing, first(refreshEffects, "searchStories"), [
+    linking(1, 2),
+    summary(2),
+  ]);
   const newer = first(reloadEffects, "loadPullRequests");
   expect(newer.requestId).not.toBe(older.requestId);
+  expect(reloaded.pullRequests).toEqual({
+    value: statuses([[1, [view(10, "ready")]]]),
+    reload: { status: "inFlight", requestId: newer.requestId },
+  });
   const [afterLate] = deliver(reloaded, older, statuses([[1, [view(10, "merged")]]]));
-  expect(afterLate.pullRequests).toEqual({ status: "loading", requestId: newer.requestId });
+  expect(afterLate).toEqual(reloaded);
   const [afterLateFailure] = update(reloaded, {
     type: "pullRequestsFailed",
     requestId: older.requestId,
@@ -109,7 +121,7 @@ test("an answer for the previous query never lands on the new query's stories", 
   const load = first(effects, "loadPullRequests");
   const [searching] = submitQuery(model, "label:other");
   const [after] = deliver(searching, load, statuses([[1, [view(10, "ready")]]]));
-  expect(after.pullRequests).toEqual({ status: "loaded", value: new Map() });
+  expect(after.pullRequests).toEqual({ value: new Map(), reload: idle });
 });
 
 test("the workspace's first search also checks pull requests", () => {

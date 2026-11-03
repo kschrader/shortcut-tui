@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { z } from "zod";
 import { runEffect } from "../app/effects.ts";
 import type { RequestId } from "../app/model.ts";
+import { idle } from "../app/remote.ts";
 import { createFakeShortcutClient } from "../shortcut/fake.ts";
 import { badgeStyle, storyBadge } from "../ui/pull-requests.ts";
 import { createFakeGitHubClient } from "./fake.ts";
@@ -19,7 +20,7 @@ const demoPullRequests = async () => {
     () => new Date(0),
   );
   if (msg.type !== "pullRequestsLoaded") throw new Error(`expected a load, got ${msg.type}`);
-  return { stories, pullRequests: { status: "loaded", value: msg.pullRequests } as const };
+  return { stories, pullRequests: { value: msg.pullRequests, reload: idle } };
 };
 
 test("the demo shows every pull request badge", async () => {
