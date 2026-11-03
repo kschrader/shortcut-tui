@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import { autoRefreshFromEnvironment, type AutoRefreshSetting } from "./auto-refresh.ts";
 
-test("refreshes every 5 minutes when the variable is unset or empty", () => {
-  const fiveMinutes: AutoRefreshSetting = { ok: true, autoRefresh: { mode: "every", ms: 300_000 } };
-  expect(autoRefreshFromEnvironment({})).toEqual(fiveMinutes);
-  expect(autoRefreshFromEnvironment({ SHORTCUT_TUI_REFRESH_SECONDS: "" })).toEqual(fiveMinutes);
+test("refreshes every 60 seconds when the variable is unset or empty", () => {
+  const everyMinute: AutoRefreshSetting = { ok: true, autoRefresh: { mode: "every", ms: 60_000 } };
+  expect(autoRefreshFromEnvironment({})).toEqual(everyMinute);
+  expect(autoRefreshFromEnvironment({ SHORTCUT_TUI_REFRESH_SECONDS: "" })).toEqual(everyMinute);
 });
 
 test("a positive whole number of seconds sets the interval", () => {

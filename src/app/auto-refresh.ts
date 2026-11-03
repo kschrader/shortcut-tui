@@ -2,7 +2,7 @@ export type AutoRefresh = { mode: "off" } | { mode: "every"; ms: number };
 
 const REFRESH_SECONDS_VARIABLE = "SHORTCUT_TUI_REFRESH_SECONDS";
 
-const DEFAULT_SECONDS = 300;
+const DEFAULT_SECONDS = 60;
 const LONGEST_TIMER_MS = 2 ** 31 - 1;
 const LONGEST_SECONDS = Math.floor(LONGEST_TIMER_MS / 1000);
 

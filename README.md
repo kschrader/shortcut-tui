@@ -69,7 +69,9 @@ Moving needs a read-write token. With a read-only token (`sct_r_...`, whose whoa
 
 ## Auto-refresh
 
-The app refreshes on its own every 5 minutes, the same as pressing `r`, so pull request badges keep up with CI and reviews. The selected story stays selected. A refresh is skipped while you edit the query, pick a state, or read help or the read-only notice, and while a search or pull request status is still loading. The next interval tries again. Any search, including `r` and a new query, restarts the countdown.
+The app refreshes on its own every 60 seconds, the same as pressing `r`, so stories and pull request badges keep up with changes made in Shortcut and GitHub. Each refresh is one Shortcut search plus one `gh` call per story with pull requests, well below the rate limits of both. The selected story stays selected. A refresh is skipped while you edit the query, pick a state, or read help or the read-only notice, and while a search or pull request status is still loading. The next interval tries again. Any search, including `r` and a new query, restarts the countdown.
+
+The app also refreshes when you switch back to its terminal, if the shown results are at least 30 seconds old, so switching windows back and forth does not repeat the search. The same skips apply. This needs a terminal that reports focus changes; most modern terminals do. It still works with auto-refresh turned off.
 
 While a refresh is out, the list, the badges, and the selected story's details stay on screen and the header says `loading…`. Every key keeps working on the shown list. The answer replaces the list when it arrives. A story that had a badge keeps it until GitHub answers again; a story with no badge yet shows `… checking`. If the refresh fails, the list stays, the story count takes the warning color, and the bottom bar says `✗ Refresh failed  ·  r to retry` with the error. A detail that fails to reload keeps its body and reports the failure above it. Only the first load of a query shows the full-screen loading and failure views.
 
