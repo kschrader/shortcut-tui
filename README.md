@@ -112,7 +112,7 @@ The default query is `owner:<you> is:started !is:archived`, which shows your in-
 | `bun run type-check` | TypeScript 7 |
 | `bun test` | Unit, frame, and interleaving tests, plus a fixture test for each project lint rule |
 | `bun run tlc` | TLA+ model checks in `spec/`: the story-browser state machine with its auto-refresh guard and its rule that a refresh never hides shown data (`StoryBrowser.tla`), and the story-move protocol (`StoryMoves.tla`), each with deliberately broken configurations that TLC must reject |
-| `bun run tlc:big` | A larger TLA+ model, with no pull request links so it stays at about 14 minutes |
+| `bun run tlc:big` | A larger TLA+ model, with no pull request links so it stays at about 18 minutes |
 | `bun run smoke` | Read-only calls to the live API with your token |
 
 `bun run tlc` needs Java and the TLA+ tools. Download [`tla2tools.jar` v1.7.4](https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar) to `spec/tools/`. It must be the stable v1.7.4 release: the v1.8.0 prerelease is rebuilt in place, so it cannot be pinned by checksum. Git ignores that directory.
