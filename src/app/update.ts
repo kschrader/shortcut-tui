@@ -19,6 +19,7 @@ import {
   queryQuestion,
   sameQuestion,
 } from "./filters.ts";
+import { noticed } from "./glance.ts";
 import {
   awaited,
   fail,
@@ -182,6 +183,7 @@ export const init = (): Step => {
       details: new Map(),
       pullRequests: noPullRequests,
       moves: new Map(),
+      seen: new Map(),
       focus: browsing,
       nextRequestId: requestIdAfter(requestId),
     },
@@ -189,7 +191,7 @@ export const init = (): Step => {
   ];
 };
 
-export const update = (model: Model, msg: Msg): Step => {
+const transition = (model: Model, msg: Msg): Step => {
   switch (msg.type) {
     case "workspaceLoaded": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
@@ -372,4 +374,9 @@ export const update = (model: Model, msg: Msg): Step => {
       return [{ ...model, focus: browsing }, []];
     }
   }
+};
+
+export const update = (model: Model, msg: Msg): Step => {
+  const [next, effects] = transition(model, msg);
+  return next === model ? [model, effects] : [{ ...next, seen: noticed(model, next) }, effects];
 };

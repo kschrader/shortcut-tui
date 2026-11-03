@@ -1,6 +1,6 @@
 import { storyMergeStatus, type StoryMergeStatus } from "../github/pull-request-state.ts";
-import type { StorySummary } from "../shortcut/types.ts";
-import type { Cached, Change, Glance, StoryPullRequests } from "./model.ts";
+import type { StoryId, StorySummary } from "../shortcut/types.ts";
+import type { Cached, Change, Glance, Model, StoryPullRequests } from "./model.ts";
 
 const mergeStatusOf = (
   story: StorySummary,
@@ -36,4 +36,52 @@ export const changesBetween = (seen: Glance | undefined, now: Glance): readonly 
     changes.push({ kind: "edited" });
   }
   return changes;
+};
+
+const shownStories = (model: Model): readonly StorySummary[] =>
+  model.results.status === "loaded" ? model.results.value.stories : [];
+
+const selectedStory = (model: Model): StorySummary | null =>
+  shownStories(model).find((story) => story.id === model.selectedStoryId) ?? null;
+
+export const changesOf = (model: Model, storyId: StoryId): readonly Change[] => {
+  const story = shownStories(model).find((candidate) => candidate.id === storyId);
+  if (story === undefined) return [];
+  return changesBetween(model.seen.get(storyId), glanceOf(story, model.pullRequests));
+};
+
+export const unseenChanges = (model: Model): ReadonlyMap<StoryId, readonly Change[]> =>
+  new Map(
+    shownStories(model)
+      .filter((story) => story.id !== model.selectedStoryId)
+      .map((story) => [story.id, changesOf(model, story.id)] as const)
+      .filter(([, changes]) => changes.length > 0),
+  );
+
+const answersNewQuestion = (before: Model, after: Model): boolean =>
+  before.results.status === "firstLoad" && after.results.status === "loaded";
+
+export const noticed = (before: Model, after: Model): Model["seen"] => {
+  const seen = new Map(after.seen);
+  const now = (story: StorySummary) => glanceOf(story, after.pullRequests);
+  if (answersNewQuestion(before, after)) {
+    for (const story of shownStories(after)) seen.set(story.id, now(story));
+    return seen;
+  }
+  const left = selectedStory(before);
+  if (left !== null && selectedStory(after)?.id !== left.id) {
+    const glance = glanceOf(left, before.pullRequests);
+    const mergeStatus = glance.mergeStatus ?? seen.get(left.id)?.mergeStatus ?? null;
+    seen.set(left.id, { ...glance, mergeStatus });
+  }
+  for (const story of shownStories(after)) {
+    const record = seen.get(story.id);
+    const glance = now(story);
+    if (after.moves.has(story.id)) {
+      seen.set(story.id, { ...glance, mergeStatus: record?.mergeStatus ?? glance.mergeStatus });
+    } else if (record?.mergeStatus === null && glance.mergeStatus !== null) {
+      seen.set(story.id, { ...record, mergeStatus: glance.mergeStatus });
+    }
+  }
+  return seen;
 };

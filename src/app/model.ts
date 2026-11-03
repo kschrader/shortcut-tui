@@ -77,6 +77,7 @@ export type Model = {
   details: ReadonlyMap<StoryId, Remote<StoryDetail>>;
   pullRequests: Cached<StoryPullRequests>;
   moves: ReadonlyMap<StoryId, StoryMove>;
+  seen: ReadonlyMap<StoryId, Glance>;
   focus: Focus;
   nextRequestId: RequestId;
 };

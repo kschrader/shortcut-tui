@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
+import type { PullRequestState } from "../github/types.ts";
 import type { PullRequestId } from "../shortcut/types.ts";
 import { detail, summary, workspaceFor } from "./fixtures.ts";
 import {
@@ -19,6 +20,7 @@ import {
   slotOf,
   storyName,
 } from "./interleaving.remotes.ts";
+import { changesOf, unseenChanges } from "./glance.ts";
 import type { Effect, Model, Msg, PullRequestView } from "./model.ts";
 import { init, update } from "./update.ts";
 
@@ -46,14 +48,18 @@ const pick = <T>(random: Random, items: readonly T[]): T => {
   return item;
 };
 
-const pullRequestAnswer = (requestId: number, index: number): PullRequestView => ({
+const pullRequestAnswer = (
+  requestId: number,
+  index: number,
+  state: PullRequestState,
+): PullRequestView => ({
   id: z.custom<PullRequestId>().parse(index + 1),
   title: answerMark(requestId),
   url: `https://github.com/acme/app/pull/${String(index + 1)}`,
   closed: false,
   draft: false,
   github: { owner: "acme", repo: "app", number: index + 1 },
-  state: "ready",
+  state,
 });
 
 const respond = (
@@ -81,6 +87,7 @@ const respond = (
         ...summary(id, storyName(effect.queries, requestId, id)),
         pullRequestCount: random() < 0.5 ? 0 : 1 + Math.floor(random() * 2),
         state: serverState(seen, summary(id).id),
+        updatedAt: random() < 0.3 ? new Date(1_000 * requestId) : summary(id).updatedAt,
       }));
       return { type: "searchSucceeded", requestId, stories, loadedAt: new Date(1_000 * requestId) };
     }
@@ -105,7 +112,16 @@ const respond = (
             pullRequests: new Map(
               effect.storyIds.map((id, index) => [
                 id,
-                { status: "loaded", value: [pullRequestAnswer(requestId, index)] },
+                {
+                  status: "loaded",
+                  value: [
+                    pullRequestAnswer(
+                      requestId,
+                      index,
+                      pick(random, ["ready", "checks-running", "unknown"]),
+                    ),
+                  ],
+                },
               ]),
             ),
           }
@@ -160,6 +176,30 @@ const userMsg = (random: Random, model: Model): Msg => {
     { type: "movePickerClosed" },
     { type: "readOnlyNoticeClosed" },
   ]);
+};
+
+const glanceViolations = (before: Model, after: Model): string[] => {
+  const found: string[] = [];
+  const shown = shownStories(after);
+  const selected = after.selectedStoryId;
+  if (selected !== null && unseenChanges(after).has(selected)) {
+    found.push(`selected story ${String(selected)} carries a change mark`);
+  }
+  if (before.results.status === "firstLoad" && after.results.status === "loaded") {
+    const marked = shown.filter((story) => changesOf(after, story.id).length > 0);
+    if (marked.length > 0) found.push("results for a new question marked a change");
+  }
+  const left = before.selectedStoryId;
+  if (left !== null && left !== selected && changesOf(after, left).length > 0) {
+    found.push(`story ${String(left)} carries a change right after you left it`);
+  }
+  for (const story of shown) {
+    const own = changesOf(after, story.id).filter((change) => change.kind !== "pullRequests");
+    if (after.moves.has(story.id) && own.length > 0) {
+      found.push(`story ${String(story.id)} you are moving carries ${own[0]?.kind ?? ""}`);
+    }
+  }
+  return found;
 };
 
 const violations = (model: Model, issued: readonly Effect[], world: World): string[] => {
@@ -221,6 +261,7 @@ const explore = (seed: number): string[] => {
     const problems = [
       ...outOfOrder,
       ...hiddenShownData(before, model),
+      ...glanceViolations(before, model),
       ...violations(model, issued, world),
       ...(redeliveryChanged ? ["redelivering the same response changed the model"] : []),
     ];
