@@ -40,11 +40,13 @@ Saving(rid, target, known, trustFrom) == Slot("saving", rid, target, NoState, kn
 Moved(known, trustFrom) == Slot("moved", 0, NoState, NoState, known, trustFrom)
 FailedMove(known, trustFrom) == Slot("failed", 0, NoState, NoState, known, trustFrom)
 
-Loading(rid) == [status |-> "loading", rid |-> rid]
-Loaded == [status |-> "loaded", rid |-> 0]
-FailedSearch == [status |-> "failed", rid |-> 0]
+(* Every search re-asks the same question, so results always hold a value *)
+(* and only their reload changes.                                           *)
+Reloading(rid) == [reload |-> "inFlight", rid |-> rid]
+Settled == [reload |-> "idle", rid |-> 0]
+ReloadFailed == [reload |-> "failed", rid |-> 0]
 
-Awaiting(results, rid) == results.status = "loading" /\ results.rid = rid
+Awaiting(results, rid) == results.reload = "inFlight" /\ results.rid = rid
 
 Intent(slot) == IF slot.pending # NoState THEN slot.pending ELSE slot.target
 Trusts(slot, rid) == rid >= slot.trustFrom
@@ -66,7 +68,7 @@ Pick(model, s, t) ==
 
 Search(model, snap) ==
     LET rid == model.nextRid
-    IN << [model EXCEPT !.results = Loading(rid), !.nextRid = rid + 1],
+    IN << [model EXCEPT !.results = Reloading(rid), !.nextRid = rid + 1],
           {SearchRequest(rid, snap)} >>
 
 ShownAfterSearch(slot, rid, seen) ==
@@ -82,14 +84,14 @@ SlotAfterSearch(slot, rid, seen) ==
 OnSearchSucceeded(model, req, seen) ==
     IF ~Awaiting(model.results, req.rid) THEN <<model, {}>>
     ELSE << [model EXCEPT
-                !.results = Loaded,
+                !.results = Settled,
                 !.display = [s \in Stories |-> ShownAfterSearch(model.move[s], req.rid, seen[s])],
                 !.move = [s \in Stories |-> SlotAfterSearch(model.move[s], req.rid, seen[s])]],
             {} >>
 
 OnSearchFailed(model, req) ==
     IF ~Awaiting(model.results, req.rid) THEN <<model, {}>>
-    ELSE <<[model EXCEPT !.results = FailedSearch], {}>>
+    ELSE <<[model EXCEPT !.results = ReloadFailed], {}>>
 
 MoveAnswerApplies(model, req) ==
     model.move[req.story].status = "saving" /\ model.move[req.story].rid = req.rid
@@ -118,7 +120,7 @@ OnMoveFailed(model, req) ==
 Init ==
     /\ m = [ display |-> [s \in Stories |-> Initial],
              move |-> [s \in Stories |-> NoMove],
-             results |-> Loaded,
+             results |-> Settled,
              nextRid |-> 1 ]
     /\ server = [s \in Stories |-> Initial]
     /\ outcome = [rid \in RequestIds |-> "undecided"]
@@ -130,9 +132,10 @@ Apply(step) ==
     /\ m' = step[1]
     /\ network' = network \cup step[2]
 
+(* A pick is allowed while a search is in flight, which is the interleaving *)
+(* that keeping results on screen during a refresh opens up.                *)
 UserPicks ==
     /\ picks < MaxPicks
-    /\ m.results.status = "loaded"
     /\ \E s \in Stories : \E t \in States \ {m.display[s]} : Apply(Pick(m, s, t))
     /\ picks' = picks + 1
     /\ UNCHANGED <<server, outcome, searches>>
@@ -180,7 +183,7 @@ MoveSlots == [status : {"none", "saving", "moved", "failed"},
               known : {NoState} \cup States,
               trustFrom : 0..(MaxRid + 1)]
 
-Results == [status : {"loading", "loaded", "failed"}, rid : {0} \cup RequestIds]
+Results == [reload : {"idle", "inFlight", "failed"}, rid : {0} \cup RequestIds]
 
 TypeOK ==
     /\ m.display \in [Stories -> States]
@@ -215,7 +218,7 @@ SettledDisplayMatchesServer ==
     \A s \in Stories : Undecided(s) = {} => m.display[s] = server[s]
 
 EverythingSettles ==
-    <>[](/\ m.results.status # "loading"
+    <>[](/\ m.results.reload # "inFlight"
          /\ \A s \in Stories : m.move[s].status # "saving")
 
 =============================================================================
