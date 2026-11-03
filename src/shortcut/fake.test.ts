@@ -30,6 +30,17 @@ test("the app's default query returns only my in-progress stories", async () => 
   }
 });
 
+test("the review filter finds stories other people own in a review state", async () => {
+  const client = createFakeShortcutClient();
+  const workspace = await client.loadWorkspace();
+  const queries = queriesFor({ kind: "inReview" }, workspace);
+  const found = (await Promise.all(queries.map((query) => client.searchStories(query)))).flat();
+  expect(found.map((story) => story.name).toSorted()).toEqual([
+    "Fix flaky label sync test",
+    "Paginate the iteration list",
+  ]);
+});
+
 test("free text narrows by story name", async () => {
   const byText = await createFakeShortcutClient().searchStories("webhook");
   expect(byText.map((story) => story.name)).toEqual(["Document webhook retry behavior"]);

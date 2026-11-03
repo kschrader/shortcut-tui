@@ -287,6 +287,30 @@ const seeds: StorySeed[] = [
       pullRequest(3963, "Expose retry limits in workspace settings"),
     ],
   },
+  {
+    id: 1010,
+    name: "Paginate the iteration list",
+    storyType: "feature",
+    state: inReview,
+    estimate: 2,
+    owners: [priya],
+    updatedAt: "2026-11-02T08:30:00Z",
+    description: "Workspaces with years of iterations time out loading the list.",
+    labels: [],
+    comments: [],
+  },
+  {
+    id: 1011,
+    name: "Fix flaky label sync test",
+    storyType: "chore",
+    state: inReview,
+    estimate: 1,
+    owners: [alex, sam],
+    updatedAt: "2026-11-01T16:00:00Z",
+    description: "The label sync test races the webhook fixture.",
+    labels: [],
+    comments: [],
+  },
 ];
 
 const pullRequestsByStory = new Map(
@@ -316,13 +340,16 @@ const summaryOf = ({
   ...summary
 }: StoryDetail): StorySummary => summary;
 
+const isMine = (story: StoryDetail) => story.owners.some((owner) => owner.id === me.id);
+
 const matchesQuery = (story: StoryDetail, query: string): boolean =>
   query
     .split(/\s+/)
     .filter((term) => term !== "")
     .every((term) => {
-      if (term === "owner:me" || term === `owner:${workspace.me.mentionName}`)
-        return story.owners.some((owner) => owner.id === me.id);
+      if (term === "owner:me" || term === `owner:${workspace.me.mentionName}`) return isMine(story);
+      if (term === `!owner:${workspace.me.mentionName}`) return !isMine(story);
+      if (term.startsWith("state:")) return `state:${String(story.state.id)}` === term;
       if (term === "!is:done") return story.state.progress !== "done";
       if (term === "is:started") return story.state.progress === "started";
       if (term.includes(":")) return true;
