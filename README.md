@@ -91,6 +91,7 @@ The status bar ends with how long ago the results loaded, such as `↻ 2m ago`. 
 | --- | --- |
 | `j` / `k`, arrows | Move the selection |
 | `/` | Edit the search query. `enter` searches, `esc` cancels. A changed query shows the loading screen; the same query refreshes in place |
+| `f` | Switch to the next filter: your started stories, then team stories waiting for review, then back. From a typed query, `f` starts at your started stories. The header names the filter in place of the query |
 | `r` | Refresh the results, the selected story, and pull request status. The shown list stays until the answer arrives. Also restarts the auto-refresh countdown |
 | `o` | Open the selected story in the browser |
 | `y` | Copy the selected story's link. The bottom bar says whether it was copied |
@@ -105,6 +106,8 @@ The status bar ends with how long ago the results loaded, such as `↻ 2m ago`. 
 The URL in the detail pane is a terminal hyperlink. In a terminal that supports OSC 8, cmd-click or ctrl-click it to open the story. The app captures the mouse, so you cannot select the URL to copy it; press `y` instead. On macOS, `y` copies with `pbcopy`, and the bottom bar reports whether `pbcopy` succeeded. `y` also sends the link through OSC 52, so copying works over SSH in terminals that allow it. Elsewhere `y` relies on OSC 52 alone, and the bottom bar says the terminal has no clipboard access only when the terminal reports that it does not support OSC 52.
 
 The default query is `owner:<you> is:started !is:archived`, which shows your in-progress stories. Press `/` to change it, for example to `owner:<you> !is:done` to include unstarted stories. Stories are sorted by workflow state, with states further right in the workflow at the top. Started states come before unstarted ones, which keeps stories from different workflows in a sensible order. Stories in the same state are sorted with the most recently updated first. A divider above each group shows the state, its story count, and its workflow. The query uses Shortcut's [search operators](https://help.shortcut.com/hc/en-us/articles/360000046646-Search-Operators).
+
+The review filter shows stories in any workflow state with "review" in its name, such as "Ready for Review" or "In Review", in every workflow. It leaves out stories you own and archived stories. Shortcut search cannot match several states in one query, so the app runs one search per review state and merges the answers. Pressing `/` from the review filter starts an empty query.
 
 ## Checks
 
