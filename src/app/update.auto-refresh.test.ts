@@ -23,7 +23,7 @@ describe("auto-refresh", () => {
     const model = idle();
     expect(update(model, due)).toEqual(update(model, { type: "refreshRequested" }));
     const [, effects] = update(model, due);
-    expect(first(effects, "searchStories").query).toBe(myStartedQuery);
+    expect(first(effects, "searchStories").queries).toEqual([myStartedQuery]);
     expect(first(effects, "getStory").storyId).toBe(storyId(2));
   });
 
@@ -85,7 +85,7 @@ describe("auto-refresh", () => {
       message: "HTTP 503",
     });
     const [, effects] = update(failed, due);
-    expect(only(effects, "searchStories").query).toBe(myStartedQuery);
+    expect(only(effects, "searchStories").queries).toEqual([myStartedQuery]);
   });
 });
 
@@ -101,7 +101,7 @@ describe("terminal focus", () => {
     expect(model.loadedAt).toEqual(loadedAt);
     expect(update(model, focusedAfter(30_000))).toEqual(update(model, due));
     const [, effects] = update(model, focusedAfter(30_000));
-    expect(first(effects, "searchStories").query).toBe(myStartedQuery);
+    expect(first(effects, "searchStories").queries).toEqual([myStartedQuery]);
   });
 
   test("does nothing while the shown results are fresher than 30 seconds", () => {

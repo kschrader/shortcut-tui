@@ -25,7 +25,7 @@ describe("startup", () => {
 
   test("a loaded workspace searches for my in-progress stories", () => {
     const [model, search] = loggedIn();
-    expect(search.query).toBe(myStartedQuery);
+    expect(search.queries).toEqual([myStartedQuery]);
     expect(model.question).toEqual(queryQuestion(myStartedQuery));
     expect(model.results.status).toBe("firstLoad");
   });
@@ -68,7 +68,7 @@ describe("search results", () => {
     const [model, superseded] = loggedIn();
     const [submitted, effects] = submitQuery(model, "label:urgent");
     const second = only(effects, "searchStories");
-    expect(second.query).toBe("label:urgent");
+    expect(second.queries).toEqual(["label:urgent"]);
 
     const [afterStale, staleEffects] = answer(submitted, superseded, [summary(1)]);
     expect(afterStale).toBe(submitted);
@@ -169,8 +169,8 @@ describe("selection and detail", () => {
     const original = only(effects, "getStory");
     const [refreshing, refreshEffects] = update(model, { type: "refreshRequested" });
     expect(first(refreshEffects, "getStory").storyId).toBe(storyId(1));
-    expect(ofType(refreshEffects, "searchStories").map((effect) => effect.query)).toEqual([
-      myStartedQuery,
+    expect(ofType(refreshEffects, "searchStories").map((effect) => effect.queries)).toEqual([
+      [myStartedQuery],
     ]);
 
     const [afterStale] = update(refreshing, {
@@ -294,7 +294,7 @@ describe("query editing", () => {
     const [submitted, effects] = submitQuery(model, "is:started");
     expect(submitted.focus).toEqual({ mode: "browsing" });
     expect(submitted.question).toEqual(queryQuestion("is:started"));
-    expect(only(effects, "searchStories").query).toBe("is:started");
+    expect(only(effects, "searchStories").queries).toEqual(["is:started"]);
   });
 
   test("text typed after the current query becomes a separate search term", () => {
@@ -303,7 +303,7 @@ describe("query editing", () => {
     const draft = editing.focus.mode === "editingQuery" ? editing.focus.draft : "";
     const [submitted, effects] = submitQuery(model, `${draft}webhook`);
     expect(submitted.question).toEqual(queryQuestion(`${myStartedQuery} webhook`));
-    expect(only(effects, "searchStories").query).toBe(`${myStartedQuery} webhook`);
+    expect(only(effects, "searchStories").queries).toEqual([`${myStartedQuery} webhook`]);
   });
 
   test("surrounding whitespace in a submitted query is dropped", () => {

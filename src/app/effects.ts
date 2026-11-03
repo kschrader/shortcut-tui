@@ -1,6 +1,11 @@
 import { settleLimited } from "../concurrency.ts";
 import { pullRequestKey, type GitHubClient, type PullRequestState } from "../github/types.ts";
-import type { LinkedPullRequest, ShortcutClient, StoryId } from "../shortcut/types.ts";
+import type {
+  LinkedPullRequest,
+  ShortcutClient,
+  StoryId,
+  StorySummary,
+} from "../shortcut/types.ts";
 import type { Effect, Msg, Settled, StoryPullRequests } from "./model.ts";
 
 export type Clients = { shortcut: ShortcutClient; github: GitHubClient };
@@ -14,6 +19,21 @@ const shortcutState = ({ closed, draft }: LinkedPullRequest): PullRequestState =
 };
 
 const SHORTCUT_REQUESTS_IN_FLIGHT = 6;
+
+const storiesMatching = async (
+  shortcut: ShortcutClient,
+  queries: readonly string[],
+): Promise<readonly StorySummary[]> => {
+  const answers = await settleLimited(queries, SHORTCUT_REQUESTS_IN_FLIGHT, (query) =>
+    shortcut.searchStories(query),
+  );
+  const merged = new Map<StoryId, StorySummary>();
+  for (const answer of answers) {
+    if (answer.status === "rejected") throw answer.reason;
+    for (const story of answer.value) merged.set(story.id, story);
+  }
+  return [...merged.values()];
+};
 
 const pullRequestsOf = async (
   { shortcut, github }: Clients,
@@ -65,7 +85,7 @@ const runEffectUnsafe = async (clients: Clients, effect: Effect, now: () => Date
       return {
         type: "searchSucceeded",
         requestId: effect.requestId,
-        stories: await clients.shortcut.searchStories(effect.query),
+        stories: await storiesMatching(clients.shortcut, effect.queries),
         loadedAt: now(),
       };
     case "getStory":

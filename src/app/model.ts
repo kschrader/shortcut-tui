@@ -105,7 +105,7 @@ export type Step = [Model, Effect[]];
 
 export type Effect =
   | { type: "loadWorkspace"; requestId: RequestId }
-  | { type: "searchStories"; requestId: RequestId; query: string }
+  | { type: "searchStories"; requestId: RequestId; queries: readonly string[] }
   | { type: "getStory"; requestId: RequestId; storyId: StoryId }
   | { type: "loadPullRequests"; requestId: RequestId; storyIds: readonly StoryId[] }
   | { type: "moveStory"; requestId: RequestId; storyId: StoryId; stateId: WorkflowStateId };

@@ -89,7 +89,7 @@ describe("refreshing the same query", () => {
     expect(update(refreshing, due)).toEqual([refreshing, []]);
     const [answered] = answer(refreshing, first(effects, "searchStories"), [summary(1)]);
     const [, dueEffects] = update(answered, due);
-    expect(first(dueEffects, "searchStories").query).toBe(myStartedQuery);
+    expect(first(dueEffects, "searchStories").queries).toEqual([myStartedQuery]);
   });
 });
 

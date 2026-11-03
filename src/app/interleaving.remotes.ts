@@ -5,8 +5,8 @@ import { awaited, inFlight } from "./remote.ts";
 
 export const answerMark = (requestId: number) => `answer to request ${String(requestId)}`;
 
-export const storyName = (query: string, requestId: number, id: number) =>
-  `${query}::${answerMark(requestId)}::${String(id)}`;
+export const storyName = (queries: readonly string[], requestId: number, id: number) =>
+  `${queries.join(" | ")}::${answerMark(requestId)}::${String(id)}`;
 
 export type Slot = "workspace" | "search" | "prs" | `detail:${string}`;
 
@@ -79,7 +79,10 @@ const resultsViolations = (model: Model, issued: readonly Effect[], world: World
   const applied = world.applied.get("search") ?? null;
   const waitsOn = (requestId: RequestId) => {
     const effect = issued.find((candidate) => candidate.requestId === requestId);
-    if (effect?.type !== "searchStories" || effect.query !== model.question.text) {
+    if (
+      effect?.type !== "searchStories" ||
+      !Bun.deepEquals(effect.queries, [model.question.text])
+    ) {
       found.push("results wait on a search that is not for the current query");
     }
     if (requestId !== latestSearch) found.push("results wait on a superseded search");
@@ -100,7 +103,7 @@ const resultsViolations = (model: Model, issued: readonly Effect[], world: World
         found.push(`results for "${question.text}" shown under "${model.question.text}"`);
       }
       const stale = stories.filter(
-        (story) => applied === null || story.name !== storyName(question.text, applied, story.id),
+        (story) => applied === null || story.name !== storyName([question.text], applied, story.id),
       );
       if (stale.length > 0) {
         found.push(

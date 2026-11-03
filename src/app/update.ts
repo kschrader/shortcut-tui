@@ -54,7 +54,7 @@ const search = (model: Model, question: Question): Step => {
       focus: model.focus.mode === "picking" ? browsing : model.focus,
       nextRequestId: requestIdAfter(requestId),
     },
-    [{ type: "searchStories", requestId, query: question.text }],
+    [{ type: "searchStories", requestId, queries: [question.text] }],
   ];
 };
 

@@ -12,9 +12,11 @@ import type {
   PullRequestId,
   ShortcutClient,
   StoryId,
+  StorySummary,
   WorkflowStateId,
 } from "../shortcut/types.ts";
 import { runEffect, type Clients } from "./effects.ts";
+import { summary } from "./fixtures.ts";
 import type { RequestId } from "./model.ts";
 
 const requestId = z.custom<RequestId>().parse(7);
@@ -47,7 +49,11 @@ test("a failing workspace load becomes a workspaceFailed message", async () => {
 
 test("a failing search becomes a searchFailed message", async () => {
   expect(
-    await runEffect(failing(failingClient), { type: "searchStories", requestId, query: "x" }, noon),
+    await runEffect(
+      failing(failingClient),
+      { type: "searchStories", requestId, queries: ["x"] },
+      noon,
+    ),
   ).toEqual({
     type: "searchFailed",
     requestId,
@@ -77,7 +83,7 @@ test("a successful search records when its answer arrived, not when it was sent"
   };
   const msg = await runEffect(
     failing(client),
-    { type: "searchStories", requestId, query: "x" },
+    { type: "searchStories", requestId, queries: ["x"] },
     () => clock,
   );
   expect(msg).toEqual({
@@ -95,10 +101,62 @@ test("a non-Error rejection still produces a failure message", async () => {
   };
   const msg = await runEffect(
     failing(client),
-    { type: "searchStories", requestId, query: "x" },
+    { type: "searchStories", requestId, queries: ["x"] },
     noon,
   );
   expect(msg).toEqual({ type: "searchFailed", requestId, message: "y" });
+});
+
+const searchWith = (answers: Record<string, readonly StorySummary[] | Error>) => {
+  const asked: string[] = [];
+  const client: ShortcutClient = {
+    ...failingClient,
+    searchStories: async (query) => {
+      asked.push(query);
+      const answer = answers[query];
+      if (answer === undefined || answer instanceof Error) throw answer ?? new Error(query);
+      return answer;
+    },
+  };
+  const run = (queries: readonly string[]) =>
+    runEffect(failing(client), { type: "searchStories", requestId, queries }, noon);
+  return { asked, run };
+};
+
+describe("a search with several queries", () => {
+  test("answers every query's stories once, even when two queries find the same story", async () => {
+    const { asked, run } = searchWith({
+      "state:1": [summary(1), summary(2)],
+      "state:2": [summary(2), summary(3)],
+    });
+    const msg = await run(["state:1", "state:2"]);
+    expect(asked.toSorted()).toEqual(["state:1", "state:2"]);
+    expect(msg.type === "searchSucceeded" ? msg.stories.map((story) => story.id) : msg).toEqual([
+      summary(1).id,
+      summary(2).id,
+      summary(3).id,
+    ]);
+  });
+
+  test("fails with the failing query's message when any query fails", async () => {
+    const { run } = searchWith({ "state:1": [summary(1)], "state:2": new Error("HTTP 429") });
+    expect(await run(["state:1", "state:2"])).toEqual({
+      type: "searchFailed",
+      requestId,
+      message: "HTTP 429",
+    });
+  });
+
+  test("answers no stories without asking Shortcut when there are no queries", async () => {
+    const { asked, run } = searchWith({});
+    expect(await run([])).toEqual({
+      type: "searchSucceeded",
+      requestId,
+      stories: [],
+      loadedAt: noon(),
+    });
+    expect(asked).toEqual([]);
+  });
 });
 
 const otherStoryId = z.custom<StoryId>().parse(43);

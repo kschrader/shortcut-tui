@@ -78,7 +78,7 @@ const respond = (
       const seen = random() < 0.5 ? (world.snapshots.get(requestId) ?? world.server) : world.server;
       const ids = storyPool.filter(() => random() < 0.6).toSorted(() => random() - 0.5);
       const stories = ids.map((id) => ({
-        ...summary(id, storyName(effect.query, requestId, id)),
+        ...summary(id, storyName(effect.queries, requestId, id)),
         pullRequestCount: random() < 0.5 ? 0 : 1 + Math.floor(random() * 2),
         state: serverState(seen, summary(id).id),
       }));
