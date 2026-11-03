@@ -70,6 +70,7 @@ NeedsFetch(remote) ==
 FirstOf(S) == IF S = {} THEN NoStory ELSE CHOOSE s \in S : \A t \in S : s <= t
 Rank(S, s) == Cardinality({t \in S : t < s})
 At(S, i) == CHOOSE s \in S : Rank(S, s) = i
+Shows(model, s) == HasValue(model.results) /\ s \in model.results.stories
 Clamp(i, lo, hi) == IF i < lo THEN lo ELSE IF i > hi THEN hi ELSE i
 
 Search(model, q) ==
@@ -178,6 +179,10 @@ OnSelectionMoved(model, delta) ==
              current == IF model.selected \in S THEN Rank(S, model.selected) ELSE -1
          IN Select(model, At(S, Clamp(current + delta, 0, Cardinality(S) - 1)))
 
+OnStoryClicked(model, s) ==
+    IF model.focus.mode # "browsing" \/ ~Shows(model, s) THEN <<model, {}>>
+    ELSE Select(model, s)
+
 OnQueryEditStarted(model) ==
     IF model.workspace.status # "loaded" \/ model.focus.mode # "browsing" THEN <<model, {}>>
     ELSE <<[model EXCEPT !.focus = [mode |-> "editing", draft |-> model.query]], {}>>
@@ -229,6 +234,7 @@ UserSends(step) ==
 
 UserActs ==
     \/ \E delta \in {-1, 1} : UserSends(OnSelectionMoved(m, delta))
+    \/ \E s \in Stories : Shows(m, s) /\ UserSends(OnStoryClicked(m, s))
     \/ UserSends(OnQueryEditStarted(m))
     \/ \E draft \in Queries \cup {DefaultQuery} : UserSends(OnQueryDraftChanged(m, draft))
     \/ UserSends(OnQueryEditCancelled(m))
@@ -355,7 +361,6 @@ AutoRefreshWaitsForIdle ==
 SelectedDetailArrives ==
     <>[](m.selected # NoStory => Answered(m.details[m.selected]))
 
-Shows(model, s) == HasValue(model.results) /\ s \in model.results.stories
 HasBadge(model, s) == HasValue(model.prs) /\ s \in model.prs.stories
 
 (* With the question unchanged, no step hides shown results, a shown detail, *)

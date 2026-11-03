@@ -83,6 +83,7 @@ export type Msg =
   | { type: "moveSucceeded"; requestId: RequestId; storyId: StoryId; story: StorySummary }
   | { type: "moveFailed"; requestId: RequestId; storyId: StoryId; message: string }
   | { type: "selectionMoved"; delta: number }
+  | { type: "storyClicked"; storyId: StoryId }
   | { type: "queryEditStarted" }
   | { type: "queryDraftChanged"; draft: string }
   | { type: "queryEditCancelled" }

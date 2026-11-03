@@ -172,6 +172,40 @@ describe("selection and detail", () => {
   });
 });
 
+describe("clicking a story", () => {
+  test("selects it and fetches its detail once", () => {
+    const [model] = browsing([summary(1), summary(2)]);
+    const [clicked, effects] = update(model, { type: "storyClicked", storyId: storyId(2) });
+    expect(clicked.selectedStoryId).toBe(storyId(2));
+    const fetch = only(effects, "getStory");
+    expect(fetch.storyId).toBe(storyId(2));
+    const [, again] = update(clicked, { type: "storyClicked", storyId: storyId(2) });
+    expect(again).toEqual([]);
+    const [shown] = update(clicked, {
+      type: "detailSucceeded",
+      requestId: fetch.requestId,
+      story: detail(2),
+    });
+    const [, afterLoad] = update(shown, { type: "storyClicked", storyId: storyId(2) });
+    expect(afterLoad).toEqual([]);
+  });
+
+  test("is ignored while another mode has focus", () => {
+    const [model] = browsing([summary(1), summary(2)]);
+    const [help] = update(model, { type: "helpOpened" });
+    const [clicked, effects] = update(help, { type: "storyClicked", storyId: storyId(2) });
+    expect(clicked).toBe(help);
+    expect(effects).toEqual([]);
+  });
+
+  test("is ignored for a story that is no longer in the results", () => {
+    const [model] = browsing([summary(1), summary(2)]);
+    const [clicked, effects] = update(model, { type: "storyClicked", storyId: storyId(9) });
+    expect(clicked).toBe(model);
+    expect(effects).toEqual([]);
+  });
+});
+
 describe("default order", () => {
   const backlog = { name: "Backlog", progress: "unstarted", position: 0 } as const;
   const ready = { name: "Ready for Development", progress: "unstarted", position: 4 } as const;

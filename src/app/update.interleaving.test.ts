@@ -139,9 +139,13 @@ const respond = (
   }
 };
 
-const userMsg = (random: Random): Msg =>
-  pick<Msg>(random, [
+const userMsg = (random: Random, model: Model): Msg => {
+  const shown = shownStories(model);
+  const clicks: Msg[] =
+    shown.length === 0 ? [] : [{ type: "storyClicked", storyId: pick(random, shown).id }];
+  return pick<Msg>(random, [
     { type: "selectionMoved", delta: pick(random, [-2, -1, 1, 2]) },
+    ...clicks,
     { type: "queryEditStarted" },
     { type: "queryDraftChanged", draft: pick(random, queries) },
     { type: "queryEditCancelled" },
@@ -154,6 +158,7 @@ const userMsg = (random: Random): Msg =>
     { type: "movePickerClosed" },
     { type: "readOnlyNoticeClosed" },
   ]);
+};
 
 const violations = (model: Model, issued: readonly Effect[], world: World): string[] => {
   const found: string[] = [];
@@ -229,7 +234,7 @@ const explore = (seed: number): string[] => {
       const problems = apply(respond(random, effect, succeed, world, model), effect, succeed);
       if (problems.length > 0) return problems;
     } else {
-      const problems = apply(userMsg(random), null, false);
+      const problems = apply(userMsg(random, model), null, false);
       if (problems.length > 0) return problems;
     }
   }

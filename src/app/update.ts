@@ -241,6 +241,12 @@ export const update = (model: Model, msg: Msg): Step => {
       const target = Math.min(Math.max(current + msg.delta, 0), stories.length - 1);
       return select(model, stories[target]?.id ?? null);
     }
+    case "storyClicked": {
+      if (model.focus.mode !== "browsing" || storyIn(model, msg.storyId) === null) {
+        return [model, []];
+      }
+      return select(model, msg.storyId);
+    }
     case "queryEditStarted": {
       if (model.workspace.status !== "loaded" || model.focus.mode !== "browsing") {
         return [model, []];
