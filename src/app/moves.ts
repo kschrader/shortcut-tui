@@ -1,6 +1,7 @@
 import type { StoryId, StorySummary, WorkflowState, Workspace } from "../shortcut/types.ts";
 import type { Model, RequestId, Step, StoryMove } from "./model.ts";
-import { furthestAlongFirst } from "./order.ts";
+import { groupingOf } from "./filters.ts";
+import { orderFor } from "./order.ts";
 import { requestIdAfter } from "./remote.ts";
 
 export const pickerStates = (workspace: Workspace, story: StorySummary): readonly WorkflowState[] =>
@@ -27,7 +28,7 @@ export const restate = (
   if (model.results.status !== "loaded") return model;
   const stories = model.results.value.stories
     .map((story) => (story.id === storyId ? { ...(replacement ?? story), state } : story))
-    .toSorted(furthestAlongFirst);
+    .toSorted(orderFor(groupingOf(model.question)));
   return { ...model, results: { ...model.results, value: { ...model.results.value, stories } } };
 };
 
@@ -73,7 +74,7 @@ export const carryMoves = (
           return requestId >= move.trustFrom ? story : { ...story, state: move.known };
       }
     })
-    .toSorted(furthestAlongFirst);
+    .toSorted(orderFor(groupingOf(model.question)));
   const moves = new Map(model.moves);
   for (const [storyId, move] of model.moves) {
     if (requestId < move.trustFrom) continue;

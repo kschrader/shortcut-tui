@@ -90,6 +90,11 @@ export const summary = (id: number, name = `Story ${String(id)}`): StorySummary 
   pullRequestCount: 0,
 });
 
+export const ownedBy = (story: StorySummary, ...names: readonly string[]): StorySummary => ({
+  ...story,
+  owners: names.map((name) => ({ id: memberId(name.toLowerCase()), name })),
+});
+
 export const inState = (
   story: StorySummary,
   state: Pick<WorkflowState, "name" | "progress" | "position"> & {

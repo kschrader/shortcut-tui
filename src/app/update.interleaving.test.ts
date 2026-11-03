@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
 import type { PullRequestState } from "../github/types.ts";
-import type { PullRequestId } from "../shortcut/types.ts";
-import { detail, summary, workspaceFor } from "./fixtures.ts";
+import type { PullRequestId, StorySummary } from "../shortcut/types.ts";
+import { groupingOf } from "./filters.ts";
+import { detail, ownedBy, summary, workspaceFor } from "./fixtures.ts";
 import {
   moveViolations,
   pickedTarget,
@@ -22,12 +23,22 @@ import {
 } from "./interleaving.remotes.ts";
 import { changesOf, unseenChanges } from "./glance.ts";
 import type { Effect, Model, Msg, PullRequestView } from "./model.ts";
+import { orderFor } from "./order.ts";
 import { init, update } from "./update.ts";
 
 const seeds = 300;
 const stepsPerSeed = 200;
 const queries = ["is:started", "label:urgent", ""];
 const storyPool = [1, 2, 3, 4];
+const ownersInPool: Record<number, readonly string[]> = {
+  1: ["Zed"],
+  2: ["Zed", "Ann"],
+  3: [],
+  4: ["Ann"],
+};
+
+const pooled = (id: number, name?: string): StorySummary =>
+  ownedBy(summary(id, name), ...(ownersInPool[id] ?? []));
 
 const mulberry32 = (seed: number) => {
   let state = seed >>> 0;
@@ -84,7 +95,7 @@ const respond = (
       const seen = random() < 0.5 ? (world.snapshots.get(requestId) ?? world.server) : world.server;
       const ids = storyPool.filter(() => random() < 0.6).toSorted(() => random() - 0.5);
       const stories = ids.map((id) => ({
-        ...summary(id, storyName(effect.queries, requestId, id)),
+        ...pooled(id, storyName(effect.queries, requestId, id)),
         pullRequestCount: random() < 0.5 ? 0 : 1 + Math.floor(random() * 2),
         state: serverState(seen, summary(id).id),
         updatedAt: random() < 0.3 ? new Date(1_000 * requestId) : summary(id).updatedAt,
@@ -146,7 +157,7 @@ const respond = (
         requestId,
         storyId: effect.storyId,
         story: {
-          ...(shown ?? summary(effect.storyId)),
+          ...(shown ?? pooled(effect.storyId)),
           state,
           updatedAt: new Date(1_000 * requestId),
         },
@@ -209,6 +220,11 @@ const violations = (model: Model, issued: readonly Effect[], world: World): stri
   }
   found.push(...remoteViolations(model, issued, world));
   found.push(...moveViolations(model, issued, world));
+  const shown = shownStories(model);
+  const grouping = groupingOf(model.question);
+  if (!Bun.deepEquals(shown.toSorted(orderFor(grouping)), shown)) {
+    found.push(`shown stories are out of ${grouping} order`);
+  }
   if (model.selectedStoryId !== null && !model.details.has(model.selectedStoryId)) {
     found.push("selected story has no detail entry");
   }

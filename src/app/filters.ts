@@ -1,6 +1,8 @@
 import type { Workspace } from "../shortcut/types.ts";
 import type { Question } from "./model.ts";
 
+export type Grouping = "state" | "owner";
+
 export type Filter = {
   id: "mine" | "inReview";
   label: string;
@@ -57,6 +59,15 @@ export const queriesFor = (question: Question, workspace: Workspace): readonly s
         .map(
           (state) => `state:${String(state.id)} !owner:${workspace.me.mentionName} !is:archived`,
         );
+  }
+};
+
+export const groupingOf = (question: Question): Grouping => {
+  switch (question.kind) {
+    case "query":
+      return "state";
+    case "inReview":
+      return "owner";
   }
 };
 

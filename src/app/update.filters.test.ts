@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { queryQuestion } from "./filters.ts";
-import { summary, workspaceFor } from "./fixtures.ts";
+import type { StorySummary } from "../shortcut/types.ts";
+import { doing, finished, inState, ownedBy, summary, workspaceFor } from "./fixtures.ts";
 import type { Model, Msg } from "./model.ts";
 import { awaited } from "./remote.ts";
 import { answer, browsing, first, myStartedQuery, only, submitQuery } from "./steps.ts";
@@ -10,12 +11,30 @@ const cycle: Msg = { type: "filterCycled" };
 
 const reviewQueries = ["state:4 !owner:kurt !is:archived", "state:5 !owner:kurt !is:archived"];
 
-const reviewing = (): Model => {
+const reviewing = (stories: readonly StorySummary[] = [summary(2), summary(3)]): Model => {
   const [model] = browsing([summary(1)]);
   const [cycled, effects] = update(model, cycle);
-  const [shown] = answer(cycled, only(effects, "searchStories"), [summary(2), summary(3)]);
+  const [shown] = answer(cycled, only(effects, "searchStories"), stories);
   return shown;
 };
+
+const shownIds = (model: Model) =>
+  model.results.status === "loaded" ? model.results.value.stories.map((story) => story.id) : [];
+
+const ids = (...stories: StorySummary[]) => stories.map((story) => story.id);
+
+const steps = (model: Model, msgs: readonly Msg[]): Model =>
+  msgs.reduce((current, msg) => update(current, msg)[0], model);
+
+const zedToDo = ownedBy(summary(11), "Zed");
+const annDoing = ownedBy(inState(summary(12), doing), "Ann");
+
+const finishSecondStory: Msg[] = [
+  { type: "selectionMoved", delta: 1 },
+  { type: "movePickerOpened" },
+  { type: "movePickerMoved", delta: 2 },
+  { type: "movePickerConfirmed" },
+];
 
 describe("filterCycled", () => {
   test("from my stories it searches every review state for stories I do not own", () => {
@@ -100,5 +119,42 @@ describe("the review view", () => {
     expect(refreshing.question).toEqual({ kind: "inReview" });
     expect(refreshing.results.status).toBe("loaded");
     expect(awaited(refreshing.results)).not.toBeNull();
+  });
+
+  test("groups stories by owner, furthest along first within each owner", () => {
+    const boDoing = ownedBy(inState(summary(21), doing), "Bo");
+    const annToDo = ownedBy(summary(22), "Ann");
+    const annDone = ownedBy(inState(summary(23), finished), "Ann");
+    const model = reviewing([boDoing, annToDo, annDone]);
+    expect(shownIds(model)).toEqual(ids(annDone, annToDo, boDoing));
+  });
+
+  test("j from one engineer's last story goes to the next engineer's first", () => {
+    const boDoing = ownedBy(inState(summary(21), doing), "Bo");
+    const annToDo = ownedBy(summary(22), "Ann");
+    const annDone = ownedBy(inState(summary(23), finished), "Ann");
+    const model = steps(reviewing([boDoing, annToDo, annDone]), [
+      { type: "selectionMoved", delta: 1 },
+    ]);
+    expect(model.selectedStoryId).toBe(annToDo.id);
+    expect(steps(model, [{ type: "selectionMoved", delta: 1 }]).selectedStoryId).toBe(boDoing.id);
+  });
+
+  test("a move keeps the story under its owner", () => {
+    const model = reviewing([zedToDo, annDoing]);
+    expect(shownIds(model)).toEqual(ids(annDoing, zedToDo));
+    const moved = steps(model, finishSecondStory);
+    expect(
+      moved.results.status === "loaded" ? moved.results.value.stories[1]?.state : null,
+    ).toEqual(finished);
+    expect(shownIds(moved)).toEqual(ids(annDoing, zedToDo));
+  });
+});
+
+describe("my stories", () => {
+  test("a move reorders by state, not by owner", () => {
+    const [model] = browsing([zedToDo, annDoing]);
+    expect(shownIds(model)).toEqual(ids(annDoing, zedToDo));
+    expect(shownIds(steps(model, finishSecondStory))).toEqual(ids(zedToDo, annDoing));
   });
 });
