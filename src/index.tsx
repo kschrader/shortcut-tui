@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { type CliRenderer, createCliRenderer } from "@opentui/core";
+import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { autoRefreshFromEnvironment } from "./app/auto-refresh.ts";
 import { systemClock } from "./app/clock.ts";
@@ -18,13 +18,6 @@ const openUrl = (url: string) => {
   Bun.spawn([process.platform === "darwin" ? "open" : "xdg-open", url], {
     stdio: ["ignore", "ignore", "ignore"],
   });
-};
-
-const copyTextWith = (renderer: CliRenderer) => (text: string) => {
-  if (renderer.copyToClipboardOSC52(text)) return true;
-  if (process.platform !== "darwin") return false;
-  Bun.spawn(["pbcopy"], { stdin: new Blob([text]), stdout: "ignore", stderr: "ignore" });
-  return true;
 };
 
 const main = async () => {
@@ -54,7 +47,12 @@ const main = async () => {
           github: createGitHubClient(),
         };
   const renderer = await createCliRenderer({ exitOnCtrlC: false });
-  const copyText = copyTextWith(renderer);
+  const copyText = (text: string) => {
+    if (renderer.copyToClipboardOSC52(text)) return true;
+    if (process.platform !== "darwin") return false;
+    Bun.spawn(["pbcopy"], { stdin: new Blob([text]), stdout: "ignore", stderr: "ignore" });
+    return true;
+  };
   const Root = () => {
     const { model, dispatch, now } = useStoryBrowser(clients, {
       clock: systemClock,
