@@ -31,6 +31,24 @@ const suites: Record<string, readonly ModelCheck[]> = {
       expect: "violation of AutoRefreshWaitsForIdle",
       budgetSeconds: 60,
     },
+    {
+      cfg: "IdleReadsStatus.cfg",
+      tla: "StoryBrowser.tla",
+      expect: "violation of AutoRefreshWaitsForIdle",
+      budgetSeconds: 60,
+    },
+    {
+      cfg: "DiscardOnRefresh.cfg",
+      tla: "StoryBrowser.tla",
+      expect: "violation of RefreshNeverHidesShownData",
+      budgetSeconds: 60,
+    },
+    {
+      cfg: "DiscardOnFailure.cfg",
+      tla: "StoryBrowser.tla",
+      expect: "violation of RefreshNeverHidesShownData",
+      budgetSeconds: 60,
+    },
     { cfg: "StoryMoves.cfg", tla: "StoryMoves.tla", expect: "pass", budgetSeconds: 60 },
     {
       cfg: "UnserializedMoves.cfg",
