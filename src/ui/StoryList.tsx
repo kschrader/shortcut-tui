@@ -7,6 +7,7 @@ import { badgeStyle, BADGE_LABEL_WIDTH, storyBadge, type Badge } from "./pull-re
 import { colors } from "./theme.ts";
 
 const ROW_CHROME_WIDTH = 8;
+const LEFT_BUTTON = 0;
 const MIN_NAME_WIDTH_BESIDE_LABELS = 36;
 
 type BadgeColumn = "none" | "glyph" | "labelled";
@@ -39,6 +40,7 @@ type Props = {
   pullRequests: Cached<StoryPullRequests>;
   moves: ReadonlyMap<StoryId, StoryMove>;
   width: number;
+  onSelect: (id: StoryId) => void;
 };
 
 type StateGroup = { state: StorySummary["state"]; stories: StorySummary[] };
@@ -84,6 +86,7 @@ const StoryRow = ({
   mark,
   markColumnWidth,
   width,
+  onSelect,
 }: {
   story: StorySummary;
   selected: boolean;
@@ -92,6 +95,7 @@ const StoryRow = ({
   mark: MoveMark | null;
   markColumnWidth: number;
   width: number;
+  onSelect: (id: StoryId) => void;
 }) => {
   const { glyph, color } = typeStyle[story.storyType];
   const idLabel = String(story.id).padStart(6);
@@ -102,6 +106,9 @@ const StoryRow = ({
       id={`story-${story.id}`}
       height={1}
       backgroundColor={selected ? colors.selection : colors.background}
+      onMouseDown={(event) => {
+        if (event.button === LEFT_BUTTON) onSelect(story.id);
+      }}
     >
       <text wrapMode="none" fg={selected ? colors.textBright : colors.text}>
         <span fg={selected ? colors.accent : colors.background}>{selected ? "▌" : " "}</span>
@@ -133,7 +140,7 @@ const badgeColumnFor = (
   return nameWidth >= MIN_NAME_WIDTH_BESIDE_LABELS ? "labelled" : "glyph";
 };
 
-export const StoryList = ({ stories, selectedId, pullRequests, moves, width }: Props) => {
+export const StoryList = ({ stories, selectedId, pullRequests, moves, width, onSelect }: Props) => {
   const scroll = useRef<ScrollBoxRenderable>(null);
   useEffect(() => {
     if (selectedId !== null) scroll.current?.scrollChildIntoView(`story-${selectedId}`);
@@ -157,6 +164,7 @@ export const StoryList = ({ stories, selectedId, pullRequests, moves, width }: P
             mark={moveMark(moves.get(story.id))}
             markColumnWidth={markColumnWidth}
             width={width}
+            onSelect={onSelect}
           />
         )),
       ])}

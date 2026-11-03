@@ -47,11 +47,13 @@ const Browser = ({
   stories,
   scrollRef,
   listWidth,
+  onSelect,
 }: {
   model: Model;
   stories: readonly StorySummary[];
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
   listWidth: number;
+  onSelect: (id: StoryId) => void;
 }) => {
   const selected = stories.find((story) => story.id === model.selectedStoryId) ?? null;
   return (
@@ -63,6 +65,7 @@ const Browser = ({
           pullRequests={model.pullRequests}
           moves={model.moves}
           width={listWidth}
+          onSelect={onSelect}
         />
       </box>
       <box
@@ -91,6 +94,7 @@ const Body = (props: {
   model: Model;
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
   listWidth: number;
+  onSelect: (id: StoryId) => void;
 }) => {
   const { model } = props;
   if (model.workspace.status === "failed") {
@@ -297,7 +301,12 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
         )}
         <text fg={color}>{text}</text>
       </box>
-      <Body model={model} scrollRef={detailScroll} listWidth={listWidth} />
+      <Body
+        model={model}
+        scrollRef={detailScroll}
+        listWidth={listWidth}
+        onSelect={(storyId) => dispatch({ type: "storyClicked", storyId })}
+      />
       <box
         height={1}
         flexDirection="row"
