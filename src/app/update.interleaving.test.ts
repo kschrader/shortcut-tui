@@ -111,7 +111,8 @@ const respond = (
           }
         : { type: "pullRequestsFailed", requestId, message: answerMark(requestId) };
     case "moveStory": {
-      const outcome = world.moveOutcomes.get(requestId) ?? succeed;
+      const executed = world.moveOutcomes.get(requestId);
+      const outcome = executed ?? succeed;
       world.moveOutcomes.set(requestId, outcome);
       if (!outcome) {
         return {
@@ -122,7 +123,7 @@ const respond = (
         };
       }
       const state = stateById(effect.stateId);
-      world.server.set(effect.storyId, state);
+      if (executed === undefined) world.server.set(effect.storyId, state);
       const shown = shownStories(model).find((story) => story.id === effect.storyId);
       return {
         type: "moveSucceeded",
