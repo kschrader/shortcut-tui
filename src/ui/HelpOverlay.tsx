@@ -58,6 +58,13 @@ export const HelpOverlay = () => (
               {` ${style.label.padEnd(BADGE_LABEL_WIDTH)}  ${style.description}`}
             </text>
           ))}
+          <text marginTop={1} fg={colors.dim}>
+            List marks
+          </text>
+          <text>
+            <span fg={colors.accent}>•</span>
+            {" changed since you last looked"}
+          </text>
         </box>
       </box>
     </box>

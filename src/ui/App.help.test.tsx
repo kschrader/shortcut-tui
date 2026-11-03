@@ -28,6 +28,13 @@ test("the overlay explains clicking a story and dragging the pane line", async (
   expect(text).toContain("drag │ Resize the panes");
 });
 
+test("the overlay explains the mark on a changed story", async () => {
+  const { frame } = await show(helping(), { width: 80, height: 24 });
+  const text = frame().replace(/ +/g, " ");
+  expect(text).toContain("List marks");
+  expect(text).toContain("• changed since you last looked");
+});
+
 test("keys that only work inside another mode stay out of the overlay", async () => {
   const { frame } = await show(helping(), { width: 80, height: 24 });
   const text = frame().replace(/ +/g, " ");

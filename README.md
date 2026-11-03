@@ -85,6 +85,12 @@ The value must be a whole number of seconds from 0 to 2147483, about 24 days. An
 
 The status bar ends with how long ago the results loaded, such as `↻ 2m ago`. The age updates once a minute. It stays while a refresh is out, because it describes the list still on screen. It is hidden until the first results load, and in a terminal too narrow to show it after every key hint.
 
+## Changed stories
+
+After a refresh, a story that changed since you last looked at it gets an accent `•` in the left gutter of its row, and the header adds a count, such as `4 stories  ·  1 updated`. A story counts as changed when it is new to the list, its workflow state changed, its pull request status changed, or its Shortcut update time moved for another reason, such as a rename, an owner or description edit, or possibly a comment. A pull request status counts only when GitHub answered both times. A status that is still loading, a failed load, and `? unknown` are not changes. A move you make yourself is not a change.
+
+Selecting a story clears its mark. While it stays selected, the detail pane says what changed, for example `Changed since you last looked: state In Progress → In Review`, including changes that arrive while you look. When you move on, the app records the story as it was at that moment. The first results for a new query or filter mark nothing, because you have not seen them before. Marks are kept in memory only, so each start begins with none. In `--demo`, a teammate moves one of your stories on the first refresh, so press `r` to see a mark.
+
 ## Keys
 
 | Key | Action |
