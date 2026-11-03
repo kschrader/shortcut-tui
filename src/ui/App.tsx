@@ -322,10 +322,12 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
         paddingRight={1}
         backgroundColor={colors.selection}
       >
-        <text fg={colors.accent}>
+        <text flexShrink={0} fg={colors.accent}>
           <b>Shortcut</b>
         </text>
-        <text fg={colors.dim}>{"  /  "}</text>
+        <text flexShrink={0} fg={colors.dim}>
+          {"  /  "}
+        </text>
         {model.focus.mode === "editingQuery" ? (
           <input
             focused
@@ -336,13 +338,15 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
             onSubmit={() => dispatch({ type: "querySubmitted" })}
           />
         ) : (
-          <text flexGrow={1} fg={colors.text}>
+          <text flexGrow={1} flexShrink={1} wrapMode="none" fg={colors.text}>
             {queryLabel(model)}
           </text>
         )}
-        <text fg={color}>{text}</text>
+        <text flexShrink={0} marginLeft={2} fg={color}>
+          {text}
+        </text>
         {unseen.size === 0 ? null : (
-          <text fg={colors.accent}>{`  ·  ${String(unseen.size)} updated`}</text>
+          <text flexShrink={0} fg={colors.accent}>{`  ·  ${String(unseen.size)} updated`}</text>
         )}
       </box>
       <Body

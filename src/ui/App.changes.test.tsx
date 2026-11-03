@@ -2,7 +2,8 @@ import { afterEach, expect, test } from "bun:test";
 import { glanceOf } from "../app/glance.ts";
 import type { Model, Msg } from "../app/model.ts";
 import { update } from "../app/update.ts";
-import { browsing, cleanup, inProgress, show, stories, storyId } from "./frame.tsx";
+import { queryQuestion } from "../app/filters.ts";
+import { browsing, cleanup, inProgress, loaded, show, stories, storyId } from "./frame.tsx";
 
 afterEach(cleanup);
 
@@ -90,4 +91,20 @@ test("at 80 columns the marked row and the header count still fit", async () => 
   expect(rowOf(frame(), rotateKeys.id).trimStart().startsWith("•")).toBe(true);
   expect(rowOf(frame(), rotateKeys.id)).toContain("Rotate API keys");
   for (const line of lines) expect(line.length).toBeLessThanOrEqual(80);
+});
+
+test("at 80 columns a long query gives way to the story and updated counts", async () => {
+  const question = queryQuestion(
+    'owner:ada is:started !is:archived label:backend epic:"Theming work"',
+  );
+  const model = afterRefresh();
+  const { frame } = await show(
+    { ...model, question, results: loaded({ question, stories }) },
+    { width: 80, height: 24 },
+  );
+  const header = frame().split("\n")[0] ?? "";
+  expect(header).toMatch(
+    /^ Shortcut {2}\/ {2}owner:ada is:started .* {2}3 stories {2}· {2}1 updated $/,
+  );
+  expect(header).not.toContain("Theming work");
 });
