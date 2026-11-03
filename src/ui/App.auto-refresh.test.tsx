@@ -22,7 +22,16 @@ const launch = async () => {
       clock,
       autoRefresh: { mode: "every", ms: 5 * MINUTE },
     });
-    return <App model={model} now={now} dispatch={dispatch} quit={() => {}} openUrl={() => {}} />;
+    return (
+      <App
+        model={model}
+        now={now}
+        dispatch={dispatch}
+        quit={() => {}}
+        openUrl={() => {}}
+        copyText={() => true}
+      />
+    );
   };
   const screen = await testRender(<Root />, { width: 100, height: 30 });
   destroy = () => screen.renderer.destroy();

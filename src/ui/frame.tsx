@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { testRender } from "@opentui/react/test-utils";
+import { useEffect, useState } from "react";
 import type { Model, Msg, RequestId, Remote, SearchResults } from "../app/model.ts";
 import type {
   EpicId,
@@ -136,24 +137,43 @@ export const cleanup = () => {
 
 export const show = async (
   model: Model,
-  options: { height?: number; width?: number; now?: Date } = {},
+  options: { height?: number; width?: number; now?: Date; clipboard?: "works" | "missing" } = {},
 ) => {
   const dispatched: Msg[] = [];
-  const calls = { quit: 0, opened: [] as string[] };
-  const screen = await testRender(
-    <App
-      model={model}
-      now={options.now ?? new Date("2026-11-02T09:00:00Z")}
-      dispatch={(msg) => dispatched.push(msg)}
-      quit={() => {
-        calls.quit += 1;
-      }}
-      openUrl={(url) => calls.opened.push(url)}
-    />,
-    { width: options.width ?? 120, height: options.height ?? 30 },
-  );
+  const calls = { quit: 0, opened: [] as string[], copied: [] as string[] };
+  const shownModel: { replace?: (next: Model) => void } = {};
+  const Harness = () => {
+    const [shown, setShown] = useState(model);
+    useEffect(() => {
+      shownModel.replace = setShown;
+    }, []);
+    return (
+      <App
+        model={shown}
+        now={options.now ?? new Date("2026-11-02T09:00:00Z")}
+        dispatch={(msg) => dispatched.push(msg)}
+        quit={() => {
+          calls.quit += 1;
+        }}
+        openUrl={(url) => calls.opened.push(url)}
+        copyText={(text) => {
+          if (options.clipboard === "missing") return false;
+          calls.copied.push(text);
+          return true;
+        }}
+      />
+    );
+  };
+  const screen = await testRender(<Harness />, {
+    width: options.width ?? 120,
+    height: options.height ?? 30,
+  });
   current = screen;
   Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", false);
   await screen.renderOnce();
-  return { screen, dispatched, calls, frame: () => screen.captureCharFrame() };
+  const rerender = async (next: Model) => {
+    shownModel.replace?.(next);
+    await screen.renderOnce();
+  };
+  return { screen, dispatched, calls, rerender, frame: () => screen.captureCharFrame() };
 };

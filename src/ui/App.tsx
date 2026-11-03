@@ -1,9 +1,9 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { Model, Msg } from "../app/model.ts";
 import { pickerStates } from "../app/update.ts";
-import type { StorySummary } from "../shortcut/types.ts";
+import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { ageLabel, storyCount } from "./format.ts";
 import { StoryDetailPane } from "./StoryDetailPane.tsx";
 import { HelpOverlay } from "./HelpOverlay.tsx";
@@ -20,7 +20,12 @@ type Props = {
   dispatch: (msg: Msg) => void;
   quit: () => void;
   openUrl: (url: string) => void;
+  copyText: (text: string) => boolean;
 };
+
+type CopyNotice =
+  | { kind: "copied"; storyId: StoryId; url: string }
+  | { kind: "copyFailed"; storyId: StoryId };
 
 const LIST_WIDTH_RATIO = 0.55;
 const MIN_LIST_WIDTH = 52;
@@ -132,10 +137,26 @@ const status = ({ results }: Model): { text: string; color: string } => {
   }
 };
 
+const copyNoticeBar = (notice: CopyNotice): { text: string; color: string } => {
+  switch (notice.kind) {
+    case "copied":
+      return { text: `✓ Copied ${notice.url}`, color: colors.ok };
+    case "copyFailed":
+      return {
+        text: "✗ Could not copy: this terminal has no clipboard access",
+        color: colors.warning,
+      };
+  }
+};
+
 const bottomBar = (
   model: Model,
   selectedStory: StorySummary | undefined,
+  copyNotice: CopyNotice | null,
 ): { text: string; color: string } => {
+  if (copyNotice !== null && copyNotice.storyId === selectedStory?.id) {
+    return copyNoticeBar(copyNotice);
+  }
   const move = selectedStory === undefined ? undefined : model.moves.get(selectedStory.id);
   if (model.focus.mode === "browsing" && move?.status === "failed") {
     return { text: `✗ Move failed  ·  m to retry  ·  ${move.message}`, color: colors.error };
@@ -185,9 +206,10 @@ const Overlay = ({ model, height }: { model: Model; height: number }) => {
   }
 };
 
-export const App = ({ model, now, dispatch, quit, openUrl }: Props) => {
+export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) => {
   const { width, height } = useTerminalDimensions();
   const detailScroll = useRef<ScrollBoxRenderable>(null);
+  const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
   const listWidth = Math.min(width, Math.max(MIN_LIST_WIDTH, Math.floor(width * LIST_WIDTH_RATIO)));
 
   const selectedStory =
@@ -196,6 +218,7 @@ export const App = ({ model, now, dispatch, quit, openUrl }: Props) => {
       : undefined;
 
   useKeyboard((key) => {
+    setCopyNotice(null);
     const action = bindingFor(model.focus.mode, key)?.action;
     if (action === undefined) return;
     switch (action.type) {
@@ -208,6 +231,14 @@ export const App = ({ model, now, dispatch, quit, openUrl }: Props) => {
       case "openStory":
         if (selectedStory) openUrl(selectedStory.appUrl);
         return;
+      case "copyStoryLink": {
+        if (!selectedStory) return;
+        const { id: storyId, appUrl: url } = selectedStory;
+        setCopyNotice(
+          copyText(url) ? { kind: "copied", storyId, url } : { kind: "copyFailed", storyId },
+        );
+        return;
+      }
       case "openPullRequest": {
         const pullRequest = selectedStory
           ? pullRequestToOpen(selectedStory, model.pullRequests)
@@ -219,7 +250,7 @@ export const App = ({ model, now, dispatch, quit, openUrl }: Props) => {
   });
 
   const { text, color } = status(model);
-  const bottom = bottomBar(model, selectedStory);
+  const bottom = bottomBar(model, selectedStory, copyNotice);
   const age = freshness(model, now, width - STATUS_BAR_PADDING - bottom.text.length);
   return (
     <box flexDirection="column" width="100%" height="100%" backgroundColor={colors.background}>

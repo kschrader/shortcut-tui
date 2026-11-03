@@ -5,6 +5,7 @@ export type KeyAction =
   | { type: "dispatch"; msg: Msg }
   | { type: "scrollDetail"; viewports: number }
   | { type: "openStory" }
+  | { type: "copyStoryLink" }
   | { type: "openPullRequest" };
 
 type Keystroke = { name: string; ctrl?: true };
@@ -66,6 +67,13 @@ export const keyBindings: readonly KeyBinding[] = [
     description: "Open story in browser",
     hint: "o open",
     action: { type: "openStory" },
+  },
+  {
+    modes: ["browsing"],
+    keys: [{ name: "y" }],
+    label: "y",
+    description: "Copy story link",
+    action: { type: "copyStoryLink" },
   },
   {
     modes: ["browsing"],
