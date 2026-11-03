@@ -3,7 +3,7 @@ import { detail, storyId, summary, workspaceFor } from "./fixtures.ts";
 import type { Model, Msg } from "./model.ts";
 import { awaited, loaded } from "./remote.ts";
 import { answer, browsing, first, loggedIn, only, submitQuery } from "./steps.ts";
-import { update } from "./update.ts";
+import { init, update } from "./update.ts";
 
 const due: Msg = { type: "autoRefreshDue" };
 
@@ -86,5 +86,43 @@ describe("auto-refresh", () => {
     });
     const [, effects] = update(failed, due);
     expect(only(effects, "searchStories").query).toBe(model.query);
+  });
+});
+
+describe("terminal focus", () => {
+  const loadedAt = new Date("2026-11-02T09:00:00Z");
+  const focusedAfter = (ms: number): Msg => ({
+    type: "terminalFocused",
+    at: new Date(loadedAt.getTime() + ms),
+  });
+
+  test("refreshes exactly like auto-refresh once the shown results are 30 seconds old", () => {
+    const model = idle();
+    expect(model.loadedAt).toEqual(loadedAt);
+    expect(update(model, focusedAfter(30_000))).toEqual(update(model, due));
+    const [, effects] = update(model, focusedAfter(30_000));
+    expect(first(effects, "searchStories").query).toBe(model.query);
+  });
+
+  test("does nothing while the shown results are fresher than 30 seconds", () => {
+    const model = idle();
+    expect(update(model, focusedAfter(29_999))).toEqual([model, []]);
+  });
+
+  test("does nothing while the user is reading help, however old the results", () => {
+    const [help] = update(idle(), { type: "helpOpened" });
+    expect(update(help, focusedAfter(600_000))).toEqual([help, []]);
+  });
+
+  test("retries a workspace that failed to load", () => {
+    const [initial, initEffects] = init();
+    const [failed] = update(initial, {
+      type: "workspaceFailed",
+      requestId: only(initEffects, "loadWorkspace").requestId,
+      message: "HTTP 503",
+    });
+    expect(failed.loadedAt).toBeNull();
+    const [, effects] = update(failed, { type: "terminalFocused", at: loadedAt });
+    only(effects, "loadWorkspace");
   });
 });

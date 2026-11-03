@@ -90,6 +90,7 @@ export type Msg =
   | { type: "querySubmitted" }
   | { type: "refreshRequested" }
   | { type: "autoRefreshDue" }
+  | { type: "terminalFocused"; at: Date }
   | { type: "helpOpened" }
   | { type: "helpClosed" }
   | { type: "movePickerOpened" }

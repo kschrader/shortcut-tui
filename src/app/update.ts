@@ -28,6 +28,8 @@ const noPullRequests: Cached<StoryPullRequests> = { value: new Map(), reload: id
 
 const browsing: Model["focus"] = { mode: "browsing" };
 
+const FOCUS_REFRESH_AFTER_MS = 30_000;
+
 const search = (model: Model, query: string): Step => {
   const requestId = model.nextRequestId;
   const sameQuestion = model.results.status === "loaded" && model.results.value.query === query;
@@ -121,6 +123,17 @@ const refresh = (model: Model): Step => {
     }
   }
 };
+
+const refreshWhenIdle = (model: Model): Step => {
+  const nothingInFlight =
+    model.focus.mode === "browsing" &&
+    awaited(model.results) === null &&
+    inFlight(model.pullRequests.reload) === null;
+  return nothingInFlight ? refresh(model) : [model, []];
+};
+
+const isStale = (model: Model, at: Date): boolean =>
+  model.loadedAt === null || at.getTime() - model.loadedAt.getTime() >= FOCUS_REFRESH_AFTER_MS;
 
 const resultsArrived = (
   model: Model,
@@ -268,13 +281,10 @@ export const update = (model: Model, msg: Msg): Step => {
     }
     case "refreshRequested":
       return refresh(model);
-    case "autoRefreshDue": {
-      const nothingInFlight =
-        model.focus.mode === "browsing" &&
-        awaited(model.results) === null &&
-        inFlight(model.pullRequests.reload) === null;
-      return nothingInFlight ? refresh(model) : [model, []];
-    }
+    case "autoRefreshDue":
+      return refreshWhenIdle(model);
+    case "terminalFocused":
+      return isStale(model, msg.at) ? refreshWhenIdle(model) : [model, []];
     case "helpOpened": {
       if (model.focus.mode !== "browsing") return [model, []];
       return [{ ...model, focus: { mode: "help" } }, []];

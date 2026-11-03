@@ -152,6 +152,7 @@ const userMsg = (random: Random, model: Model): Msg => {
     { type: "querySubmitted" },
     { type: "refreshRequested" },
     { type: "autoRefreshDue" },
+    { type: "terminalFocused", at: new Date(Math.floor(random() * 1_000 * stepsPerSeed)) },
     { type: "movePickerOpened" },
     { type: "movePickerMoved", delta: pick(random, [-1, 1]) },
     { type: "movePickerConfirmed" },
