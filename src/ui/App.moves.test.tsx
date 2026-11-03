@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import type { StoryMove } from "../app/model.ts";
+import { queryQuestion } from "../app/question.ts";
 import type { StoryId } from "../shortcut/types.ts";
 import {
   browsing,
@@ -56,7 +57,7 @@ test("a long workflow scrolls the picker to keep the cursor visible inside 80x24
   const { frame } = await show(
     browsing({
       workspace: loaded({ ...workspace.value, workflowStates: many }),
-      results: loaded({ query: "owner:me", stories: [story] }),
+      results: loaded({ question: queryQuestion("owner:me"), stories: [story] }),
       selectedStoryId: story.id,
       details: new Map(),
       focus: { mode: "picking", storyId: story.id, cursor: 39 },

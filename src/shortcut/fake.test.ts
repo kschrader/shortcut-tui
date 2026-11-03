@@ -19,7 +19,7 @@ test("the app's default query returns only my in-progress stories", async () => 
   const client = createFakeShortcutClient();
   const { me } = await client.loadWorkspace();
   const all = await client.searchStories("");
-  const mine = await client.searchStories(defaultQueryFor(me.mentionName));
+  const mine = await client.searchStories(defaultQueryFor(me.mentionName).text);
   expect(mine.length).toBeGreaterThan(0);
   expect(mine.length).toBeLessThan(all.length);
   for (const story of mine) {

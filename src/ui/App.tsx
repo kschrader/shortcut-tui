@@ -175,13 +175,13 @@ const status = ({ workspace, results }: Model): Status => {
   }
 };
 
-const queryLabel = ({ workspace, query }: Model): string => {
+const queryLabel = ({ workspace, question }: Model): string => {
   switch (workspace.status) {
     case "firstLoad":
     case "failed":
       return "";
     case "loaded":
-      return query === "" ? "all stories" : query;
+      return question.text === "" ? "all stories" : question.text;
   }
 };
 

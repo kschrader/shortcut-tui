@@ -1,7 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { detail, inState, storyId, summary } from "./fixtures.ts";
-import { answer, browsing, first, loggedIn, ofType, only, submitQuery } from "./steps.ts";
+import {
+  answer,
+  browsing,
+  first,
+  loggedIn,
+  myStartedQuery,
+  ofType,
+  only,
+  submitQuery,
+} from "./steps.ts";
 import type { Msg } from "./model.ts";
+import { queryQuestion } from "./question.ts";
 import { awaited, loaded } from "./remote.ts";
 import { init, update } from "./update.ts";
 
@@ -15,8 +25,8 @@ describe("startup", () => {
 
   test("a loaded workspace searches for my in-progress stories", () => {
     const [model, search] = loggedIn();
-    expect(search.query).toBe("owner:kurt is:started !is:archived");
-    expect(model.query).toBe("owner:kurt is:started !is:archived");
+    expect(search.query).toBe(myStartedQuery);
+    expect(model.question).toEqual(queryQuestion(myStartedQuery));
     expect(model.results.status).toBe("firstLoad");
   });
 
@@ -65,7 +75,9 @@ describe("search results", () => {
     expect(staleEffects).toEqual([]);
 
     const [afterFresh] = answer(afterStale, second, [summary(7)]);
-    expect(afterFresh.results).toEqual(loaded({ query: "label:urgent", stories: [summary(7)] }));
+    expect(afterFresh.results).toEqual(
+      loaded({ question: queryQuestion("label:urgent"), stories: [summary(7)] }),
+    );
   });
 
   test("a duplicated search response is applied once", () => {
@@ -158,7 +170,7 @@ describe("selection and detail", () => {
     const [refreshing, refreshEffects] = update(model, { type: "refreshRequested" });
     expect(first(refreshEffects, "getStory").storyId).toBe(storyId(1));
     expect(ofType(refreshEffects, "searchStories").map((effect) => effect.query)).toEqual([
-      "owner:kurt is:started !is:archived",
+      myStartedQuery,
     ]);
 
     const [afterStale] = update(refreshing, {
@@ -281,7 +293,7 @@ describe("query editing", () => {
     expect(editing.focus).toMatchObject({ mode: "editingQuery" });
     const [submitted, effects] = submitQuery(model, "is:started");
     expect(submitted.focus).toEqual({ mode: "browsing" });
-    expect(submitted.query).toBe("is:started");
+    expect(submitted.question).toEqual(queryQuestion("is:started"));
     expect(only(effects, "searchStories").query).toBe("is:started");
   });
 
@@ -290,14 +302,14 @@ describe("query editing", () => {
     const [editing] = update(model, { type: "queryEditStarted" });
     const draft = editing.focus.mode === "editingQuery" ? editing.focus.draft : "";
     const [submitted, effects] = submitQuery(model, `${draft}webhook`);
-    expect(submitted.query).toBe(`${model.query} webhook`);
-    expect(only(effects, "searchStories").query).toBe(`${model.query} webhook`);
+    expect(submitted.question).toEqual(queryQuestion(`${myStartedQuery} webhook`));
+    expect(only(effects, "searchStories").query).toBe(`${myStartedQuery} webhook`);
   });
 
   test("surrounding whitespace in a submitted query is dropped", () => {
     const [model] = browsing([]);
     const [submitted] = submitQuery(model, "  is:started  ");
-    expect(submitted.query).toBe("is:started");
+    expect(submitted.question).toEqual(queryQuestion("is:started"));
   });
 
   test("cancelling keeps the old query and searches nothing", () => {
@@ -306,7 +318,7 @@ describe("query editing", () => {
     const [typed] = update(editing, { type: "queryDraftChanged", draft: "abc" });
     const [cancelled, effects] = update(typed, { type: "queryEditCancelled" });
     expect(cancelled.focus).toEqual({ mode: "browsing" });
-    expect(cancelled.query).toBe(model.query);
+    expect(cancelled.question).toEqual(model.question);
     expect(effects).toEqual([]);
   });
 

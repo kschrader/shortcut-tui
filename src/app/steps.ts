@@ -4,6 +4,8 @@ import { workspaceFor } from "./fixtures.ts";
 import type { Effect, Model, Msg } from "./model.ts";
 import { init, update } from "./update.ts";
 
+export const myStartedQuery = "owner:kurt is:started !is:archived";
+
 export type EffectOf<K extends Effect["type"]> = Extract<Effect, { type: K }>;
 
 export const ofType = <K extends Effect["type"]>(effects: Effect[], type: K): EffectOf<K>[] =>

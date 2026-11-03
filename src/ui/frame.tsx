@@ -11,6 +11,7 @@ import type {
   SearchResults,
   Settled,
 } from "../app/model.ts";
+import { queryQuestion } from "../app/question.ts";
 import { idle } from "../app/remote.ts";
 import type {
   EpicId,
@@ -99,8 +100,8 @@ export const reloadFailed = (message: string): Reload => ({ status: "failed", me
 
 export const modelWith = (overrides: Partial<Model>): Model => ({
   workspace: loaded(workspace),
-  query: "owner:me",
-  results: loaded<SearchResults>({ query: "owner:me", stories: [] }),
+  question: queryQuestion("owner:me"),
+  results: loaded<SearchResults>({ question: queryQuestion("owner:me"), stories: [] }),
   loadedAt: null,
   selectedStoryId: null,
   details: new Map(),
@@ -143,7 +144,7 @@ export const detail: StoryDetail = {
 
 export const browsing = (overrides: Partial<Model> = {}) =>
   modelWith({
-    results: loaded({ query: "owner:me", stories }),
+    results: loaded({ question: queryQuestion("owner:me"), stories }),
     selectedStoryId: stories[1].id,
     details: new Map([[detail.id, loaded(detail)]]),
     ...overrides,

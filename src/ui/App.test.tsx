@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
+import { queryQuestion } from "../app/question.ts";
 import { init } from "../app/update.ts";
 import {
   storyId,
@@ -126,7 +127,10 @@ test("keeps the selected row visible in a short window", async () => {
   const many = Array.from({ length: 60 }, (_, i) => summary(200 + i, { name: `Row ${200 + i}` }));
   const last = many[59];
   const { screen, frame } = await show(
-    modelWith({ results: loaded({ query: "", stories: many }), selectedStoryId: last.id }),
+    modelWith({
+      results: loaded({ question: queryQuestion(""), stories: many }),
+      selectedStoryId: last.id,
+    }),
     { height: 12 },
   );
   await screen.renderOnce();
@@ -179,7 +183,10 @@ test("an 80-column terminal shows enough of each story name to read it", async (
   const longName = "Add option to limit GitHub PR auto-linking to the first story mention";
   const { frame } = await show(
     browsing({
-      results: loaded({ query: "owner:me", stories: [summary(316665, { name: longName })] }),
+      results: loaded({
+        question: queryQuestion("owner:me"),
+        stories: [summary(316665, { name: longName })],
+      }),
       selectedStoryId: storyId(316665),
       details: new Map(),
     }),
@@ -247,7 +254,7 @@ test("the load time of the shown results stays while they reload", async () => {
   const { frame } = await show(
     browsing({
       loadedAt,
-      results: loaded({ query: "owner:me", stories }, reloading(requestId(2))),
+      results: loaded({ question: queryQuestion("owner:me"), stories }, reloading(requestId(2))),
     }),
     { width: 120, now: new Date("2026-11-02T09:02:00Z") },
   );

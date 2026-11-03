@@ -1,5 +1,6 @@
 import { shownStories, type World } from "./interleaving.moves.ts";
 import type { Effect, Model, RequestId } from "./model.ts";
+import { sameQuestion } from "./question.ts";
 import { awaited, inFlight } from "./remote.ts";
 
 export const answerMark = (requestId: number) => `answer to request ${String(requestId)}`;
@@ -78,7 +79,7 @@ const resultsViolations = (model: Model, issued: readonly Effect[], world: World
   const applied = world.applied.get("search") ?? null;
   const waitsOn = (requestId: RequestId) => {
     const effect = issued.find((candidate) => candidate.requestId === requestId);
-    if (effect?.type !== "searchStories" || effect.query !== model.query) {
+    if (effect?.type !== "searchStories" || effect.query !== model.question.text) {
       found.push("results wait on a search that is not for the current query");
     }
     if (requestId !== latestSearch) found.push("results wait on a superseded search");
@@ -94,10 +95,12 @@ const resultsViolations = (model: Model, issued: readonly Effect[], world: World
       }
       break;
     case "loaded": {
-      const { query, stories } = results.value;
-      if (query !== model.query) found.push(`results for "${query}" shown under "${model.query}"`);
+      const { question, stories } = results.value;
+      if (!sameQuestion(question, model.question)) {
+        found.push(`results for "${question.text}" shown under "${model.question.text}"`);
+      }
       const stale = stories.filter(
-        (story) => applied === null || story.name !== storyName(query, applied, story.id),
+        (story) => applied === null || story.name !== storyName(question.text, applied, story.id),
       );
       if (stale.length > 0) {
         found.push(
@@ -243,7 +246,7 @@ export const remoteViolations = (
 ];
 
 export const hiddenShownData = (before: Model, after: Model): string[] => {
-  if (before.query !== after.query) return [];
+  if (!sameQuestion(before.question, after.question)) return [];
   const found: string[] = [];
   if (before.results.status === "loaded" && after.results.status !== "loaded") {
     found.push("a step hid the shown results without changing the query");

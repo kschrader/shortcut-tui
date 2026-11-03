@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { detail, doing, storyId, summary } from "./fixtures.ts";
 import type { Effect, Model, Msg, RequestId } from "./model.ts";
 import { awaited, reloadFailure } from "./remote.ts";
-import { answer, browsing, first, loggedIn, only, submitQuery } from "./steps.ts";
+import { answer, browsing, first, loggedIn, myStartedQuery, only, submitQuery } from "./steps.ts";
 import { update } from "./update.ts";
 
 const shownStories = (model: Model) =>
@@ -77,7 +77,7 @@ describe("refreshing the same query", () => {
     const [model] = browsing([summary(1)]);
     const [different] = submitQuery(model, "label:other");
     expect(different.results.status).toBe("firstLoad");
-    const [same] = submitQuery(model, model.query);
+    const [same] = submitQuery(model, myStartedQuery);
     expect(shownStories(same)).toEqual([summary(1)]);
     expect(awaited(same.results)).not.toBeNull();
   });
@@ -89,7 +89,7 @@ describe("refreshing the same query", () => {
     expect(update(refreshing, due)).toEqual([refreshing, []]);
     const [answered] = answer(refreshing, first(effects, "searchStories"), [summary(1)]);
     const [, dueEffects] = update(answered, due);
-    expect(first(dueEffects, "searchStories").query).toBe(model.query);
+    expect(first(dueEffects, "searchStories").query).toBe(myStartedQuery);
   });
 });
 

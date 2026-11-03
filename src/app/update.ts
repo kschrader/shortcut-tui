@@ -3,6 +3,7 @@ import type {
   Cached,
   Model,
   Msg,
+  Question,
   Reload,
   Remote,
   RequestId,
@@ -10,6 +11,7 @@ import type {
   StoryPullRequests,
 } from "./model.ts";
 import { carryMoves, pickerStates, restate, startMove } from "./moves.ts";
+import { queryQuestion, sameQuestion } from "./question.ts";
 import {
   awaited,
   fail,
@@ -30,19 +32,29 @@ const browsing: Model["focus"] = { mode: "browsing" };
 
 const FOCUS_REFRESH_AFTER_MS = 30_000;
 
-const search = (model: Model, query: string): Step => {
+const noQuestion = queryQuestion("");
+
+const draftFor = (question: Question): string => {
+  switch (question.kind) {
+    case "query":
+      return question.text === "" ? "" : `${question.text} `;
+  }
+};
+
+const search = (model: Model, question: Question): Step => {
   const requestId = model.nextRequestId;
-  const sameQuestion = model.results.status === "loaded" && model.results.value.query === query;
+  const same =
+    model.results.status === "loaded" && sameQuestion(model.results.value.question, question);
   return [
     {
       ...model,
-      query,
-      results: sameQuestion ? refetch(model.results, requestId) : firstLoad(requestId),
-      pullRequests: sameQuestion ? model.pullRequests : noPullRequests,
+      question,
+      results: same ? refetch(model.results, requestId) : firstLoad(requestId),
+      pullRequests: same ? model.pullRequests : noPullRequests,
       focus: model.focus.mode === "picking" ? browsing : model.focus,
       nextRequestId: requestIdAfter(requestId),
     },
-    [{ type: "searchStories", requestId, query }],
+    [{ type: "searchStories", requestId, query: question.text }],
   ];
 };
 
@@ -92,8 +104,8 @@ const select = (model: Model, storyId: StoryId | null): Step => {
   return [selected, []];
 };
 
-export const defaultQueryFor = (mentionName: string) =>
-  `owner:${mentionName} is:started !is:archived`;
+export const defaultQueryFor = (mentionName: string): Question =>
+  queryQuestion(`owner:${mentionName} is:started !is:archived`);
 
 const storyIn = (model: Model, storyId: StoryId | null): StorySummary | null =>
   model.results.status === "loaded"
@@ -116,7 +128,7 @@ const refresh = (model: Model): Step => {
       ];
     }
     case "loaded": {
-      const [searching, searchEffects] = search(model, model.query);
+      const [searching, searchEffects] = search(model, model.question);
       if (model.selectedStoryId === null) return [searching, searchEffects];
       const [fetching, detailEffects] = fetchDetail(searching, model.selectedStoryId);
       return [fetching, [...searchEffects, ...detailEffects]];
@@ -147,7 +159,7 @@ const resultsArrived = (
     focus.mode === "picking" && !stories.some((story) => story.id === focus.storyId);
   const shown: Model = {
     ...model,
-    results: loaded({ query: model.query, stories }),
+    results: loaded({ question: model.question, stories }),
     loadedAt,
     moves,
     focus: pickingGone ? browsing : focus,
@@ -166,8 +178,8 @@ export const init = (): Step => {
   return [
     {
       workspace: firstLoad(requestId),
-      query: "",
-      results: loaded({ query: "", stories: [] }),
+      question: noQuestion,
+      results: loaded({ question: noQuestion, stories: [] }),
       loadedAt: null,
       selectedStoryId: null,
       details: new Map(),
@@ -264,7 +276,7 @@ export const update = (model: Model, msg: Msg): Step => {
       if (model.workspace.status !== "loaded" || model.focus.mode !== "browsing") {
         return [model, []];
       }
-      const draft = model.query === "" ? "" : `${model.query} `;
+      const draft = draftFor(model.question);
       return [{ ...model, focus: { mode: "editingQuery", draft } }, []];
     }
     case "queryDraftChanged": {
@@ -277,7 +289,7 @@ export const update = (model: Model, msg: Msg): Step => {
     }
     case "querySubmitted": {
       if (model.focus.mode !== "editingQuery") return [model, []];
-      return search({ ...model, focus: browsing }, model.focus.draft.trim());
+      return search({ ...model, focus: browsing }, queryQuestion(model.focus.draft.trim()));
     }
     case "refreshRequested":
       return refresh(model);

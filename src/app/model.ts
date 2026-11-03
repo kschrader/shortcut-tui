@@ -25,7 +25,9 @@ export type Remote<T> =
 
 export type Settled<T> = { status: "loaded"; value: T } | { status: "failed"; message: string };
 
-export type SearchResults = { query: string; stories: readonly StorySummary[] };
+export type Question = { kind: "query"; text: string };
+
+export type SearchResults = { question: Question; stories: readonly StorySummary[] };
 
 export type PullRequestView = LinkedPullRequest & { state: PullRequestState };
 
@@ -55,7 +57,7 @@ export type StoryMove =
 
 export type Model = {
   workspace: Remote<Workspace>;
-  query: string;
+  question: Question;
   results: Remote<SearchResults>;
   loadedAt: Date | null;
   selectedStoryId: StoryId | null;

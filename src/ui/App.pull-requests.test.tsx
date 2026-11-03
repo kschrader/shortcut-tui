@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { z } from "zod";
 import type { Cached, PullRequestView, StoryPullRequests } from "../app/model.ts";
+import { queryQuestion } from "../app/question.ts";
 import type { PullRequestState } from "../github/types.ts";
 import type { PullRequestId } from "../shortcut/types.ts";
 import {
@@ -55,7 +56,7 @@ const withPullRequests = (
   selected = 101,
 ) =>
   browsing({
-    results: loaded({ query: "owner:me", stories: linked }),
+    results: loaded({ question: queryQuestion("owner:me"), stories: linked }),
     selectedStoryId: storyId(selected),
     details: new Map([[storyId(selected), loaded({ ...detail, ...linked[0] })]]),
     pullRequests,
@@ -111,7 +112,7 @@ test("an 80-column terminal keeps names readable and shows the status as a glyph
   const story = summary(316665, { name: longName, pullRequestCount: 1 });
   const { frame } = await show(
     browsing({
-      results: loaded({ query: "owner:me", stories: [story] }),
+      results: loaded({ question: queryQuestion("owner:me"), stories: [story] }),
       selectedStoryId: story.id,
       details: new Map(),
       pullRequests: cached(
