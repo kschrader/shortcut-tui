@@ -1,6 +1,6 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useEffect, useRef } from "react";
-import type { Cached, StoryMove, StoryPullRequests } from "../app/model.ts";
+import type { Cached, Change, StoryMove, StoryPullRequests } from "../app/model.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { estimateLabel, fit, typeStyle } from "./format.ts";
 import { badgeStyle, BADGE_LABEL_WIDTH, storyBadge, type Badge } from "./pull-requests.ts";
@@ -39,6 +39,7 @@ type Props = {
   selectedId: StoryId | null;
   pullRequests: Cached<StoryPullRequests>;
   moves: ReadonlyMap<StoryId, StoryMove>;
+  unseen: ReadonlyMap<StoryId, readonly Change[]>;
   width: number;
   onSelect: (id: StoryId) => void;
 };
@@ -78,9 +79,15 @@ const badgeText = (badge: Badge | null, column: BadgeColumn): string => {
   }
 };
 
+const gutter = (selected: boolean, changed: boolean): string => {
+  if (selected) return "▌";
+  return changed ? "•" : " ";
+};
+
 const StoryRow = ({
   story,
   selected,
+  changed,
   badge,
   badgeColumn,
   mark,
@@ -90,6 +97,7 @@ const StoryRow = ({
 }: {
   story: StorySummary;
   selected: boolean;
+  changed: boolean;
   badge: Badge | null;
   badgeColumn: BadgeColumn;
   mark: MoveMark | null;
@@ -111,7 +119,7 @@ const StoryRow = ({
       }}
     >
       <text wrapMode="none" fg={selected ? colors.textBright : colors.text}>
-        <span fg={selected ? colors.accent : colors.background}>{selected ? "▌" : " "}</span>
+        <span fg={colors.accent}>{gutter(selected, changed)}</span>
         <span fg={color}>{glyph}</span>
         <span fg={colors.dim}>{` ${idLabel} `}</span>
         {selected ? <b>{fit(story.name, nameWidth)}</b> : fit(story.name, nameWidth)}
@@ -140,7 +148,15 @@ const badgeColumnFor = (
   return nameWidth >= MIN_NAME_WIDTH_BESIDE_LABELS ? "labelled" : "glyph";
 };
 
-export const StoryList = ({ stories, selectedId, pullRequests, moves, width, onSelect }: Props) => {
+export const StoryList = ({
+  stories,
+  selectedId,
+  pullRequests,
+  moves,
+  unseen,
+  width,
+  onSelect,
+}: Props) => {
   const scroll = useRef<ScrollBoxRenderable>(null);
   useEffect(() => {
     if (selectedId !== null) scroll.current?.scrollChildIntoView(`story-${selectedId}`);
@@ -159,6 +175,7 @@ export const StoryList = ({ stories, selectedId, pullRequests, moves, width, onS
             key={story.id}
             story={story}
             selected={story.id === selectedId}
+            changed={unseen.has(story.id)}
             badge={storyBadge(story, pullRequests)}
             badgeColumn={badgeColumn}
             mark={moveMark(moves.get(story.id))}

@@ -1,7 +1,8 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef, useState } from "react";
-import type { Model, Msg } from "../app/model.ts";
+import { changesOf, unseenChanges } from "../app/glance.ts";
+import type { Change, Model, Msg } from "../app/model.ts";
 import { questionLabel } from "../app/filters.ts";
 import { pickerStates } from "../app/moves.ts";
 import { reloadFailure } from "../app/remote.ts";
@@ -46,6 +47,7 @@ const Browser = ({
   model,
   stories,
   scrollRef,
+  unseen,
   listWidth,
   onSelect,
   onResize,
@@ -53,6 +55,7 @@ const Browser = ({
   model: Model;
   stories: readonly StorySummary[];
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
+  unseen: ReadonlyMap<StoryId, readonly Change[]>;
   listWidth: number;
   onSelect: (id: StoryId) => void;
   onResize: (column: number) => void;
@@ -66,6 +69,7 @@ const Browser = ({
           selectedId={model.selectedStoryId}
           pullRequests={model.pullRequests}
           moves={model.moves}
+          unseen={unseen}
           width={listWidth}
           onSelect={onSelect}
         />
@@ -79,6 +83,7 @@ const Browser = ({
             summary={selected}
             detail={model.details.get(selected.id)}
             pullRequests={storyPullRequests(selected, model.pullRequests)}
+            changes={changesOf(model, selected.id)}
             scrollRef={scrollRef}
           />
         )}
@@ -90,6 +95,7 @@ const Browser = ({
 type BodyProps = {
   model: Model;
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
+  unseen: ReadonlyMap<StoryId, readonly Change[]>;
   listWidth: number;
   onSelect: (id: StoryId) => void;
   onResize: (column: number) => void;
@@ -304,6 +310,7 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
   });
 
   const { text, color } = status(model);
+  const unseen = unseenChanges(model);
   const bottom = bottomBar(model, selectedStory, copyNotice);
   const age = freshness(model, now, width - STATUS_BAR_PADDING - bottom.text.length);
   return (
@@ -334,10 +341,14 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
           </text>
         )}
         <text fg={color}>{text}</text>
+        {unseen.size === 0 ? null : (
+          <text fg={colors.accent}>{`  ·  ${String(unseen.size)} updated`}</text>
+        )}
       </box>
       <Body
         model={model}
         scrollRef={detailScroll}
+        unseen={unseen}
         listWidth={listWidth}
         onSelect={(storyId) => dispatch({ type: "storyClicked", storyId })}
         onResize={(column) => setDraggedListWidth(listWidthFor(width, column))}

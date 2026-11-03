@@ -1,6 +1,7 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { Ref } from "react";
-import type { PullRequestView, Remote } from "../app/model.ts";
+import type { Change, PullRequestView, Remote } from "../app/model.ts";
+import type { StoryMergeStatus } from "../github/pull-request-state.ts";
 import { reloadFailure } from "../app/remote.ts";
 import type { StoryDetail, StorySummary } from "../shortcut/types.ts";
 import { dateLabel, epicName, estimateLabel, ownerNames, typeStyle } from "./format.ts";
@@ -11,7 +12,24 @@ type Props = {
   summary: StorySummary;
   detail: Remote<StoryDetail> | undefined;
   pullRequests: StoryPullRequestList | null;
+  changes: readonly Change[];
   scrollRef: Ref<ScrollBoxRenderable>;
+};
+
+const mergeStatusLabel = (status: StoryMergeStatus): string =>
+  status === "none" ? "none" : badgeStyle[status].description;
+
+const changeLabel = (change: Change): string => {
+  switch (change.kind) {
+    case "new":
+      return "new in this list";
+    case "state":
+      return `state ${change.from.name} → ${change.to.name}`;
+    case "pullRequests":
+      return `pull requests ${mergeStatusLabel(change.from)} → ${mergeStatusLabel(change.to)}`;
+    case "edited":
+      return "edited";
+  }
 };
 
 const Field = ({ label, value }: { label: string; value: string }) => (
@@ -133,13 +151,19 @@ const Detail = ({ detail }: { detail: Remote<StoryDetail> | undefined }) => {
   }
 };
 
-export const StoryDetailPane = ({ summary, detail, pullRequests, scrollRef }: Props) => {
+export const StoryDetailPane = ({ summary, detail, pullRequests, changes, scrollRef }: Props) => {
   const { glyph, color } = typeStyle[summary.storyType];
   return (
     <scrollbox ref={scrollRef} flexGrow={1} scrollY paddingLeft={1} paddingRight={1}>
       <text wrapMode="word" fg={colors.textBright}>
         <b>{summary.name}</b>
       </text>
+      {changes.length === 0 ? null : (
+        <Note
+          text={`Changed since you last looked: ${changes.map(changeLabel).join(" · ")}`}
+          color={colors.accent}
+        />
+      )}
       <box marginTop={1} flexDirection="column">
         <text>
           <span fg={colors.dim}>{"Type".padEnd(10)}</span>
