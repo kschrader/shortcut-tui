@@ -2,6 +2,7 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef, useState } from "react";
 import type { Model, Msg } from "../app/model.ts";
+import { questionLabel } from "../app/filters.ts";
 import { pickerStates } from "../app/moves.ts";
 import { reloadFailure } from "../app/remote.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
@@ -181,7 +182,7 @@ const queryLabel = ({ workspace, question }: Model): string => {
     case "failed":
       return "";
     case "loaded":
-      return question.text === "" ? "all stories" : question.text;
+      return questionLabel(question, workspace.value);
   }
 };
 

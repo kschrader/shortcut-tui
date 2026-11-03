@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { defaultQueryFor } from "../app/update.ts";
+import { defaultQueryFor, queriesFor } from "../app/filters.ts";
 import { createFakeShortcutClient } from "./fake.ts";
 import { storyId, workflowStateId } from "./schemas.ts";
 
@@ -17,9 +17,11 @@ test("stories span every progress and carry owner and state names", async () => 
 
 test("the app's default query returns only my in-progress stories", async () => {
   const client = createFakeShortcutClient();
-  const { me } = await client.loadWorkspace();
+  const workspace = await client.loadWorkspace();
+  const { me } = workspace;
   const all = await client.searchStories("");
-  const mine = await client.searchStories(defaultQueryFor(me.mentionName).text);
+  const [query = ""] = queriesFor(defaultQueryFor(me.mentionName), workspace);
+  const mine = await client.searchStories(query);
   expect(mine.length).toBeGreaterThan(0);
   expect(mine.length).toBeLessThan(all.length);
   for (const story of mine) {

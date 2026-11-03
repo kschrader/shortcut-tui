@@ -46,6 +46,14 @@ export const keyBindings: readonly KeyBinding[] = [
     action: dispatch({ type: "queryEditStarted" }),
   },
   {
+    modes: ["browsing"],
+    keys: [{ name: "f" }],
+    label: "f",
+    description: "Cycle filters",
+    hint: "f filter",
+    action: dispatch({ type: "filterCycled" }),
+  },
+  {
     modes: ["editingQuery"],
     keys: [{ name: "escape" }],
     label: "esc",
@@ -57,7 +65,6 @@ export const keyBindings: readonly KeyBinding[] = [
     keys: [{ name: "r" }],
     label: "r",
     description: "Refresh stories and PRs",
-    hint: "r refresh",
     action: dispatch({ type: "refreshRequested" }),
   },
   {

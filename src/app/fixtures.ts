@@ -54,7 +54,21 @@ export const workflowState = (
 export const toDo = workflowState(1, "To Do", "unstarted", 0);
 export const doing = workflowState(2, "Doing", "started", 1);
 export const finished = workflowState(3, "Finished", "done", 2);
-export const workflowStates: readonly WorkflowState[] = [toDo, doing, finished];
+export const readyForReview = workflowState(4, "Ready for Review", "started", 1, {
+  id: 2,
+  name: "Design",
+});
+export const codeReview = workflowState(5, "Waiting for code review", "started", 1, {
+  id: 3,
+  name: "Support",
+});
+export const workflowStates: readonly WorkflowState[] = [
+  toDo,
+  doing,
+  finished,
+  readyForReview,
+  codeReview,
+];
 
 export const workspaceFor = (mentionName: string, canWrite = true): Workspace => ({
   me: { id: memberId("me"), name: "Me", mentionName },

@@ -150,6 +150,7 @@ const userMsg = (random: Random, model: Model): Msg => {
     { type: "queryDraftChanged", draft: pick(random, queries) },
     { type: "queryEditCancelled" },
     { type: "querySubmitted" },
+    { type: "filterCycled" },
     { type: "refreshRequested" },
     { type: "autoRefreshDue" },
     { type: "terminalFocused", at: new Date(Math.floor(random() * 1_000 * stepsPerSeed)) },

@@ -25,7 +25,7 @@ export type Remote<T> =
 
 export type Settled<T> = { status: "loaded"; value: T } | { status: "failed"; message: string };
 
-export type Question = { kind: "query"; text: string };
+export type Question = { kind: "query"; text: string } | { kind: "inReview" };
 
 export type SearchResults = { question: Question; stories: readonly StorySummary[] };
 
@@ -90,6 +90,7 @@ export type Msg =
   | { type: "queryDraftChanged"; draft: string }
   | { type: "queryEditCancelled" }
   | { type: "querySubmitted" }
+  | { type: "filterCycled" }
   | { type: "refreshRequested" }
   | { type: "autoRefreshDue" }
   | { type: "terminalFocused"; at: Date }

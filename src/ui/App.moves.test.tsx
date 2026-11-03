@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import type { StoryMove } from "../app/model.ts";
-import { queryQuestion } from "../app/question.ts";
+import { queryQuestion } from "../app/filters.ts";
 import type { StoryId } from "../shortcut/types.ts";
 import {
   browsing,

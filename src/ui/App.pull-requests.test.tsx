@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { z } from "zod";
 import type { Cached, PullRequestView, StoryPullRequests } from "../app/model.ts";
-import { queryQuestion } from "../app/question.ts";
+import { queryQuestion } from "../app/filters.ts";
 import type { PullRequestState } from "../github/types.ts";
 import type { PullRequestId } from "../shortcut/types.ts";
 import {

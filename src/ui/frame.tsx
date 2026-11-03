@@ -11,7 +11,7 @@ import type {
   SearchResults,
   Settled,
 } from "../app/model.ts";
-import { queryQuestion } from "../app/question.ts";
+import { queryQuestion } from "../app/filters.ts";
 import { idle } from "../app/remote.ts";
 import type {
   EpicId,

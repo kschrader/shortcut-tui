@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { queryQuestion } from "../app/question.ts";
+import { queryQuestion } from "../app/filters.ts";
 import { init } from "../app/update.ts";
 import {
   storyId,
@@ -198,16 +198,7 @@ test("an 80-column terminal shows enough of each story name to read it", async (
 test("an 80-column terminal shows every browsing key hint", async () => {
   const { frame } = await show(browsing(), { width: 80 });
   const bar = frame().trimEnd().split("\n").at(-1) ?? "";
-  const hints = [
-    "j/k move",
-    "/ query",
-    "r refresh",
-    "o open",
-    "p PR",
-    "m move",
-    "? help",
-    "q quit",
-  ];
+  const hints = ["j/k move", "/ query", "f filter", "o open", "p PR", "m move", "? help", "q quit"];
   for (const hint of hints) expect(bar).toContain(hint);
 });
 

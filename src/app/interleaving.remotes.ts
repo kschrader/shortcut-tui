@@ -1,6 +1,6 @@
 import { shownStories, type World } from "./interleaving.moves.ts";
-import type { Effect, Model, RequestId } from "./model.ts";
-import { sameQuestion } from "./question.ts";
+import type { Effect, Model, Question, RequestId } from "./model.ts";
+import { queriesFor } from "./filters.ts";
 import { awaited, inFlight } from "./remote.ts";
 
 export const answerMark = (requestId: number) => `answer to request ${String(requestId)}`;
@@ -73,17 +73,19 @@ const workspaceViolations = (model: Model, issued: readonly Effect[]): string[] 
   return found;
 };
 
+const queriesAsked = (model: Model, question: Question): readonly string[] | null =>
+  model.workspace.status === "loaded" ? queriesFor(question, model.workspace.value) : null;
+
 const resultsViolations = (model: Model, issued: readonly Effect[], world: World): string[] => {
   const found: string[] = [];
   const latestSearch = latest(issued, (effect) => effect.type === "searchStories");
   const applied = world.applied.get("search") ?? null;
   const waitsOn = (requestId: RequestId) => {
     const effect = issued.find((candidate) => candidate.requestId === requestId);
-    if (
-      effect?.type !== "searchStories" ||
-      !Bun.deepEquals(effect.queries, [model.question.text])
-    ) {
-      found.push("results wait on a search that is not for the current query");
+    const asked = queriesAsked(model, model.question);
+    if (asked === null) found.push("results wait on a search sent before the workspace loaded");
+    if (effect?.type !== "searchStories" || !Bun.deepEquals(effect.queries, asked)) {
+      found.push("results wait on a search that is not for the current question");
     }
     if (requestId !== latestSearch) found.push("results wait on a superseded search");
   };
@@ -99,11 +101,14 @@ const resultsViolations = (model: Model, issued: readonly Effect[], world: World
       break;
     case "loaded": {
       const { question, stories } = results.value;
-      if (!sameQuestion(question, model.question)) {
-        found.push(`results for "${question.text}" shown under "${model.question.text}"`);
+      if (!Bun.deepEquals(question, model.question)) {
+        found.push(
+          `results for ${JSON.stringify(question)} shown under ${JSON.stringify(model.question)}`,
+        );
       }
+      const asked = queriesAsked(model, question) ?? [];
       const stale = stories.filter(
-        (story) => applied === null || story.name !== storyName([question.text], applied, story.id),
+        (story) => applied === null || story.name !== storyName(asked, applied, story.id),
       );
       if (stale.length > 0) {
         found.push(
@@ -249,7 +254,7 @@ export const remoteViolations = (
 ];
 
 export const hiddenShownData = (before: Model, after: Model): string[] => {
-  if (!sameQuestion(before.question, after.question)) return [];
+  if (!Bun.deepEquals(before.question, after.question)) return [];
   const found: string[] = [];
   if (before.results.status === "loaded" && after.results.status !== "loaded") {
     found.push("a step hid the shown results without changing the query");

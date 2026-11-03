@@ -1,4 +1,4 @@
-import type { StoryDetail, StoryId, StorySummary } from "../shortcut/types.ts";
+import type { StoryDetail, StoryId, StorySummary, Workspace } from "../shortcut/types.ts";
 import type {
   Cached,
   Model,
@@ -11,7 +11,14 @@ import type {
   StoryPullRequests,
 } from "./model.ts";
 import { carryMoves, pickerStates, restate, startMove } from "./moves.ts";
-import { queryQuestion, sameQuestion } from "./question.ts";
+import {
+  defaultQueryFor,
+  draftFor,
+  filterAfter,
+  queriesFor,
+  queryQuestion,
+  sameQuestion,
+} from "./filters.ts";
 import {
   awaited,
   fail,
@@ -34,14 +41,7 @@ const FOCUS_REFRESH_AFTER_MS = 30_000;
 
 const noQuestion = queryQuestion("");
 
-const draftFor = (question: Question): string => {
-  switch (question.kind) {
-    case "query":
-      return question.text === "" ? "" : `${question.text} `;
-  }
-};
-
-const search = (model: Model, question: Question): Step => {
+const search = (model: Model, workspace: Workspace, question: Question): Step => {
   const requestId = model.nextRequestId;
   const same =
     model.results.status === "loaded" && sameQuestion(model.results.value.question, question);
@@ -54,7 +54,7 @@ const search = (model: Model, question: Question): Step => {
       focus: model.focus.mode === "picking" ? browsing : model.focus,
       nextRequestId: requestIdAfter(requestId),
     },
-    [{ type: "searchStories", requestId, queries: [question.text] }],
+    [{ type: "searchStories", requestId, queries: queriesFor(question, workspace) }],
   ];
 };
 
@@ -104,9 +104,6 @@ const select = (model: Model, storyId: StoryId | null): Step => {
   return [selected, []];
 };
 
-export const defaultQueryFor = (mentionName: string): Question =>
-  queryQuestion(`owner:${mentionName} is:started !is:archived`);
-
 const storyIn = (model: Model, storyId: StoryId | null): StorySummary | null =>
   model.results.status === "loaded"
     ? (model.results.value.stories.find((story) => story.id === storyId) ?? null)
@@ -128,7 +125,7 @@ const refresh = (model: Model): Step => {
       ];
     }
     case "loaded": {
-      const [searching, searchEffects] = search(model, model.question);
+      const [searching, searchEffects] = search(model, model.workspace.value, model.question);
       if (model.selectedStoryId === null) return [searching, searchEffects];
       const [fetching, detailEffects] = fetchDetail(searching, model.selectedStoryId);
       return [fetching, [...searchEffects, ...detailEffects]];
@@ -197,7 +194,7 @@ export const update = (model: Model, msg: Msg): Step => {
     case "workspaceLoaded": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
       const withWorkspace: Model = { ...model, workspace: loaded(msg.workspace) };
-      return search(withWorkspace, defaultQueryFor(msg.workspace.me.mentionName));
+      return search(withWorkspace, msg.workspace, defaultQueryFor(msg.workspace.me.mentionName));
     }
     case "workspaceFailed": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
@@ -288,8 +285,22 @@ export const update = (model: Model, msg: Msg): Step => {
       return [{ ...model, focus: browsing }, []];
     }
     case "querySubmitted": {
-      if (model.focus.mode !== "editingQuery") return [model, []];
-      return search({ ...model, focus: browsing }, queryQuestion(model.focus.draft.trim()));
+      if (model.focus.mode !== "editingQuery" || model.workspace.status !== "loaded") {
+        return [model, []];
+      }
+      const question = queryQuestion(model.focus.draft.trim());
+      return search({ ...model, focus: browsing }, model.workspace.value, question);
+    }
+    case "filterCycled": {
+      if (model.workspace.status !== "loaded" || model.focus.mode !== "browsing") {
+        return [model, []];
+      }
+      const workspace = model.workspace.value;
+      return search(
+        model,
+        workspace,
+        filterAfter(model.question, workspace).questionFor(workspace),
+      );
     }
     case "refreshRequested":
       return refresh(model);

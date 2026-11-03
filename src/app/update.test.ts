@@ -11,7 +11,7 @@ import {
   submitQuery,
 } from "./steps.ts";
 import type { Msg } from "./model.ts";
-import { queryQuestion } from "./question.ts";
+import { queryQuestion } from "./filters.ts";
 import { awaited, loaded } from "./remote.ts";
 import { init, update } from "./update.ts";
 
