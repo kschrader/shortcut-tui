@@ -1,21 +1,7 @@
-import type {
-  Progress,
-  StoryId,
-  StorySummary,
-  WorkflowState,
-  Workspace,
-} from "../shortcut/types.ts";
+import type { StoryId, StorySummary, WorkflowState, Workspace } from "../shortcut/types.ts";
 import type { Model, RequestId, Step, StoryMove } from "./model.ts";
+import { furthestAlongFirst } from "./order.ts";
 import { requestIdAfter } from "./remote.ts";
-
-const progressRank: Record<Progress, number> = { unstarted: 0, started: 1, done: 2 };
-
-const furthestAlongFirst = (a: StorySummary, b: StorySummary) =>
-  progressRank[b.state.progress] - progressRank[a.state.progress] ||
-  b.state.position - a.state.position ||
-  a.state.workflow.name.localeCompare(b.state.workflow.name) ||
-  a.state.id - b.state.id ||
-  b.updatedAt.getTime() - a.updatedAt.getTime();
 
 export const pickerStates = (workspace: Workspace, story: StorySummary): readonly WorkflowState[] =>
   workspace.workflowStates
