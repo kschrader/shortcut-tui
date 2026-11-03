@@ -158,3 +158,25 @@ test("moveDelayMs delays moves without delaying reads", async () => {
   await client.moveStory(story.id, target.id);
   expect(performance.now() - moveStart).toBeGreaterThanOrEqual(35);
 });
+
+test("with teammateMovesOnRefresh, asking the same query again finds a teammate moved a story once", async () => {
+  const client = createFakeShortcutClient({ teammateMovesOnRefresh: true });
+  const workspace = await client.loadWorkspace();
+  const [query = ""] = queriesFor(defaultQueryFor(workspace.me.mentionName), workspace);
+  const before = await client.searchStories(query);
+  const after = await client.searchStories(query);
+  const again = await client.searchStories(query);
+  const shown = (stories: typeof before) =>
+    stories.find((story) => story.id === storyId.parse(1001));
+  expect(shown(before)?.state.name).toBe("In Progress");
+  expect(shown(after)?.state.name).toBe("In Review");
+  expect(shown(after)?.updatedAt.getTime()).toBeGreaterThan(
+    shown(before)?.updatedAt.getTime() ?? 0,
+  );
+  expect(shown(again)).toEqual(shown(after));
+});
+
+test("without teammateMovesOnRefresh, asking again finds the same stories", async () => {
+  const client = createFakeShortcutClient();
+  expect(await client.searchStories("")).toEqual(await client.searchStories(""));
+});

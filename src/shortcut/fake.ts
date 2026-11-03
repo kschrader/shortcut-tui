@@ -23,7 +23,10 @@ export type FakeOptions = {
   delayMs?: number;
   moveDelayMs?: number;
   failMove?: (story: StorySummary, target: WorkflowState) => string | null;
+  teammateMovesOnRefresh?: boolean;
 };
+
+const TEAMMATE_MOVES = storyId.parse(1001);
 
 const member = (id: string, name: string): MemberRef => ({ id: memberId.parse(id), name });
 
@@ -362,8 +365,15 @@ export const createFakeShortcutClient = ({
   delayMs = 0,
   moveDelayMs = delayMs,
   failMove = () => null,
+  teammateMovesOnRefresh = false,
 }: FakeOptions = {}): ShortcutClient => {
   const stories = new Map(seededStories.map((story) => [story.id, story]));
+  let previousQuery: string | null = null;
+  const teammateMoves = () => {
+    const story = stories.get(TEAMMATE_MOVES);
+    if (story === undefined || story.state.id === inReview.id) return;
+    stories.set(story.id, { ...story, state: inReview, updatedAt: new Date() });
+  };
 
   return {
     async loadWorkspace() {
@@ -373,6 +383,8 @@ export const createFakeShortcutClient = ({
 
     async searchStories(query) {
       await pause(delayMs);
+      if (teammateMovesOnRefresh && query === previousQuery) teammateMoves();
+      previousQuery = query;
       return [...stories.values()].filter((story) => matchesQuery(story, query)).map(summaryOf);
     },
 

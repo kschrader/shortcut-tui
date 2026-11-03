@@ -40,7 +40,10 @@ const main = async () => {
   const clients: Clients =
     tokenResult === null
       ? {
-          shortcut: createFakeShortcutClient({ moveDelayMs: DEMO_MOVE_DELAY_MS }),
+          shortcut: createFakeShortcutClient({
+            moveDelayMs: DEMO_MOVE_DELAY_MS,
+            teammateMovesOnRefresh: true,
+          }),
           github: createFakeGitHubClient(),
         }
       : {
