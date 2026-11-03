@@ -6,6 +6,11 @@ const browsingBindings = bindingsUsableIn("browsing");
 
 const KEY_LABEL_WIDTH = Math.max(...browsingBindings.map((binding) => binding.label.length));
 
+const mouseActions = [
+  { label: "click", description: "Select the story" },
+  { label: "drag │", description: "Resize the panes" },
+];
+
 export const HelpOverlay = () => (
   <box
     position="absolute"
@@ -33,6 +38,15 @@ export const HelpOverlay = () => (
             <text key={`${String(binding.modes)} ${binding.label}`}>
               <span fg={colors.accent}>{binding.label.padEnd(KEY_LABEL_WIDTH)}</span>
               {`  ${binding.description}`}
+            </text>
+          ))}
+          <text marginTop={1} fg={colors.dim}>
+            Mouse
+          </text>
+          {mouseActions.map((action) => (
+            <text key={action.label}>
+              <span fg={colors.accent}>{action.label.padEnd(KEY_LABEL_WIDTH)}</span>
+              {`  ${action.description}`}
             </text>
           ))}
         </box>

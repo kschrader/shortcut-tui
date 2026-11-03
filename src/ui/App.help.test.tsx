@@ -20,6 +20,14 @@ test("the overlay lists every key usable while browsing and every badge at 80x24
   expect(text).toContain("? or esc close help");
 });
 
+test("the overlay explains clicking a story and dragging the pane line", async () => {
+  const { frame } = await show(helping(), { width: 80, height: 24 });
+  const text = frame().replace(/ +/g, " ");
+  expect(text).toContain("Mouse");
+  expect(text).toContain("click Select the story");
+  expect(text).toContain("drag │ Resize the panes");
+});
+
 test("keys that only work inside another mode stay out of the overlay", async () => {
   const { frame } = await show(helping(), { width: 80, height: 24 });
   const text = frame().replace(/ +/g, " ");

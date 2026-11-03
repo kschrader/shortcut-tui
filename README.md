@@ -94,9 +94,11 @@ The status bar ends with how long ago the results loaded, such as `↻ 2m ago`. 
 | `y` | Copy the selected story's link. The bottom bar says whether it was copied |
 | `p` | Open the pull request that sets the story's badge: the least ready open one, otherwise the newest merged or closed one. Does nothing until pull request status has loaded |
 | `m` | Move the selected story to another state. `j` / `k` choose, `enter` moves, `esc` cancels |
-| `?` | Show every key and the badge legend. `?` or `esc` closes it |
+| `?` | Show every key, the mouse actions, and the badge legend. `?` or `esc` closes it |
 | `pgup` / `pgdn` | Scroll the detail pane |
 | `q`, `ctrl-c` | Quit. `ctrl-c` also quits from the query editor and the help overlay |
+| Click a story | Select it, the same as moving the selection onto it with `j` / `k` |
+| Drag the line between the panes | Resize the list and the detail pane. Each keeps at least 30 columns when the terminal has room. The width lasts until you quit |
 
 The URL in the detail pane is a terminal hyperlink. In a terminal that supports OSC 8, cmd-click or ctrl-click it to open the story. The app captures the mouse, so you cannot select the URL to copy it; press `y` instead. On macOS, `y` copies with `pbcopy`, and the bottom bar reports whether `pbcopy` succeeded. `y` also sends the link through OSC 52, so copying works over SSH in terminals that allow it. Elsewhere `y` relies on OSC 52 alone, and the bottom bar says the terminal has no clipboard access only when the terminal reports that it does not support OSC 52.
 
