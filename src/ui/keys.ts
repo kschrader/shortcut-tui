@@ -1,4 +1,4 @@
-import { AGE_FLOOR_WEEKS } from "../app/filters.ts";
+import { AGE_FLOOR_LABEL, AGE_FLOOR_WEEKS } from "../app/filters.ts";
 import type { Focus, Msg } from "../app/model.ts";
 
 export type KeyAction =
@@ -29,7 +29,6 @@ export const keyBindings: readonly KeyBinding[] = [
     keys: [{ name: "j" }, { name: "down" }],
     label: "j / ↓",
     description: "Next story",
-    hint: "j/k move",
     action: dispatch({ type: "selectionMoved", delta: 1 }),
   },
   {
@@ -60,6 +59,7 @@ export const keyBindings: readonly KeyBinding[] = [
     keys: [{ name: "a" }],
     label: "a",
     description: `Only ${String(AGE_FLOOR_WEEKS)}+ weeks in state`,
+    hint: `a ${AGE_FLOOR_LABEL}`,
     action: { type: "toggleAgeFloor" },
   },
   {

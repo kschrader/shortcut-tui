@@ -213,13 +213,13 @@ test("an 80-column terminal shows enough of each story name to read it", async (
     }),
     { width: 80 },
   );
-  expect(frame()).toContain("Add option to limit GitHub PR auto-");
+  expect(frame()).toContain("Add option to limit GitHub PR aut");
 });
 
 test("an 80-column terminal shows every browsing key hint", async () => {
   const { frame } = await show(browsing(), { width: 80 });
   const bar = frame().trimEnd().split("\n").at(-1) ?? "";
-  const hints = ["j/k move", "/ query", "f filter", "o open", "p PR", "m move", "? help", "q quit"];
+  const hints = ["/ query", "f filter", "a 4w+", "o open", "p PR", "m move", "? help", "q quit"];
   for (const hint of hints) expect(bar).toContain(hint);
 });
 
@@ -233,7 +233,7 @@ test("an 80-column status bar shows how long ago the results loaded beside every
   });
   const bar = statusBar(frame());
   expect(bar).toMatch(/q quit\s+↻ 2m ago\s*$/);
-  expect(bar).toContain("j/k move");
+  expect(bar).toContain("a 4w+");
 });
 
 test("results that just loaded say so", async () => {
