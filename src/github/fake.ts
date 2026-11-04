@@ -1,4 +1,4 @@
-import { DEMO_REPOSITORY } from "../shortcut/fake.ts";
+import { DEMO_REPOSITORY } from "../shortcut/demo-stories.ts";
 import { pullRequestKey, type GitHubClient, type PullRequestState } from "./types.ts";
 
 export type FakeGitHubOptions = { delayMs?: number };
