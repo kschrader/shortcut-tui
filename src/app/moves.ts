@@ -28,7 +28,7 @@ export const restate = (
   if (model.results.status !== "loaded") return model;
   const stories = model.results.value.stories
     .map((story) => (story.id === storyId ? { ...(replacement ?? story), state } : story))
-    .toSorted(orderFor(groupingOf(model.question)));
+    .toSorted(orderFor(groupingOf(model.question.view)));
   return { ...model, results: { ...model.results, value: { ...model.results.value, stories } } };
 };
 
@@ -74,7 +74,7 @@ export const carryMoves = (
           return requestId >= move.trustFrom ? story : { ...story, state: move.known };
       }
     })
-    .toSorted(orderFor(groupingOf(model.question)));
+    .toSorted(orderFor(groupingOf(model.question.view)));
   const moves = new Map(model.moves);
   for (const [storyId, move] of model.moves) {
     if (requestId < move.trustFrom) continue;

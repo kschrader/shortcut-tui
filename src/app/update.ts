@@ -12,12 +12,15 @@ import type {
 } from "./model.ts";
 import { carryMoves, pickerStates, restate, startMove } from "./moves.ts";
 import {
+  ageFloorFrom,
   defaultQueryFor,
   draftFor,
   filterAfter,
   queriesFor,
   queryQuestion,
+  queryView,
   sameQuestion,
+  withoutFloor,
 } from "./filters.ts";
 import { noticed } from "./glance.ts";
 import {
@@ -196,7 +199,8 @@ const transition = (model: Model, msg: Msg): Step => {
     case "workspaceLoaded": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
       const withWorkspace: Model = { ...model, workspace: loaded(msg.workspace) };
-      return search(withWorkspace, msg.workspace, defaultQueryFor(msg.workspace.me.mentionName));
+      const startup = withoutFloor(defaultQueryFor(msg.workspace.me.mentionName));
+      return search(withWorkspace, msg.workspace, startup);
     }
     case "workspaceFailed": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
@@ -275,7 +279,7 @@ const transition = (model: Model, msg: Msg): Step => {
       if (model.workspace.status !== "loaded" || model.focus.mode !== "browsing") {
         return [model, []];
       }
-      const draft = draftFor(model.question);
+      const draft = draftFor(model.question.view);
       return [{ ...model, focus: { mode: "editingQuery", draft } }, []];
     }
     case "queryDraftChanged": {
@@ -290,7 +294,7 @@ const transition = (model: Model, msg: Msg): Step => {
       if (model.focus.mode !== "editingQuery" || model.workspace.status !== "loaded") {
         return [model, []];
       }
-      const question = queryQuestion(model.focus.draft.trim());
+      const question = { ...model.question, view: queryView(model.focus.draft.trim()) };
       return search({ ...model, focus: browsing }, model.workspace.value, question);
     }
     case "filterCycled": {
@@ -298,11 +302,15 @@ const transition = (model: Model, msg: Msg): Step => {
         return [model, []];
       }
       const workspace = model.workspace.value;
-      return search(
-        model,
-        workspace,
-        filterAfter(model.question, workspace).questionFor(workspace),
-      );
+      const view = filterAfter(model.question.view, workspace).viewFor(workspace);
+      return search(model, workspace, { ...model.question, view });
+    }
+    case "ageFloorToggled": {
+      if (model.workspace.status !== "loaded" || model.focus.mode !== "browsing") {
+        return [model, []];
+      }
+      const movedOnOrBefore = model.question.movedOnOrBefore === null ? ageFloorFrom(msg.at) : null;
+      return search(model, model.workspace.value, { ...model.question, movedOnOrBefore });
     }
     case "refreshRequested":
       return refresh(model);

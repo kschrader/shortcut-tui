@@ -3,7 +3,7 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef, useState } from "react";
 import { changesOf, unseenChanges } from "../app/glance.ts";
 import type { Change, Model, Msg } from "../app/model.ts";
-import { groupingOf, isReviewView, questionLabel, type Grouping } from "../app/filters.ts";
+import { groupingOf, isReviewView, viewLabel, type Grouping } from "../app/filters.ts";
 import { pickerStates } from "../app/moves.ts";
 import { reloadFailure } from "../app/remote.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
@@ -137,8 +137,8 @@ const Results = (props: BodyProps) => {
         <Browser
           {...props}
           stories={results.value.stories}
-          grouping={groupingOf(results.value.question)}
-          reviewing={isReviewView(results.value.question)}
+          grouping={groupingOf(results.value.question.view)}
+          reviewing={isReviewView(results.value.question.view)}
         />
       );
   }
@@ -205,7 +205,7 @@ const queryLabel = ({ workspace, question }: Model): string => {
     case "failed":
       return "";
     case "loaded":
-      return questionLabel(question, workspace.value);
+      return viewLabel(question.view, workspace.value);
   }
 };
 
@@ -249,7 +249,7 @@ const bottomBar = (
 };
 
 const yourReviewCount = ({ results, pullRequests }: Model): number =>
-  results.status === "loaded" && isReviewView(results.value.question)
+  results.status === "loaded" && isReviewView(results.value.question.view)
     ? results.value.stories.filter((story) => awaitsYourReview(story, pullRequests)).length
     : 0;
 

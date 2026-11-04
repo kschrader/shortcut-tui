@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { queryQuestion } from "../app/filters.ts";
+import { queryQuestion, withoutFloor } from "../app/filters.ts";
 import { init } from "../app/update.ts";
 import {
   ada,
@@ -40,8 +40,8 @@ test("a long shared-owner divider keeps its count at 80 columns", async () => {
   });
   const { frame } = await show(
     browsing({
-      question: { kind: "inReview" },
-      results: loaded({ question: { kind: "inReview" }, stories: [shared] }),
+      question: withoutFloor({ kind: "inReview" }),
+      results: loaded({ question: withoutFloor({ kind: "inReview" }), stories: [shared] }),
       selectedStoryId: shared.id,
     }),
     { width: 80 },

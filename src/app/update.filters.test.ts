@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { queryQuestion } from "./filters.ts";
+import { queryQuestion, withoutFloor } from "./filters.ts";
 import type { StorySummary } from "../shortcut/types.ts";
 import { doing, finished, inState, ownedBy, summary, workspaceFor } from "./fixtures.ts";
 import type { Model, Msg } from "./model.ts";
@@ -41,7 +41,7 @@ describe("filterCycled", () => {
     const [model] = browsing([summary(1)]);
     const [cycled, effects] = update(model, cycle);
     expect(only(effects, "searchStories").queries).toEqual(reviewQueries);
-    expect(cycled.question).toEqual({ kind: "inReview" });
+    expect(cycled.question).toEqual(withoutFloor({ kind: "inReview" }));
     expect(cycled.results.status).toBe("firstLoad");
   });
 
@@ -116,7 +116,7 @@ describe("the review view", () => {
     const model = reviewing();
     const [refreshing, effects] = update(model, msg);
     expect(first(effects, "searchStories").queries).toEqual(reviewQueries);
-    expect(refreshing.question).toEqual({ kind: "inReview" });
+    expect(refreshing.question).toEqual(withoutFloor({ kind: "inReview" }));
     expect(refreshing.results.status).toBe("loaded");
     expect(awaited(refreshing.results)).not.toBeNull();
   });

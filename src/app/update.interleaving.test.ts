@@ -27,6 +27,7 @@ import { orderFor } from "./order.ts";
 import { init, update } from "./update.ts";
 
 const seeds = 300;
+const DAY_MS = 86_400_000;
 const stepsPerSeed = 200;
 const queries = ["is:started", "label:urgent", ""];
 const storyPool = [1, 2, 3, 4];
@@ -181,6 +182,7 @@ const userMsg = (random: Random, model: Model): Msg => {
     { type: "queryEditCancelled" },
     { type: "querySubmitted" },
     { type: "filterCycled" },
+    { type: "ageFloorToggled", at: new Date(Math.floor(random() * 3 * DAY_MS)) },
     { type: "refreshRequested" },
     { type: "autoRefreshDue" },
     { type: "terminalFocused", at: new Date(Math.floor(random() * 1_000 * stepsPerSeed)) },
@@ -224,7 +226,7 @@ const violations = (model: Model, issued: readonly Effect[], world: World): stri
   found.push(...remoteViolations(model, issued, world));
   found.push(...moveViolations(model, issued, world));
   const shown = shownStories(model);
-  const grouping = groupingOf(model.question);
+  const grouping = groupingOf(model.question.view);
   if (!Bun.deepEquals(shown.toSorted(orderFor(grouping)), shown)) {
     found.push(`shown stories are out of ${grouping} order`);
   }

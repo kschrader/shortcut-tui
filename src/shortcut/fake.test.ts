@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { defaultQueryFor, queriesFor } from "../app/filters.ts";
+import { defaultQueryFor, queriesFor, withoutFloor } from "../app/filters.ts";
 import { createFakeShortcutClient } from "./fake.ts";
 import { storyId, workflowStateId } from "./schemas.ts";
 
@@ -20,7 +20,7 @@ test("the app's default query returns only my in-progress stories", async () => 
   const workspace = await client.loadWorkspace();
   const { me } = workspace;
   const all = await client.searchStories("");
-  const [query = ""] = queriesFor(defaultQueryFor(me.mentionName), workspace);
+  const [query = ""] = queriesFor(withoutFloor(defaultQueryFor(me.mentionName)), workspace);
   const mine = await client.searchStories(query);
   expect(mine.length).toBeGreaterThan(0);
   expect(mine.length).toBeLessThan(all.length);
@@ -33,7 +33,7 @@ test("the app's default query returns only my in-progress stories", async () => 
 test("the review filter finds stories other people own in a review state", async () => {
   const client = createFakeShortcutClient();
   const workspace = await client.loadWorkspace();
-  const queries = queriesFor({ kind: "inReview" }, workspace);
+  const queries = queriesFor(withoutFloor({ kind: "inReview" }), workspace);
   const found = (await Promise.all(queries.map((query) => client.searchStories(query)))).flat();
   expect(found.map((story) => story.name).toSorted()).toEqual([
     "Fix flaky label sync test",
@@ -162,7 +162,10 @@ test("moveDelayMs delays moves without delaying reads", async () => {
 test("with teammateMovesOnRefresh, asking the same query again finds a teammate moved a story once", async () => {
   const client = createFakeShortcutClient({ teammateMovesOnRefresh: true });
   const workspace = await client.loadWorkspace();
-  const [query = ""] = queriesFor(defaultQueryFor(workspace.me.mentionName), workspace);
+  const [query = ""] = queriesFor(
+    withoutFloor(defaultQueryFor(workspace.me.mentionName)),
+    workspace,
+  );
   const before = await client.searchStories(query);
   const after = await client.searchStories(query);
   const again = await client.searchStories(query);

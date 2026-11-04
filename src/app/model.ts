@@ -26,7 +26,11 @@ export type Remote<T> =
 
 export type Settled<T> = { status: "loaded"; value: T } | { status: "failed"; message: string };
 
-export type Question = { kind: "query"; text: string } | { kind: "inReview" };
+export type View = { kind: "query"; text: string } | { kind: "inReview" };
+
+export type CalendarDay = string & { readonly brand: "CalendarDay" };
+
+export type Question = { view: View; movedOnOrBefore: CalendarDay | null };
 
 export type SearchResults = { question: Question; stories: readonly StorySummary[] };
 
@@ -108,6 +112,7 @@ export type Msg =
   | { type: "queryEditCancelled" }
   | { type: "querySubmitted" }
   | { type: "filterCycled" }
+  | { type: "ageFloorToggled"; at: Date }
   | { type: "refreshRequested" }
   | { type: "autoRefreshDue" }
   | { type: "terminalFocused"; at: Date }

@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { z } from "zod";
 import type { Cached, PullRequestView, Question, StoryPullRequests } from "../app/model.ts";
-import { queryQuestion } from "../app/filters.ts";
+import { queryQuestion, withoutFloor } from "../app/filters.ts";
 import { orderFor } from "../app/order.ts";
 import type { PullRequestState, Reviews } from "../github/types.ts";
 import type { PullRequestId, StorySummary } from "../shortcut/types.ts";
@@ -81,7 +81,7 @@ const answered: StoryPullRequests = new Map([
   [storyId(303), settled<readonly PullRequestView[]>([view(3973, "merged", forYou)])],
 ]);
 
-const reviewView: Question = { kind: "inReview" };
+const reviewView: Question = withoutFloor({ kind: "inReview" });
 
 const showing = (
   question: Question,
