@@ -54,7 +54,8 @@ export const createFakeShortcutClient = ({
   const teammateMoves = () => {
     const story = stories.get(TEAMMATE_MOVES);
     if (story === undefined || story.state.id === inReview.id) return;
-    stories.set(story.id, { ...story, state: inReview, updatedAt: new Date() });
+    const now = new Date();
+    stories.set(story.id, { ...story, state: inReview, updatedAt: now, movedAt: now });
   };
 
   return {
@@ -96,7 +97,8 @@ export const createFakeShortcutClient = ({
       }
       const refusal = failMove(summaryOf(story), target);
       if (refusal !== null) throw new Error(refusal);
-      const moved = { ...story, state: target, updatedAt: new Date() };
+      const now = new Date();
+      const moved = { ...story, state: target, updatedAt: now, movedAt: now };
       stories.set(id, moved);
       return summaryOf(moved);
     },

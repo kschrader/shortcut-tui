@@ -37,6 +37,7 @@ export type StorySummary = {
   epic: { id: EpicId; name: string } | null;
   appUrl: string;
   updatedAt: Date;
+  movedAt: Date;
   pullRequestCount: number;
 };
 

@@ -106,6 +106,7 @@ type StorySeed = {
   owners: MemberRef[];
   epic?: StorySummary["epic"];
   updatedAt: string;
+  movedAt?: string;
   description: string;
   labels: string[];
   comments: StoryComment[];
@@ -288,6 +289,7 @@ const seeds: StorySeed[] = [
     estimate: 2,
     owners: [priya],
     updatedAt: "2026-11-02T08:30:00Z",
+    movedAt: "2026-10-30T14:00:00Z",
     description: "Workspaces with years of iterations time out loading the list.",
     labels: [],
     comments: [],
@@ -300,6 +302,7 @@ const seeds: StorySeed[] = [
     estimate: 1,
     owners: [sam, priya],
     updatedAt: "2026-11-01T16:00:00Z",
+    movedAt: "2026-10-27T10:00:00Z",
     description: "The label sync test races the webhook fixture.",
     labels: [],
     comments: [],
@@ -320,6 +323,7 @@ export const seededStories: readonly StoryDetail[] = seeds.map((seed) => ({
   epic: seed.epic ?? null,
   appUrl: `https://app.shortcut.com/demo/story/${seed.id}`,
   updatedAt: new Date(seed.updatedAt),
+  movedAt: new Date(seed.movedAt ?? seed.updatedAt),
   pullRequestCount: seed.pullRequests?.length ?? 0,
   description: seed.description,
   labels: seed.labels,

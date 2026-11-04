@@ -99,6 +99,7 @@ const respond = (
         pullRequestCount: random() < 0.5 ? 0 : 1 + Math.floor(random() * 2),
         state: serverState(seen, summary(id).id),
         updatedAt: random() < 0.3 ? new Date(1_000 * requestId) : summary(id).updatedAt,
+        movedAt: random() < 0.3 ? new Date(1_000 * requestId) : summary(id).movedAt,
       }));
       return { type: "searchSucceeded", requestId, stories, loadedAt: new Date(1_000 * requestId) };
     }
@@ -160,6 +161,7 @@ const respond = (
           ...(shown ?? pooled(effect.storyId)),
           state,
           updatedAt: new Date(1_000 * requestId),
+          movedAt: new Date(1_000 * requestId),
         },
       };
     }

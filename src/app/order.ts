@@ -22,12 +22,16 @@ export const ownerGroupLabel = (story: StorySummary): string =>
         .toSorted(byName)
         .join(" + ");
 
+const longestWaitingFirst = (a: StorySummary, b: StorySummary) =>
+  a.movedAt.getTime() - b.movedAt.getTime();
+
 const ownerGroupFirst = (a: StorySummary, b: StorySummary) => {
   const left = ownerGroupLabel(a);
   const right = ownerGroupLabel(b);
   return (
     Number(left === NO_OWNER) - Number(right === NO_OWNER) ||
     byName(left, right) ||
+    longestWaitingFirst(a, b) ||
     furthestAlongFirst(a, b)
   );
 };

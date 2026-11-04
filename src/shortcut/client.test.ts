@@ -139,6 +139,7 @@ test("searchStories reads every page and maps embedded names", async () => {
     epic: { id: epicId.parse(90), name: "Auth hardening" },
     appUrl: "https://app.shortcut.com/acme/story/1",
     updatedAt: new Date("2026-10-30T12:30:00.123Z"),
+    movedAt: new Date("2026-10-29T09:15:00Z"),
     pullRequestCount: 2,
   });
   expect(stories[1]?.state.progress).toBe("unstarted");
@@ -174,6 +175,12 @@ const statesListing = (...lists: (typeof workflowStates)[]): Route => {
 
 const workflowStateCalls = (calls: readonly Call[]) =>
   calls.filter((call) => call.url.pathname === "/api/v4/acme/workflow-states").length;
+
+test("a story Shortcut never moved has waited in its state since it was created", async () => {
+  const { client } = stub(whoamiRoute, searchReturning(storyJson(1, { moved_at: null })));
+  const [story] = await client.searchStories(QUERY);
+  expect(story?.movedAt).toEqual(new Date("2026-10-20T08:00:00Z"));
+});
 
 test("workflow state positions are loaded once and reused across searches", async () => {
   const { client, calls } = stub(whoamiRoute, searchReturning(storyJson(1)));

@@ -81,6 +81,8 @@ export const storyJson = (id: number, overrides: Record<string, unknown> = {}) =
   epic: null,
   app_url: `https://app.shortcut.com/acme/story/${id}`,
   updated_at: "2026-10-30T12:30:00.123Z",
+  moved_at: "2026-10-29T09:15:00Z",
+  created_at: "2026-10-20T08:00:00Z",
   pull_requests: nested([], `stories/${id}/pull-requests`),
   ...overrides,
 });

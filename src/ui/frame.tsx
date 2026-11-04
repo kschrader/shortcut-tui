@@ -78,6 +78,7 @@ export const summary = (id: number, overrides: Partial<StorySummary> = {}): Stor
   epic: null,
   appUrl: `https://app.shortcut.com/acme/story/${id}`,
   updatedAt: new Date("2026-10-01T00:00:00Z"),
+  movedAt: new Date("2026-10-01T00:00:00Z"),
   pullRequestCount: 0,
   ...overrides,
 });
