@@ -82,6 +82,33 @@ test("the detail pane lists each pull request with its number, state and title",
   expect(text).toContain("Add a redirect test");
 });
 
+test("each pull request in the detail pane shows its URL as a terminal hyperlink", async () => {
+  const { screen, frame } = await show(withPullRequests(), { width: 120, height: 40 });
+  const lines = frame().split("\n");
+  for (const number of [3917, 3911]) {
+    const url = `https://github.com/useshortcut/monorepo/pull/${String(number)}`;
+    const row = lines.findIndex((line) => line.includes(url));
+    expect(row).toBeGreaterThan(-1);
+    const column = lines[row].indexOf(url);
+    expect(screen.renderer.getLinkAt(column, row)).toBe(url);
+    expect(screen.renderer.getLinkAt(column + url.length - 1, row)).toBe(url);
+  }
+});
+
+test("a pull request link GitHub does not know shows once, as a terminal hyperlink", async () => {
+  const url = "https://gitlab.com/acme/app/-/merge_requests/7";
+  const foreign: PullRequestView = { ...view(7, "unknown", "Elsewhere"), url, github: null };
+  const { screen, frame } = await show(
+    withPullRequests(cached(new Map([[storyId(101), settled([foreign])]]))),
+    { width: 120, height: 40 },
+  );
+  const lines = frame().split("\n");
+  const rows = lines.flatMap((line, index) => (line.includes(url) ? [index] : []));
+  expect(rows).toHaveLength(1);
+  const [row] = rows;
+  expect(screen.renderer.getLinkAt(lines[row].indexOf(url), row)).toBe(url);
+});
+
 test("a story without pull requests has no pull request section", async () => {
   const { frame } = await show(withPullRequests(cached(checked), 103));
   expect(frame()).not.toContain("Pull requests");

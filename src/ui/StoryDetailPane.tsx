@@ -41,13 +41,19 @@ const Field = ({ label, value }: { label: string; value: string }) => (
 
 const PullRequestItem = ({ pullRequest }: { pullRequest: PullRequestView }) => {
   const { glyph, description, color } = badgeStyle[pullRequest.state];
+  const { url, github } = pullRequest;
   return (
     <box marginTop={1} flexDirection="column">
-      <text>
-        <b>{pullRequest.github === null ? pullRequest.url : `#${pullRequest.github.number}`}</b>
+      <text wrapMode="word">
+        <b>{github === null ? <a href={url}>{url}</a> : `#${github.number}`}</b>
         <span fg={color}>{`  ${glyph} ${description}`}</span>
       </text>
       <text wrapMode="word">{pullRequest.title}</text>
+      {github === null ? null : (
+        <text wrapMode="word">
+          <a href={url}>{url}</a>
+        </text>
+      )}
     </box>
   );
 };
