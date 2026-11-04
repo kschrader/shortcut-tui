@@ -100,6 +100,7 @@ Selecting a story clears its mark. While it stays selected, the detail pane says
 | `j` / `k`, arrows | Move the selection |
 | `/` | Edit the search query. `enter` searches, `esc` cancels. A changed query shows the loading screen; the same query refreshes in place |
 | `f` | Switch to the next filter: your started stories, then team stories waiting for review, then back. From a typed query, `f` starts at your started stories. The header names the filter in place of the query |
+| `a` | Show only stories that have been in their current state for 4 weeks or more. Press `a` again to show every story. The header adds `· 4w+` while it is on, and it stays on when you press `f` or search |
 | `r` | Refresh the results, the selected story, and pull request status. The shown list stays until the answer arrives. Also restarts the auto-refresh countdown |
 | `o` | Open the selected story in the browser |
 | `y` | Copy the selected story's link. The bottom bar says whether it was copied |
@@ -118,6 +119,8 @@ The default query is `owner:<you> is:started !is:archived`, which shows your in-
 The review filter shows stories in any workflow state with "review" in its name, such as "Ready for Review" or "In Review", in every workflow. It leaves out stories you own and archived stories. Shortcut search cannot match several states in one query, so the app runs one search per review state and merges the answers. The review filter groups stories by owner instead of by state, and a story with several owners appears once, under a group that names all of them, such as `Priya Shah + Sam Okafor`. Pressing `/` from the review filter starts an empty query.
 
 In the review filter, each row shows how long the story has been in its review state, such as `5h`, `3d`, or `2w`, and each engineer's longest-waiting story comes first. A row gets an accent `@` before its type when one of its open pull requests asks for your review, either by your GitHub login or through one of your GitHub teams in the pull request's organization. A pull request you wrote never counts. The header counts these stories, such as `2 stories  ·  1 for you`. The mark appears once GitHub answers. In every view, the detail pane's State line says how long the story has been in that state, such as `In Review for 3 days`.
+
+Press `a` to show only stories that have been in their current state for 4 weeks or more, by when they last moved, the same clock as the review view's waiting times. It works on any view: your started stories, the review filter, or a typed query. Shortcut search applies it. The app adds `moved:*..<date>` to each query, where the date is the calendar day 28 days before you pressed `a`. A story that moved on that day counts, and a refresh keeps the same date.
 
 ## Checks
 
