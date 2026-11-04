@@ -59,6 +59,8 @@ A story shows the status of its least ready open pull request. An unknown link c
 
 In narrow terminals the badge shows only its symbol. Press `?` for the same legend in the app.
 
+Under each pull request, the detail pane says who it asks for review and who has reviewed it, for example `review requested from you (via engineering), @andreas`, `approved by @priya · changes requested by @sam`, or `no review requested`. To tell which requests are yours, the app asks GitHub for your login and for your teams in each organization, once each while it runs, and only when a pull request asks someone for review. Reading teams needs the `read:org` scope, which `gh auth login` grants by default. If GitHub does not answer, requests to your login still count, team requests read `could not tell which are for you` and do not mark the row, and the next refresh asks again.
+
 ## Moving stories
 
 Press `m` on a story to move it to another state in its workflow. The list shows the story in its new group at once with a `⟳ saving` marker, then replaces it with the story Shortcut returns. If Shortcut refuses the move, the story goes back to the state Shortcut last reported, the row shows `✗ failed`, and the bottom bar shows the error with `m to retry`. Picking the state the story is already in does nothing.
@@ -114,6 +116,8 @@ The story URL and each pull request URL in the detail pane are terminal hyperlin
 The default query is `owner:<you> is:started !is:archived`, which shows your in-progress stories. Press `/` to change it, for example to `owner:<you> !is:done` to include unstarted stories. Stories are sorted by workflow state, with states further right in the workflow at the top. Started states come before unstarted ones, which keeps stories from different workflows in a sensible order. Stories in the same state are sorted with the most recently updated first. A divider above each group shows the state, its story count, and its workflow. The query uses Shortcut's [search operators](https://help.shortcut.com/hc/en-us/articles/360000046646-Search-Operators).
 
 The review filter shows stories in any workflow state with "review" in its name, such as "Ready for Review" or "In Review", in every workflow. It leaves out stories you own and archived stories. Shortcut search cannot match several states in one query, so the app runs one search per review state and merges the answers. The review filter groups stories by owner instead of by state, and a story with several owners appears once, under a group that names all of them, such as `Priya Shah + Sam Okafor`. Pressing `/` from the review filter starts an empty query.
+
+In the review filter, each row shows how long the story has been in its review state, such as `5h`, `3d`, or `2w`, and each engineer's longest-waiting story comes first. A row gets an accent `@` before its type when one of its open pull requests asks for your review, either by your GitHub login or through one of your GitHub teams in the pull request's organization. A pull request you wrote never counts. The header counts these stories, such as `2 stories  ·  1 for you`. The mark appears once GitHub answers. In every view, the detail pane's State line says how long the story has been in that state, such as `In Review for 3 days`.
 
 ## Checks
 
