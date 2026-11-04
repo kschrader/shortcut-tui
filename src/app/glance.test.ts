@@ -22,6 +22,7 @@ const view = (number: number, state: PullRequestState): PullRequestView => ({
   draft: false,
   github: { owner: "acme", repo: "app", number },
   state,
+  reviews: null,
 });
 
 const linked = (id: number, updatedAt = new Date(0)): StorySummary => ({

@@ -32,6 +32,7 @@ const view = (number: number, state: PullRequestState): PullRequestView => ({
   draft: false,
   github: { owner: "acme", repo: "app", number },
   state,
+  reviews: null,
 });
 
 const statusOf = (id: number, state: PullRequestState): StoryPullRequests =>

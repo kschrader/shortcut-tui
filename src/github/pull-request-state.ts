@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { reviewFields } from "./reviews.ts";
 import type { PullRequestState } from "./types.ts";
 
 export const RawPullRequestSchema = z.object({
@@ -18,6 +19,7 @@ export const RawPullRequestSchema = z.object({
     .nullable()
     .catch(null)
     .transform((rollup) => rollup?.state ?? null),
+  ...reviewFields,
 });
 
 export type RawPullRequest = z.infer<typeof RawPullRequestSchema>;

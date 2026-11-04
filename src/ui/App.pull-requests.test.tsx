@@ -29,6 +29,7 @@ const view = (number: number, state: PullRequestState, title: string): PullReque
   draft: false,
   github: { owner: "useshortcut", repo: "monorepo", number },
   state,
+  reviews: null,
 });
 
 const linked = [

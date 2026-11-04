@@ -1,5 +1,5 @@
 import type { StoryMergeStatus } from "../github/pull-request-state.ts";
-import type { PullRequestState } from "../github/types.ts";
+import type { PullRequestState, Reviews } from "../github/types.ts";
 import type {
   LinkedPullRequest,
   StoryDetail,
@@ -30,7 +30,10 @@ export type Question = { kind: "query"; text: string } | { kind: "inReview" };
 
 export type SearchResults = { question: Question; stories: readonly StorySummary[] };
 
-export type PullRequestView = LinkedPullRequest & { state: PullRequestState };
+export type PullRequestView = LinkedPullRequest & {
+  state: PullRequestState;
+  reviews: Reviews | null;
+};
 
 export type StoryPullRequests = ReadonlyMap<StoryId, Settled<readonly PullRequestView[]>>;
 

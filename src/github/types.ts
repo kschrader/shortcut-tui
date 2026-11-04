@@ -14,10 +14,27 @@ export type PullRequestState =
   | "blocked"
   | "unknown";
 
-export type PullRequestStates = ReadonlyMap<string, PullRequestState>;
+export type ReachesYou = "yes" | "no" | "unknown";
+
+export type ReviewRequest =
+  | { kind: "user"; login: string; reachesYou: ReachesYou }
+  | { kind: "team"; slug: string; reachesYou: ReachesYou };
+
+export type Verdict = "approved" | "changes-requested" | "commented";
+
+export type SubmittedReview = { login: string; verdict: Verdict };
+
+export type Reviews = {
+  requested: readonly ReviewRequest[];
+  submitted: readonly SubmittedReview[];
+};
+
+export type GitHubPullRequest = { state: PullRequestState; reviews: Reviews };
+
+export type GitHubPullRequests = ReadonlyMap<string, GitHubPullRequest>;
 
 export type GitHubClient = {
-  pullRequestStates(refs: readonly PullRequestRef[]): Promise<PullRequestStates>;
+  pullRequests(refs: readonly PullRequestRef[]): Promise<GitHubPullRequests>;
 };
 
 export const pullRequestKey = ({ owner, repo, number }: PullRequestRef): string =>

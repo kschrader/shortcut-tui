@@ -6,6 +6,7 @@ import {
   type GitHubClient,
   type PullRequestRef,
   type PullRequestState,
+  type Reviews,
 } from "../github/types.ts";
 import type {
   LinkedPullRequest,
@@ -24,7 +25,7 @@ const storyId = z.custom<StoryId>().parse(42);
 const noon = () => new Date("2026-11-02T12:00:00Z");
 
 const unusedGitHub: GitHubClient = {
-  pullRequestStates: () => Promise.reject(new Error("GitHub should not be asked")),
+  pullRequests: () => Promise.reject(new Error("GitHub should not be asked")),
 };
 
 const failing = (shortcut: ShortcutClient): Clients => ({ shortcut, github: unusedGitHub });
@@ -185,14 +186,20 @@ const linkingShortcut: ShortcutClient = {
   listPullRequests: async (id) => (id === storyId ? [toggle, gitlab] : [docs, toggle]),
 };
 
+const noReviews: Reviews = { requested: [], submitted: [] };
+const askingYou: Reviews = {
+  requested: [{ kind: "team", slug: "engineering", reachesYou: "yes" }],
+  submitted: [],
+};
+
 test("loading pull requests asks GitHub once for every story's pull requests", async () => {
   const asked: (readonly PullRequestRef[])[] = [];
   const github: GitHubClient = {
-    pullRequestStates: async (refs) => {
+    pullRequests: async (refs) => {
       asked.push(refs);
       return new Map([
-        [pullRequestKey(monorepo(3917)), "conflicts"],
-        [pullRequestKey(monorepo(3911)), "ready"],
+        [pullRequestKey(monorepo(3917)), { state: "conflicts", reviews: askingYou }],
+        [pullRequestKey(monorepo(3911)), { state: "ready", reviews: noReviews }],
       ]);
     },
   };
@@ -211,8 +218,8 @@ test("loading pull requests asks GitHub once for every story's pull requests", a
         {
           status: "loaded",
           value: [
-            { ...toggle, state: "conflicts" },
-            { ...gitlab, state: "unknown" },
+            { ...toggle, state: "conflicts", reviews: askingYou },
+            { ...gitlab, state: "unknown", reviews: null },
           ],
         },
       ],
@@ -221,8 +228,8 @@ test("loading pull requests asks GitHub once for every story's pull requests", a
         {
           status: "loaded",
           value: [
-            { ...docs, state: "ready" },
-            { ...toggle, state: "conflicts" },
+            { ...docs, state: "ready", reviews: noReviews },
+            { ...toggle, state: "conflicts", reviews: askingYou },
           ],
         },
       ],
@@ -232,7 +239,7 @@ test("loading pull requests asks GitHub once for every story's pull requests", a
 
 test("a GitHub failure fails the whole pull request load with GitHub's message", async () => {
   const github: GitHubClient = {
-    pullRequestStates: () => Promise.reject(new Error("GitHub status needs the gh CLI")),
+    pullRequests: () => Promise.reject(new Error("GitHub status needs the gh CLI")),
   };
   const msg = await runEffect(
     { shortcut: linkingShortcut, github },
@@ -258,8 +265,8 @@ test("a failing move becomes a moveFailed message for its story", async () => {
 });
 
 const answeredBy = (answers: [PullRequestRef, PullRequestState][]): GitHubClient => ({
-  pullRequestStates: async () =>
-    new Map(answers.map(([ref, state]) => [pullRequestKey(ref), state])),
+  pullRequests: async () =>
+    new Map(answers.map(([ref, state]) => [pullRequestKey(ref), { state, reviews: noReviews }])),
 });
 
 const loadedStates = async (github: GitHubClient, links: readonly LinkedPullRequest[]) => {
@@ -331,7 +338,7 @@ test("a merged GitHub pull request plus an open GitLab merge request leaves the 
 const manyStories = (count: number) =>
   Array.from({ length: count }, (_, i) => z.custom<StoryId>().parse(i + 1));
 
-const silentGitHub: GitHubClient = { pullRequestStates: async () => new Map() };
+const silentGitHub: GitHubClient = { pullRequests: async () => new Map() };
 
 test("loading pull requests for 500 stories keeps at most 6 Shortcut requests in flight", async () => {
   const inFlight = { now: 0, max: 0, calls: 0 };
@@ -378,7 +385,7 @@ test("a story whose pull request list fails is marked failed while the rest stil
   });
   expect(msg.pullRequests.get(z.custom<StoryId>().parse(8))).toEqual({
     status: "loaded",
-    value: [{ ...gitlab, state: "unknown" }],
+    value: [{ ...gitlab, state: "unknown", reviews: null }],
   });
 });
 

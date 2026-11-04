@@ -6,6 +6,7 @@ import {
   RawPullRequestSchema,
   type RawPullRequest,
 } from "./pull-request-state.ts";
+import { needsTeams, needsViewer, REVIEW_FIELDS, reviewsOf, type Viewer } from "./reviews.ts";
 import { pullRequestKey, type GitHubClient, type PullRequestRef } from "./types.ts";
 
 export type GhOutput = { exitCode: number; stdout: string; stderr: string };
@@ -18,8 +19,10 @@ export const GH_SETUP_HINT = "GitHub status needs the gh CLI: gh auth login";
 const GH_AUTH_REQUIRED_EXIT_CODE = 4;
 const PULL_REQUESTS_PER_QUERY = 10;
 const GH_QUERIES_IN_FLIGHT = 4;
-const PULL_REQUEST_FIELDS =
-  "state merged isDraft reviewDecision mergeable mergeStateStatus statusCheckRollup { state }";
+const PULL_REQUEST_FIELDS = `state merged isDraft reviewDecision mergeable mergeStateStatus statusCheckRollup { state } ${REVIEW_FIELDS}`;
+const VIEWER_QUERY = "query { viewer { login } }";
+const TEAMS_QUERY =
+  "query($org: String!, $login: String!) { organization(login: $org) { teams(first: 100, userLogins: [$login]) { nodes { slug } } } }";
 
 export const ghRunner =
   (executable = "gh"): GhRunner =>
@@ -195,26 +198,132 @@ const lookUp = async (gh: Gh, refs: readonly PullRequestRef[]) => {
   return answered;
 };
 
+const ViewerAnswer = z.object({ data: z.object({ viewer: z.object({ login: z.string() }) }) });
+
+const TeamsAnswer = z.object({
+  data: z.object({
+    organization: z
+      .object({ teams: z.object({ nodes: z.array(z.object({ slug: z.string() })) }) })
+      .nullable()
+      .catch(null),
+  }),
+});
+
+const answerTo = async <T>(
+  gh: Gh,
+  query: string,
+  schema: z.ZodType<T>,
+  variables: string[] = [],
+) => {
+  const output = await ask(gh, ["api", "graphql", "-f", `query=${query}`, ...variables]);
+  if (output.exitCode === GH_AUTH_REQUIRED_EXIT_CODE) throw new Error(GH_SETUP_HINT);
+  return schema.parse(parseJson(output.stdout));
+};
+
+const remembered = <T>(
+  memory: Map<string, Promise<T>>,
+  key: string,
+  load: () => Promise<T>,
+  meanwhile: T,
+): Promise<T> => {
+  const known = memory.get(key);
+  if (known !== undefined) return known;
+  const loading = load().catch(() => {
+    memory.delete(key);
+    return meanwhile;
+  });
+  memory.set(key, loading);
+  return loading;
+};
+
+type Identity = {
+  login: Map<string, Promise<string | null>>;
+  teams: Map<string, Promise<ReadonlySet<string> | null>>;
+};
+
+type Answered = { ref: PullRequestRef; raw: RawPullRequest };
+
+const organizationOf = (ref: PullRequestRef) => ref.owner.toLowerCase();
+
+const viewerFor = async (
+  gh: Gh,
+  identity: Identity,
+  answered: readonly Answered[],
+): Promise<(ref: PullRequestRef) => Viewer | null> => {
+  if (!answered.some(({ raw }) => needsViewer(raw))) return () => null;
+  const login = await remembered(
+    identity.login,
+    "viewer",
+    async () => (await answerTo(gh, VIEWER_QUERY, ViewerAnswer)).data.viewer.login,
+    null,
+  );
+  if (login === null) return () => null;
+  const organizations = [
+    ...new Set(answered.flatMap(({ ref, raw }) => (needsTeams(raw) ? [organizationOf(ref)] : []))),
+  ];
+  const teams = await settleLimited(organizations, GH_QUERIES_IN_FLIGHT, (organization) =>
+    remembered(
+      identity.teams,
+      organization,
+      async () => {
+        const { data } = await answerTo(gh, TEAMS_QUERY, TeamsAnswer, [
+          "-f",
+          `org=${organization}`,
+          "-f",
+          `login=${login}`,
+        ]);
+        return data.organization === null
+          ? null
+          : new Set(data.organization.teams.nodes.map(({ slug }) => slug.toLowerCase()));
+      },
+      null,
+    ),
+  );
+  const teamsOf = new Map(
+    organizations.map((organization, i) => {
+      const settled = teams[i];
+      return [organization, settled?.status === "fulfilled" ? settled.value : null];
+    }),
+  );
+  return (ref) => ({ login, teams: teamsOf.get(organizationOf(ref)) ?? null });
+};
+
+const withMergeability = async (
+  gh: Gh,
+  refs: readonly PullRequestRef[],
+  recheckAfterMs: number,
+) => {
+  const answers = new Map(await lookUp(gh, refs));
+  const computing = [...answers.values()].flatMap(({ ref, raw }) =>
+    raw !== null && awaitsMergeability(raw) ? [ref] : [],
+  );
+  if (computing.length > 0) {
+    await Bun.sleep(recheckAfterMs);
+    const rechecked = await lookUp(gh, computing).catch(() => []);
+    for (const [key, answer] of rechecked) {
+      if (answer.raw !== null) answers.set(key, answer);
+    }
+  }
+  return [...answers.values()].flatMap(({ ref, raw }) => (raw === null ? [] : [{ ref, raw }]));
+};
+
 export const createGitHubClient = ({
   run = ghRunner(),
   recheckAfterMs = 2000,
   timeoutMs = 20_000,
-}: GitHubClientOptions = {}): GitHubClient => ({
-  async pullRequestStates(refs) {
-    const gh = { run, timeoutMs };
-    const answers = new Map(await lookUp(gh, refs));
-    const computing = [...answers.values()].flatMap(({ ref, raw }) =>
-      raw !== null && awaitsMergeability(raw) ? [ref] : [],
-    );
-    if (computing.length > 0) {
-      await Bun.sleep(recheckAfterMs);
-      const rechecked = await lookUp(gh, computing).catch(() => []);
-      for (const [key, answer] of rechecked) {
-        if (answer.raw !== null) answers.set(key, answer);
-      }
-    }
-    return new Map(
-      [...answers].flatMap(([key, { raw }]) => (raw === null ? [] : [[key, classify(raw)]])),
-    );
-  },
-});
+}: GitHubClientOptions = {}): GitHubClient => {
+  const gh = { run, timeoutMs };
+  const identity: Identity = { login: new Map(), teams: new Map() };
+  return {
+    async pullRequests(refs) {
+      const answered = await withMergeability(gh, refs, recheckAfterMs);
+      const viewerOf = await viewerFor(gh, identity, answered);
+      return new Map(
+        answered.map(({ ref, raw }) => [
+          pullRequestKey(ref),
+          { state: classify(raw), reviews: reviewsOf(raw, viewerOf(ref)) },
+        ]),
+      );
+    },
+  };
+};

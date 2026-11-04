@@ -66,8 +66,8 @@ const launch = async () => {
         shortcut.getStory(id).then((story) => detailGate.pass(story)),
     },
     github: {
-      pullRequestStates: (refs: Parameters<typeof github.pullRequestStates>[0]) =>
-        github.pullRequestStates(refs).then((states) => githubGate.pass(states)),
+      pullRequests: (refs: Parameters<typeof github.pullRequests>[0]) =>
+        github.pullRequests(refs).then((answers) => githubGate.pass(answers)),
     },
   };
   const Root = () => {

@@ -50,7 +50,7 @@ const pullRequestsOf = async (
   ]);
   const failures = lists.flatMap(([, list]) => (list.status === "failed" ? [list.message] : []));
   if (failures.length === lists.length && failures[0] !== undefined) throw new Error(failures[0]);
-  const states = await github.pullRequestStates(
+  const answers = await github.pullRequests(
     lists.flatMap(([, list]) =>
       list.status === "loaded" ? list.value.flatMap((pr) => pr.github ?? []) : [],
     ),
@@ -62,12 +62,15 @@ const pullRequestsOf = async (
         ? list
         : {
             status: "loaded",
-            value: list.value.map((pr) => ({
-              ...pr,
-              state:
-                (pr.github === null ? undefined : states.get(pullRequestKey(pr.github))) ??
-                shortcutState(pr),
-            })),
+            value: list.value.map((pr) => {
+              const answer =
+                pr.github === null ? undefined : answers.get(pullRequestKey(pr.github));
+              return {
+                ...pr,
+                state: answer?.state ?? shortcutState(pr),
+                reviews: answer?.reviews ?? null,
+              };
+            }),
           },
     ]),
   );

@@ -71,6 +71,7 @@ const pullRequestAnswer = (
   draft: false,
   github: { owner: "acme", repo: "app", number: index + 1 },
   state,
+  reviews: null,
 });
 
 const respond = (
