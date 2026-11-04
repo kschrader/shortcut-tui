@@ -123,11 +123,14 @@ test("no story is marked while its pull requests are still being checked", async
   expect(listRows(frame())[1]).toContain(" 3d ");
 });
 
-test("my stories show neither how long they waited nor the review mark", async () => {
+test("my stories show how long they waited but not the review mark", async () => {
   const { frame } = await showing(queryQuestion("owner:me"));
   const rows = listRows(frame());
   expect(rows).toHaveLength(3);
-  expect(rows.some((row) => /@|\b3d\b|\b2w\b|<1h/.test(row))).toBe(false);
+  for (const waited of [" 2w ", " 3d ", " <1h "]) {
+    expect(rows.filter((row) => row.includes(waited))).toHaveLength(1);
+  }
+  expect(rows.some((row) => row.includes("@"))).toBe(false);
   expect(frame().split("\n")[0]).not.toContain("for you");
 });
 

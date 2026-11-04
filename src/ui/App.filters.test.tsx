@@ -47,7 +47,7 @@ const launch = async () => {
     screen.mockInput.pressKey(key);
     await screen.renderOnce();
   };
-  await until(() => frame().includes("Login redirect drops the return URL"));
+  await until(() => frame().includes("Login redirect drops the return"));
   return { frame, header, until, press };
 };
 
@@ -63,9 +63,9 @@ test("f shows team stories waiting for review, without mine, and f again goes ba
   expect(header()).toMatch(/Shortcut {2}\/ {2}waiting for review · team\s+2 stories/);
   expect(frame()).toContain("Fix flaky label sync test");
   expect(frame()).not.toContain("Rate-limit integration retries");
-  expect(frame()).not.toContain("Login redirect drops the return URL");
+  expect(frame()).not.toContain("Login redirect drops the return");
   await press("f");
-  await until(() => frame().includes("Login redirect drops the return URL"));
+  await until(() => frame().includes("Login redirect drops the return"));
   expect(header()).toContain("my started stories");
 });
 
@@ -117,7 +117,7 @@ test("a narrows each demo view to stories 4 weeks or more in their state, and a 
   await until(() => header().includes("1 story"));
   expect(header()).toMatch(/my started stories {2}· 4w\+\s+1 story/);
   expect(frame()).toContain("Document webhook retry behavior");
-  expect(frame()).not.toContain("Login redirect drops the return URL");
+  expect(frame()).not.toContain("Login redirect drops the return");
   await press("f");
   await until(() => frame().includes("Fix flaky label sync test"));
   expect(header()).toMatch(/waiting for review · team {2}· 4w\+\s+1 story/);

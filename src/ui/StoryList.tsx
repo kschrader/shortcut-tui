@@ -11,10 +11,8 @@ import { colors } from "./theme.ts";
 
 const ROW_CHROME_WIDTH = 8;
 const LEFT_BUTTON = 0;
-const MIN_NAME_WIDTH_BESIDE_LABELS = 36;
-const REVIEW_COLUMNS_WIDTH = YOUR_REVIEW_MARK.length + 1 + WAITED_WIDTH;
-
-type ReviewSignals = { yours: boolean; waited: string } | null;
+const MIN_NAME_WIDTH_BESIDE_LABELS = 32;
+const AGE_COLUMN_WIDTH = 1 + WAITED_WIDTH;
 
 type BadgeColumn = "none" | "glyph" | "labelled";
 
@@ -114,8 +112,7 @@ const gutter = (selected: boolean, changed: boolean): string => {
   return changed ? "•" : " ";
 };
 
-const reviewColumnsWidth = (signals: ReviewSignals) =>
-  signals === null ? 0 : REVIEW_COLUMNS_WIDTH;
+const reviewMarkWidth = (yours: boolean | null) => (yours === null ? 0 : YOUR_REVIEW_MARK.length);
 
 const StoryRow = ({
   story,
@@ -125,7 +122,8 @@ const StoryRow = ({
   badgeColumn,
   mark,
   markColumnWidth,
-  signals,
+  yours,
+  waited,
   width,
   onSelect,
 }: {
@@ -136,7 +134,8 @@ const StoryRow = ({
   badgeColumn: BadgeColumn;
   mark: MoveMark | null;
   markColumnWidth: number;
-  signals: ReviewSignals;
+  yours: boolean | null;
+  waited: string;
   width: number;
   onSelect: (id: StoryId) => void;
 }) => {
@@ -148,7 +147,8 @@ const StoryRow = ({
     ROW_CHROME_WIDTH -
     badgeColumnWidth[badgeColumn] -
     markColumnWidth -
-    reviewColumnsWidth(signals);
+    reviewMarkWidth(yours) -
+    AGE_COLUMN_WIDTH;
   return (
     <box
       id={`story-${story.id}`}
@@ -160,15 +160,11 @@ const StoryRow = ({
     >
       <text wrapMode="none" fg={selected ? colors.textBright : colors.text}>
         <span fg={colors.accent}>{gutter(selected, changed)}</span>
-        {signals === null ? null : (
-          <span fg={colors.accent}>{signals.yours ? YOUR_REVIEW_MARK : " "}</span>
-        )}
+        {yours === null ? null : <span fg={colors.accent}>{yours ? YOUR_REVIEW_MARK : " "}</span>}
         <span fg={color}>{glyph}</span>
         <span fg={colors.dim}>{` ${idLabel} `}</span>
         {selected ? <b>{fit(story.name, nameWidth)}</b> : fit(story.name, nameWidth)}
-        {signals === null ? null : (
-          <span fg={colors.dim}>{` ${signals.waited.padStart(WAITED_WIDTH)}`}</span>
-        )}
+        <span fg={colors.dim}>{` ${waited.padStart(WAITED_WIDTH)}`}</span>
         <span fg={mark?.color ?? colors.dim}>
           {mark === null ? "".padEnd(markColumnWidth) : ` ${mark.text}`.padEnd(markColumnWidth)}
         </span>
@@ -217,15 +213,8 @@ export const StoryList = ({
   const badgeColumn = badgeColumnFor(
     stories,
     width,
-    markColumnWidth + (reviewing ? REVIEW_COLUMNS_WIDTH : 0),
+    markColumnWidth + AGE_COLUMN_WIDTH + (reviewing ? YOUR_REVIEW_MARK.length : 0),
   );
-  const signalsOf = (story: StorySummary): ReviewSignals =>
-    reviewing
-      ? {
-          yours: awaitsYourReview(story, pullRequests),
-          waited: waitedLabel(story.movedAt, now),
-        }
-      : null;
   return (
     <scrollbox ref={scroll} flexGrow={1} scrollY>
       {groupBy(grouping, stories).flatMap((group, index) => [
@@ -244,7 +233,8 @@ export const StoryList = ({
             badgeColumn={badgeColumn}
             mark={moveMark(moves.get(story.id))}
             markColumnWidth={markColumnWidth}
-            signals={signalsOf(story)}
+            yours={reviewing ? awaitsYourReview(story, pullRequests) : null}
+            waited={waitedLabel(story.movedAt, now)}
             width={width}
             onSelect={onSelect}
           />

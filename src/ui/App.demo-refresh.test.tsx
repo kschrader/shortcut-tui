@@ -49,7 +49,7 @@ const launch = async () => {
     screen.mockInput.pressKey(key);
     await screen.renderOnce();
   };
-  await until(() => frame().includes("Login redirect drops the return URL"));
+  await until(() => frame().includes("Login redirect drops the return"));
   return { frame, until, press };
 };
 

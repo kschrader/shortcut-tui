@@ -52,12 +52,9 @@ test("the load time ages once a minute and resets when the interval refreshes th
   await until(() => statusBar().includes("↻ just now"));
   screen.mockInput.pressKey("j");
   await screen.renderOnce();
-  const selectedRow = () =>
-    screen
-      .captureCharFrame()
-      .split("\n")
-      .find((line) => line.includes("▌"));
+  const selectedRow = () => /▌\S*\s+(\d+)/.exec(screen.captureCharFrame())?.[1];
   const selected = selectedRow();
+  expect(selected).toMatch(/^\d+$/);
   clock.advance(2 * MINUTE);
   await until(() => statusBar().includes("↻ 2m ago"));
   clock.advance(3 * MINUTE);

@@ -68,9 +68,9 @@ const rowOf = (frame: string, id: number) =>
 
 test("each row shows its story's merge status after the name", async () => {
   const { frame } = await show(withPullRequests());
-  expect(rowOf(frame(), 101)).toMatch(/Fix login redirect\s+✓ ready/);
-  expect(rowOf(frame(), 102)).toMatch(/Add dark mode\s+≠ conflicts/);
-  expect(rowOf(frame(), 103)).toMatch(/Rotate API keys\s+3 │/);
+  expect(rowOf(frame(), 101)).toMatch(/Fix login redirect\s+4w ✓ ready/);
+  expect(rowOf(frame(), 102)).toMatch(/Add dark mode\s+4w ≠ conflicts/);
+  expect(rowOf(frame(), 103)).toMatch(/Rotate API keys\s+4w\s+3 │/);
 });
 
 test("the detail pane lists each pull request with its number, state and title", async () => {
@@ -152,7 +152,7 @@ test("an 80-column terminal keeps names readable and shows the status as a glyph
     { width: 80 },
   );
   const row = rowOf(frame(), 316665);
-  expect(row).toContain("Add option to limit GitHub PR auto-");
+  expect(row).toContain("Add option to limit GitHub PR a");
   expect(row).toContain("≠");
   expect(row).not.toContain("conflicts");
 });
@@ -183,7 +183,7 @@ test("p opens the kept pull request and the row keeps its badge while status rel
   const { screen, calls, frame } = await show(
     withPullRequests(cached(checked, reloading(requestId(4)))),
   );
-  expect(rowOf(frame(), 101)).toMatch(/Fix login redirect\s+✓ ready/);
+  expect(rowOf(frame(), 101)).toMatch(/Fix login redirect\s+4w ✓ ready/);
   screen.mockInput.pressKey("p");
   expect(calls.opened).toEqual(["https://github.com/useshortcut/monorepo/pull/3917"]);
 });
