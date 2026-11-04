@@ -4,8 +4,16 @@ import type { Change, PullRequestView, Remote } from "../app/model.ts";
 import type { StoryMergeStatus } from "../github/pull-request-state.ts";
 import { reloadFailure } from "../app/remote.ts";
 import type { StoryDetail, StorySummary } from "../shortcut/types.ts";
-import { dateLabel, epicName, estimateLabel, ownerNames, typeStyle } from "./format.ts";
+import {
+  dateLabel,
+  epicName,
+  estimateLabel,
+  ownerNames,
+  typeStyle,
+  waitedPhrase,
+} from "./format.ts";
 import { badgeStyle, type StoryPullRequestList } from "./pull-requests.ts";
+import { asksForYourReview, reviewSummary } from "./reviews.ts";
 import { colors } from "./theme.ts";
 
 type Props = {
@@ -13,6 +21,7 @@ type Props = {
   detail: Remote<StoryDetail> | undefined;
   pullRequests: StoryPullRequestList | null;
   changes: readonly Change[];
+  now: Date;
   scrollRef: Ref<ScrollBoxRenderable>;
 };
 
@@ -41,7 +50,7 @@ const Field = ({ label, value }: { label: string; value: string }) => (
 
 const PullRequestItem = ({ pullRequest }: { pullRequest: PullRequestView }) => {
   const { glyph, description, color } = badgeStyle[pullRequest.state];
-  const { url, github } = pullRequest;
+  const { url, github, reviews } = pullRequest;
   return (
     <box marginTop={1} flexDirection="column">
       <text wrapMode="word">
@@ -52,6 +61,11 @@ const PullRequestItem = ({ pullRequest }: { pullRequest: PullRequestView }) => {
       {github === null ? null : (
         <text wrapMode="word">
           <a href={url}>{url}</a>
+        </text>
+      )}
+      {reviews === null ? null : (
+        <text wrapMode="word" fg={asksForYourReview(reviews) ? colors.accent : colors.dim}>
+          {reviewSummary(reviews)}
         </text>
       )}
     </box>
@@ -157,7 +171,14 @@ const Detail = ({ detail }: { detail: Remote<StoryDetail> | undefined }) => {
   }
 };
 
-export const StoryDetailPane = ({ summary, detail, pullRequests, changes, scrollRef }: Props) => {
+export const StoryDetailPane = ({
+  summary,
+  detail,
+  pullRequests,
+  changes,
+  now,
+  scrollRef,
+}: Props) => {
   const { glyph, color } = typeStyle[summary.storyType];
   return (
     <scrollbox ref={scrollRef} flexGrow={1} scrollY paddingLeft={1} paddingRight={1}>
@@ -175,7 +196,10 @@ export const StoryDetailPane = ({ summary, detail, pullRequests, changes, scroll
           <span fg={colors.dim}>{"Type".padEnd(10)}</span>
           <span fg={color}>{`${glyph} ${summary.storyType}`}</span>
         </text>
-        <Field label="State" value={summary.state.name} />
+        <Field
+          label="State"
+          value={`${summary.state.name} for ${waitedPhrase(summary.movedAt, now)}`}
+        />
         <Field label="Estimate" value={estimateLabel(summary.estimate)} />
         <Field label="Owners" value={ownerNames(summary.owners)} />
         <Field label="Epic" value={epicName(summary.epic)} />

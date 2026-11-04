@@ -71,6 +71,15 @@ export const groupingOf = (question: Question): Grouping => {
   }
 };
 
+export const isReviewView = (question: Question): boolean => {
+  switch (question.kind) {
+    case "query":
+      return false;
+    case "inReview":
+      return true;
+  }
+};
+
 export const draftFor = (question: Question): string => {
   switch (question.kind) {
     case "query":

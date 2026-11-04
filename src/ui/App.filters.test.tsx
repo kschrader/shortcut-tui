@@ -69,6 +69,14 @@ test("f shows team stories waiting for review, without mine, and f again goes ba
   expect(header()).toContain("my started stories");
 });
 
+test("the demo review view marks the story whose pull request asks for your review", async () => {
+  const { frame, header, until, press } = await launch();
+  await press("f");
+  await until(() => frame().includes("@●   1010 Paginate the iteration list"));
+  expect(frame()).toMatch(/ {2}■ {3}1011 Fix flaky label sync test\s+5d /);
+  expect(header()).toMatch(/2 stories {2}· {2}1 for you/);
+});
+
 test("/ from the review view starts an empty query", async () => {
   const { frame, header, until, press } = await launch();
   await press("f");

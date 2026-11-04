@@ -3,7 +3,7 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef, useState } from "react";
 import { changesOf, unseenChanges } from "../app/glance.ts";
 import type { Change, Model, Msg } from "../app/model.ts";
-import { groupingOf, questionLabel, type Grouping } from "../app/filters.ts";
+import { groupingOf, isReviewView, questionLabel, type Grouping } from "../app/filters.ts";
 import { pickerStates } from "../app/moves.ts";
 import { reloadFailure } from "../app/remote.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
@@ -14,6 +14,7 @@ import { bindingFor, hintFor } from "./keys.ts";
 import { MovePicker } from "./MovePicker.tsx";
 import { pullRequestToOpen, pullRequestTrouble, storyPullRequests } from "./pull-requests.ts";
 import { ReadOnlyNotice } from "./ReadOnlyNotice.tsx";
+import { awaitsYourReview } from "./reviews.ts";
 import { listWidthFor, Splitter } from "./Splitter.tsx";
 import { StoryList } from "./StoryList.tsx";
 import { colors } from "./theme.ts";
@@ -45,8 +46,10 @@ const Centered = ({ headline, hint, color }: { headline: string; hint: string; c
 
 const Browser = ({
   model,
+  now,
   stories,
   grouping,
+  reviewing,
   scrollRef,
   unseen,
   listWidth,
@@ -54,8 +57,10 @@ const Browser = ({
   onResize,
 }: {
   model: Model;
+  now: Date;
   stories: readonly StorySummary[];
   grouping: Grouping;
+  reviewing: boolean;
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
   unseen: ReadonlyMap<StoryId, readonly Change[]>;
   listWidth: number;
@@ -73,6 +78,8 @@ const Browser = ({
           moves={model.moves}
           unseen={unseen}
           grouping={grouping}
+          reviewing={reviewing}
+          now={now}
           width={listWidth}
           onSelect={onSelect}
         />
@@ -87,6 +94,7 @@ const Browser = ({
             detail={model.details.get(selected.id)}
             pullRequests={storyPullRequests(selected, model.pullRequests)}
             changes={changesOf(model, selected.id)}
+            now={now}
             scrollRef={scrollRef}
           />
         )}
@@ -97,6 +105,7 @@ const Browser = ({
 
 type BodyProps = {
   model: Model;
+  now: Date;
   scrollRef: React.RefObject<ScrollBoxRenderable | null>;
   unseen: ReadonlyMap<StoryId, readonly Change[]>;
   listWidth: number;
@@ -129,6 +138,7 @@ const Results = (props: BodyProps) => {
           {...props}
           stories={results.value.stories}
           grouping={groupingOf(results.value.question)}
+          reviewing={isReviewView(results.value.question)}
         />
       );
   }
@@ -238,6 +248,11 @@ const bottomBar = (
   };
 };
 
+const yourReviewCount = ({ results, pullRequests }: Model): number =>
+  results.status === "loaded" && isReviewView(results.value.question)
+    ? results.value.stories.filter((story) => awaitsYourReview(story, pullRequests)).length
+    : 0;
+
 const freshness = (model: Model, now: Date, room: number): string | null => {
   if (model.results.status !== "loaded" || model.loadedAt === null) return null;
   const label = `↻ ${ageLabel(model.loadedAt, now)}`;
@@ -318,6 +333,7 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
 
   const { text, color } = status(model);
   const unseen = unseenChanges(model);
+  const forYou = yourReviewCount(model);
   const bottom = bottomBar(model, selectedStory, copyNotice);
   const age = freshness(model, now, width - STATUS_BAR_PADDING - bottom.text.length);
   return (
@@ -355,9 +371,13 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
         {unseen.size === 0 ? null : (
           <text flexShrink={0} fg={colors.accent}>{`  ·  ${String(unseen.size)} updated`}</text>
         )}
+        {forYou === 0 ? null : (
+          <text flexShrink={0} fg={colors.accent}>{`  ·  ${String(forYou)} for you`}</text>
+        )}
       </box>
       <Body
         model={model}
+        now={now}
         scrollRef={detailScroll}
         unseen={unseen}
         listWidth={listWidth}

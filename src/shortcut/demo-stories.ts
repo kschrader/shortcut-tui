@@ -293,6 +293,7 @@ const seeds: StorySeed[] = [
     description: "Workspaces with years of iterations time out loading the list.",
     labels: [],
     comments: [],
+    pullRequests: [pullRequest(3970, "Page the iteration list by cursor")],
   },
   {
     id: 1011,
@@ -306,6 +307,7 @@ const seeds: StorySeed[] = [
     description: "The label sync test races the webhook fixture.",
     labels: [],
     comments: [],
+    pullRequests: [pullRequest(3971, "Wait for the webhook fixture before syncing labels")],
   },
 ];
 

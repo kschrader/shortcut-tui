@@ -4,13 +4,17 @@ import type { Grouping } from "../app/filters.ts";
 import type { Cached, Change, StoryMove, StoryPullRequests } from "../app/model.ts";
 import { ownerGroupLabel } from "../app/order.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
-import { estimateLabel, fit, typeStyle } from "./format.ts";
+import { estimateLabel, fit, typeStyle, WAITED_WIDTH, waitedLabel } from "./format.ts";
 import { badgeStyle, BADGE_LABEL_WIDTH, storyBadge, type Badge } from "./pull-requests.ts";
+import { awaitsYourReview, YOUR_REVIEW_MARK } from "./reviews.ts";
 import { colors } from "./theme.ts";
 
 const ROW_CHROME_WIDTH = 8;
 const LEFT_BUTTON = 0;
 const MIN_NAME_WIDTH_BESIDE_LABELS = 36;
+const REVIEW_COLUMNS_WIDTH = YOUR_REVIEW_MARK.length + 1 + WAITED_WIDTH;
+
+type ReviewSignals = { yours: boolean; waited: string } | null;
 
 type BadgeColumn = "none" | "glyph" | "labelled";
 
@@ -43,6 +47,8 @@ type Props = {
   moves: ReadonlyMap<StoryId, StoryMove>;
   unseen: ReadonlyMap<StoryId, readonly Change[]>;
   grouping: Grouping;
+  reviewing: boolean;
+  now: Date;
   width: number;
   onSelect: (id: StoryId) => void;
 };
@@ -108,6 +114,9 @@ const gutter = (selected: boolean, changed: boolean): string => {
   return changed ? "•" : " ";
 };
 
+const reviewColumnsWidth = (signals: ReviewSignals) =>
+  signals === null ? 0 : REVIEW_COLUMNS_WIDTH;
+
 const StoryRow = ({
   story,
   selected,
@@ -116,6 +125,7 @@ const StoryRow = ({
   badgeColumn,
   mark,
   markColumnWidth,
+  signals,
   width,
   onSelect,
 }: {
@@ -126,13 +136,19 @@ const StoryRow = ({
   badgeColumn: BadgeColumn;
   mark: MoveMark | null;
   markColumnWidth: number;
+  signals: ReviewSignals;
   width: number;
   onSelect: (id: StoryId) => void;
 }) => {
   const { glyph, color } = typeStyle[story.storyType];
   const idLabel = String(story.id).padStart(6);
   const nameWidth =
-    width - idLabel.length - ROW_CHROME_WIDTH - badgeColumnWidth[badgeColumn] - markColumnWidth;
+    width -
+    idLabel.length -
+    ROW_CHROME_WIDTH -
+    badgeColumnWidth[badgeColumn] -
+    markColumnWidth -
+    reviewColumnsWidth(signals);
   return (
     <box
       id={`story-${story.id}`}
@@ -144,9 +160,15 @@ const StoryRow = ({
     >
       <text wrapMode="none" fg={selected ? colors.textBright : colors.text}>
         <span fg={colors.accent}>{gutter(selected, changed)}</span>
+        {signals === null ? null : (
+          <span fg={colors.accent}>{signals.yours ? YOUR_REVIEW_MARK : " "}</span>
+        )}
         <span fg={color}>{glyph}</span>
         <span fg={colors.dim}>{` ${idLabel} `}</span>
         {selected ? <b>{fit(story.name, nameWidth)}</b> : fit(story.name, nameWidth)}
+        {signals === null ? null : (
+          <span fg={colors.dim}>{` ${signals.waited.padStart(WAITED_WIDTH)}`}</span>
+        )}
         <span fg={mark?.color ?? colors.dim}>
           {mark === null ? "".padEnd(markColumnWidth) : ` ${mark.text}`.padEnd(markColumnWidth)}
         </span>
@@ -163,12 +185,12 @@ const StoryRow = ({
 const badgeColumnFor = (
   stories: readonly StorySummary[],
   width: number,
-  markColumnWidth: number,
+  otherColumnsWidth: number,
 ): BadgeColumn => {
   if (!stories.some((story) => story.pullRequestCount > 0)) return "none";
   const widestId = Math.max(6, ...stories.map((story) => String(story.id).length));
   const nameWidth =
-    width - widestId - ROW_CHROME_WIDTH - badgeColumnWidth.labelled - markColumnWidth;
+    width - widestId - ROW_CHROME_WIDTH - badgeColumnWidth.labelled - otherColumnsWidth;
   return nameWidth >= MIN_NAME_WIDTH_BESIDE_LABELS ? "labelled" : "glyph";
 };
 
@@ -179,6 +201,8 @@ export const StoryList = ({
   moves,
   unseen,
   grouping,
+  reviewing,
+  now,
   width,
   onSelect,
 }: Props) => {
@@ -190,7 +214,18 @@ export const StoryList = ({
   const markColumnWidth = stories.some((story) => moveMark(moves.get(story.id)) !== null)
     ? MOVE_MARK_WIDTH
     : 0;
-  const badgeColumn = badgeColumnFor(stories, width, markColumnWidth);
+  const badgeColumn = badgeColumnFor(
+    stories,
+    width,
+    markColumnWidth + (reviewing ? REVIEW_COLUMNS_WIDTH : 0),
+  );
+  const signalsOf = (story: StorySummary): ReviewSignals =>
+    reviewing
+      ? {
+          yours: awaitsYourReview(story, pullRequests),
+          waited: waitedLabel(story.movedAt, now),
+        }
+      : null;
   return (
     <scrollbox ref={scroll} flexGrow={1} scrollY>
       {groupBy(grouping, stories).flatMap((group, index) => [
@@ -209,6 +244,7 @@ export const StoryList = ({
             badgeColumn={badgeColumn}
             mark={moveMark(moves.get(story.id))}
             markColumnWidth={markColumnWidth}
+            signals={signalsOf(story)}
             width={width}
             onSelect={onSelect}
           />

@@ -35,3 +35,32 @@ export const ageLabel = (since: Date, now: Date): string => {
   if (hours < 24) return `${String(hours)}h ago`;
   return `${String(Math.floor(hours / 24))}d ago`;
 };
+
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+const WEEK_MS = 7 * DAY_MS;
+const YEAR_MS = 365 * DAY_MS;
+
+type Waited = { count: number; unit: "hour" | "day" | "week" | "year" } | null;
+
+const waited = (since: Date, now: Date): Waited => {
+  const ms = Math.max(0, now.getTime() - since.getTime());
+  if (ms < HOUR_MS) return null;
+  if (ms < DAY_MS) return { count: Math.floor(ms / HOUR_MS), unit: "hour" };
+  if (ms < 2 * WEEK_MS) return { count: Math.floor(ms / DAY_MS), unit: "day" };
+  if (ms < 100 * WEEK_MS) return { count: Math.floor(ms / WEEK_MS), unit: "week" };
+  return { count: Math.floor(ms / YEAR_MS), unit: "year" };
+};
+
+export const WAITED_WIDTH = 3;
+
+export const waitedLabel = (since: Date, now: Date): string => {
+  const time = waited(since, now);
+  return time === null ? "<1h" : `${String(time.count)}${time.unit[0] ?? ""}`;
+};
+
+export const waitedPhrase = (since: Date, now: Date): string => {
+  const time = waited(since, now);
+  if (time === null) return "less than an hour";
+  return `${String(time.count)} ${time.unit}${time.count === 1 ? "" : "s"}`;
+};

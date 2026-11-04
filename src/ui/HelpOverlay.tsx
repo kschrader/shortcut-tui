@@ -1,5 +1,6 @@
 import { bindingsUsableIn } from "./keys.ts";
 import { BADGE_LABEL_WIDTH, badgeStyle } from "./pull-requests.ts";
+import { YOUR_REVIEW_MARK } from "./reviews.ts";
 import { colors } from "./theme.ts";
 
 const browsingBindings = bindingsUsableIn("browsing");
@@ -64,6 +65,10 @@ export const HelpOverlay = () => (
           <text>
             <span fg={colors.accent}>•</span>
             {" changed since you last looked"}
+          </text>
+          <text>
+            <span fg={colors.accent}>{YOUR_REVIEW_MARK}</span>
+            {" asks for your review"}
           </text>
         </box>
       </box>
