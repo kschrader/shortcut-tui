@@ -1,3 +1,4 @@
+import { AGE_FLOOR_WEEKS } from "../app/filters.ts";
 import type { Focus, Msg } from "../app/model.ts";
 
 export type KeyAction =
@@ -6,6 +7,7 @@ export type KeyAction =
   | { type: "scrollDetail"; viewports: number }
   | { type: "openStory" }
   | { type: "copyStoryLink" }
+  | { type: "toggleAgeFloor" }
   | { type: "openPullRequest" };
 
 type Keystroke = { name: string; ctrl?: true };
@@ -52,6 +54,13 @@ export const keyBindings: readonly KeyBinding[] = [
     description: "Cycle filters",
     hint: "f filter",
     action: dispatch({ type: "filterCycled" }),
+  },
+  {
+    modes: ["browsing"],
+    keys: [{ name: "a" }],
+    label: "a",
+    description: `Only ${String(AGE_FLOOR_WEEKS)}+ weeks in state`,
+    action: { type: "toggleAgeFloor" },
   },
   {
     modes: ["editingQuery"],

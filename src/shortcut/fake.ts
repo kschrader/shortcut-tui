@@ -27,6 +27,15 @@ const summaryOf = ({
 
 const isMine = (story: StoryDetail) => story.owners.some((owner) => owner.id === me.id);
 
+const MOVED_BY = /^moved:\*\.\.(\d{4})-(\d{2})-(\d{2})$/;
+
+const movedBy = (story: StoryDetail, term: string): boolean => {
+  const day = MOVED_BY.exec(term);
+  if (day === null) return true;
+  const nextDay = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]) + 1);
+  return story.movedAt.getTime() < nextDay.getTime();
+};
+
 const matchesQuery = (story: StoryDetail, query: string): boolean =>
   query
     .split(/\s+/)
@@ -34,6 +43,7 @@ const matchesQuery = (story: StoryDetail, query: string): boolean =>
     .every((term) => {
       if (term === "owner:me" || term === `owner:${workspace.me.mentionName}`) return isMine(story);
       if (term === `!owner:${workspace.me.mentionName}`) return !isMine(story);
+      if (term.startsWith("moved:")) return movedBy(story, term);
       if (term.startsWith("state:")) return `state:${String(story.state.id)}` === term;
       if (term === "!is:done") return story.state.progress !== "done";
       if (term === "is:started") return story.state.progress === "started";

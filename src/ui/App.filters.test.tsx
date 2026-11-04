@@ -73,7 +73,7 @@ test("the demo review view marks the story whose pull request asks for your revi
   const { frame, header, until, press } = await launch();
   await press("f");
   await until(() => frame().includes("@●   1010 Paginate the iteration list"));
-  expect(frame()).toMatch(/ {2}■ {3}1011 Fix flaky label sync test\s+5d /);
+  expect(frame()).toMatch(/ {2}■ {3}1011 Fix flaky label sync test\s+5w /);
   expect(header()).toMatch(/2 stories {2}· {2}1 for you/);
 });
 
@@ -109,4 +109,20 @@ test("my stories keep their workflow state dividers", async () => {
     "── In Review  2  · Engineering",
     "── In Progress  2  · Engineering",
   ]);
+});
+
+test("a narrows each demo view to stories 4 weeks or more in their state, and a again lifts it", async () => {
+  const { frame, header, until, press } = await launch();
+  await press("a");
+  await until(() => header().includes("1 story"));
+  expect(header()).toMatch(/my started stories {2}· 4w\+\s+1 story/);
+  expect(frame()).toContain("Document webhook retry behavior");
+  expect(frame()).not.toContain("Login redirect drops the return URL");
+  await press("f");
+  await until(() => frame().includes("Fix flaky label sync test"));
+  expect(header()).toMatch(/waiting for review · team {2}· 4w\+\s+1 story/);
+  expect(frame()).not.toContain("Paginate the iteration list");
+  await press("a");
+  await until(() => frame().includes("Paginate the iteration list"));
+  expect(header()).not.toContain("4w+");
 });

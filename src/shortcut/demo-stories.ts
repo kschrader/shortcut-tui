@@ -226,6 +226,7 @@ const seeds: StorySeed[] = [
     estimate: 2,
     owners: [me],
     updatedAt: "2026-10-28T15:10:00Z",
+    movedAt: "2026-09-14T15:10:00Z",
     description:
       "Public docs say nothing about retries. Cover backoff, max attempts, and signature checks.",
     labels: ["docs"],
@@ -303,7 +304,7 @@ const seeds: StorySeed[] = [
     estimate: 1,
     owners: [sam, priya],
     updatedAt: "2026-11-01T16:00:00Z",
-    movedAt: "2026-10-27T10:00:00Z",
+    movedAt: "2026-09-25T10:00:00Z",
     description: "The label sync test races the webhook fixture.",
     labels: [],
     comments: [],

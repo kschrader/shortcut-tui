@@ -183,3 +183,15 @@ test("without teammateMovesOnRefresh, asking again finds the same stories", asyn
   const client = createFakeShortcutClient();
   expect(await client.searchStories("")).toEqual(await client.searchStories(""));
 });
+
+test("moved:*..DAY keeps the stories that moved into their state on or before that day", async () => {
+  const client = createFakeShortcutClient();
+  const named = async (query: string) =>
+    (await client.searchStories(query)).map((story) => story.name).toSorted();
+  expect(await named("moved:*..2026-09-14")).toEqual(["Document webhook retry behavior"]);
+  expect(await named("moved:*..2026-09-13")).toEqual([]);
+  expect(await named("moved:*..2026-09-25")).toEqual([
+    "Document webhook retry behavior",
+    "Fix flaky label sync test",
+  ]);
+});

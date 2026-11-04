@@ -3,7 +3,13 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef, useState } from "react";
 import { changesOf, unseenChanges } from "../app/glance.ts";
 import type { Change, Model, Msg } from "../app/model.ts";
-import { groupingOf, isReviewView, viewLabel, type Grouping } from "../app/filters.ts";
+import {
+  AGE_FLOOR_LABEL,
+  groupingOf,
+  isReviewView,
+  viewLabel,
+  type Grouping,
+} from "../app/filters.ts";
 import { pickerStates } from "../app/moves.ts";
 import { reloadFailure } from "../app/remote.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
@@ -308,6 +314,8 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
         return quit();
       case "dispatch":
         return dispatch(action.msg);
+      case "toggleAgeFloor":
+        return dispatch({ type: "ageFloorToggled", at: now });
       case "scrollDetail":
         return detailScroll.current?.scrollBy(action.viewports, "viewport");
       case "openStory":
@@ -351,20 +359,25 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
         <text flexShrink={0} fg={colors.dim}>
           {"  /  "}
         </text>
-        {model.focus.mode === "editingQuery" ? (
-          <input
-            focused
-            flexGrow={1}
-            value={model.focus.draft}
-            placeholder="search stories"
-            onInput={(draft) => dispatch({ type: "queryDraftChanged", draft })}
-            onSubmit={() => dispatch({ type: "querySubmitted" })}
-          />
-        ) : (
-          <text flexGrow={1} flexShrink={1} wrapMode="none" fg={colors.text}>
-            {queryLabel(model)}
-          </text>
-        )}
+        <box flexGrow={1} flexShrink={1} flexDirection="row">
+          {model.focus.mode === "editingQuery" ? (
+            <input
+              focused
+              flexGrow={1}
+              value={model.focus.draft}
+              placeholder="search stories"
+              onInput={(draft) => dispatch({ type: "queryDraftChanged", draft })}
+              onSubmit={() => dispatch({ type: "querySubmitted" })}
+            />
+          ) : (
+            <text flexShrink={1} wrapMode="none" fg={colors.text}>
+              {queryLabel(model)}
+            </text>
+          )}
+          {model.question.movedOnOrBefore === null ? null : (
+            <text flexShrink={0} fg={colors.accent}>{`  · ${AGE_FLOOR_LABEL}`}</text>
+          )}
+        </box>
         <text flexShrink={0} marginLeft={2} fg={color}>
           {text}
         </text>
