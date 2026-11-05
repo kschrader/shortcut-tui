@@ -99,7 +99,7 @@ Selecting a story clears its mark. While it stays selected, the detail pane says
 | --- | --- |
 | `j` / `k`, arrows | Move the selection |
 | `/` | Edit the search query. `enter` searches, `esc` cancels. A changed query shows the loading screen; the same query refreshes in place |
-| `f` | Switch to the next filter: your started stories, then team stories waiting for review, then back. From a typed query, `f` starts at your started stories. The header names the filter in place of the query |
+| `f` | Switch to the next filter: your started stories, then team stories waiting for review, then team stories whose pull requests merged but which never moved, then back. From a typed query, `f` starts at your started stories. The header names the filter in place of the query |
 | `a` | Show only stories that have been in their current state for 4 weeks or more. Press `a` again to show every story. The header adds `· 4w+` while it is on, and it stays on when you press `f` or search |
 | `r` | Refresh the results, the selected story, and pull request status. The shown list stays until the answer arrives. Also restarts the auto-refresh countdown |
 | `o` | Open the selected story in the browser |
@@ -120,7 +120,9 @@ The review filter shows stories in any workflow state with "review" in its name,
 
 Every row shows how long the story has been in its current state, such as `5h`, `3d`, or `2w`. In the review filter, each engineer's longest-waiting story comes first. A row gets an accent `@` before its type when one of its open pull requests asks for your review, either by your GitHub login or through one of your GitHub teams in the pull request's organization. A pull request you wrote never counts. The header counts these stories, such as `2 stories  ·  1 for you`. The mark appears once GitHub answers. In every view, the detail pane's State line says how long the story has been in that state, such as `In Review for 3 days`.
 
-Press `a` to show only stories that have been in their current state for 4 weeks or more, by when they last moved, the same clock as the review view's waiting times. It works on any view: your started stories, the review filter, or a typed query. Shortcut search applies it. The app adds `moved:*..<date>` to each query, where the date is the calendar day 28 days before you pressed `a`. A story that moved on that day counts, and a refresh keeps the same date.
+The merged, not moved filter shows started stories that look finished but were never moved: stories whose linked pull requests are all merged or closed, with at least one merged. It covers every owner, you included, and every workflow, and leaves out archived stories. A story whose pull requests were only closed is left out, because closed without merging usually means abandoned work. Shortcut search cannot tell merged from closed, so the app searches for started stories that link a pull request and asks GitHub through `gh` for each one's status. The list shows `Checking 12 stories' pull requests…` until GitHub answers, and says the filter needs GitHub if `gh` cannot answer at all. A story whose own pull requests could not be read is left out. Like the review filter, it groups stories by owner with each engineer's longest-waiting story first. Pressing `/` from it starts an empty query. To clean up, press `m` on each story to move it, one story at a time. The filter itself never moves anything.
+
+Press `a` to show only stories that have been in their current state for 4 weeks or more, by when they last moved, the same clock as the review view's waiting times. It works on any view: your started stories, the review filter, the merged filter, or a typed query. Shortcut search applies it. The app adds `moved:*..<date>` to each query, where the date is the calendar day 28 days before you pressed `a`. A story that moved on that day counts, and a refresh keeps the same date.
 
 ## Checks
 
