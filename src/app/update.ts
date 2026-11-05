@@ -23,6 +23,7 @@ import {
   withoutFloor,
 } from "./filters.ts";
 import { noticed } from "./glance.ts";
+import { shownStories } from "./rows.ts";
 import {
   awaited,
   fail,
@@ -109,9 +110,17 @@ const select = (model: Model, storyId: StoryId | null): Step => {
 };
 
 const storyIn = (model: Model, storyId: StoryId | null): StorySummary | null =>
-  model.results.status === "loaded"
-    ? (model.results.value.stories.find((story) => story.id === storyId) ?? null)
-    : null;
+  shownStories(model).find((story) => story.id === storyId) ?? null;
+
+const shownSelection = (model: Model): StoryId | null =>
+  storyIn(model, model.selectedStoryId)?.id ?? shownStories(model)[0]?.id ?? null;
+
+const closePickerOnHidden = (model: Model): Model => {
+  const { focus } = model;
+  return focus.mode === "picking" && storyIn(model, focus.storyId) === null
+    ? { ...model, focus: browsing }
+    : model;
+};
 
 const refresh = (model: Model): Step => {
   switch (model.workspace.status) {
@@ -155,23 +164,13 @@ const resultsArrived = (
   loadedAt: Date,
 ): Step => {
   const { stories, moves } = carryMoves(model, requestId, found);
-  const { focus } = model;
-  const pickingGone =
-    focus.mode === "picking" && !stories.some((story) => story.id === focus.storyId);
-  const shown: Model = {
-    ...model,
-    results: loaded({ question: model.question, stories }),
-    loadedAt,
-    moves,
-    focus: pickingGone ? browsing : focus,
-  };
-  const kept = stories.some((story) => story.id === model.selectedStoryId);
-  const [selected, detailEffects] = select(
-    shown,
-    kept ? model.selectedStoryId : (stories[0]?.id ?? null),
+  const [checking, pullRequestEffects] = loadPullRequests(
+    { ...model, results: loaded({ question: model.question, stories }), loadedAt, moves },
+    stories,
   );
-  const [checking, pullRequestEffects] = loadPullRequests(selected, stories);
-  return [checking, [...detailEffects, ...pullRequestEffects]];
+  const shown = closePickerOnHidden(checking);
+  const [selected, detailEffects] = select(shown, shownSelection(shown));
+  return [selected, [...detailEffects, ...pullRequestEffects]];
 };
 
 export const init = (): Step => {
@@ -227,7 +226,12 @@ const transition = (model: Model, msg: Msg): Step => {
     }
     case "pullRequestsLoaded": {
       if (inFlight(model.pullRequests.reload) !== msg.requestId) return [model, []];
-      return [{ ...model, pullRequests: { value: msg.pullRequests, reload: idle } }, []];
+      const checked = closePickerOnHidden({
+        ...model,
+        pullRequests: { value: msg.pullRequests, reload: idle },
+      });
+      const selection = shownSelection(checked);
+      return selection === checked.selectedStoryId ? [checked, []] : select(checked, selection);
     }
     case "pullRequestsFailed": {
       if (inFlight(model.pullRequests.reload) !== msg.requestId) return [model, []];
@@ -262,8 +266,7 @@ const transition = (model: Model, msg: Msg): Step => {
       return [{ ...restate(model, msg.storyId, known), moves }, []];
     }
     case "selectionMoved": {
-      if (model.results.status !== "loaded") return [model, []];
-      const { stories } = model.results.value;
+      const stories = shownStories(model);
       if (stories.length === 0) return [model, []];
       const current = stories.findIndex((story) => story.id === model.selectedStoryId);
       const target = Math.min(Math.max(current + msg.delta, 0), stories.length - 1);

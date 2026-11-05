@@ -26,7 +26,10 @@ export type Remote<T> =
 
 export type Settled<T> = { status: "loaded"; value: T } | { status: "failed"; message: string };
 
-export type View = { kind: "query"; text: string } | { kind: "inReview" };
+export type View =
+  | { kind: "query"; text: string }
+  | { kind: "inReview" }
+  | { kind: "mergedNotMoved" };
 
 export type CalendarDay = string & { readonly brand: "CalendarDay" };
 

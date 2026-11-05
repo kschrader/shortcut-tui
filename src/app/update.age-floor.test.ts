@@ -52,7 +52,11 @@ describe("ageFloorToggled", () => {
     const reviewSearch = only(reviewEffects, "searchStories");
     expect(reviewSearch.queries).toEqual(floored(reviewQueries, "2026-10-07"));
     const [review] = answer(reviewing, reviewSearch, [summary(3)]);
-    const [, mineEffects] = update(review, { type: "filterCycled" });
+    const [merging, mergedEffects] = update(review, { type: "filterCycled" });
+    const mergedSearch = only(mergedEffects, "searchStories");
+    expect(mergedSearch.queries).toEqual(floored(["is:started !is:archived has:pr"], "2026-10-07"));
+    const [merged] = answer(merging, mergedSearch, []);
+    const [, mineEffects] = update(merged, { type: "filterCycled" });
     expect(only(mineEffects, "searchStories").queries).toEqual(
       floored([myStartedQuery], "2026-10-07"),
     );

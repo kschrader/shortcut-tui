@@ -4,7 +4,7 @@ import type { CalendarDay, Question, View } from "./model.ts";
 export type Grouping = "state" | "owner";
 
 export type Filter = {
-  id: "mine" | "inReview";
+  id: "mine" | "inReview" | "mergedNotMoved";
   label: string;
   viewFor: (workspace: Workspace) => View;
 };
@@ -17,10 +17,14 @@ export const queryQuestion = (text: string): Question => withoutFloor(queryView(
 
 const inReview: View = { kind: "inReview" };
 
+const mergedNotMoved: View = { kind: "mergedNotMoved" };
+
 export const defaultQueryFor = (mentionName: string): View =>
   queryView(`owner:${mentionName} is:started !is:archived`);
 
 const reviewLabel = "waiting for review · team";
+
+const mergedLabel = "merged, not moved · team";
 
 export const filters: readonly [Filter, ...Filter[]] = [
   {
@@ -29,6 +33,7 @@ export const filters: readonly [Filter, ...Filter[]] = [
     viewFor: (workspace) => defaultQueryFor(workspace.me.mentionName),
   },
   { id: "inReview", label: reviewLabel, viewFor: () => inReview },
+  { id: "mergedNotMoved", label: mergedLabel, viewFor: () => mergedNotMoved },
 ];
 
 export const AGE_FLOOR_WEEKS = 4;
@@ -52,7 +57,8 @@ const sameView = (a: View, b: View): boolean => {
     case "query":
       return b.kind === "query" && a.text === b.text;
     case "inReview":
-      return b.kind === "inReview";
+    case "mergedNotMoved":
+      return b.kind === a.kind;
   }
 };
 
@@ -82,6 +88,8 @@ const viewQueries = (view: View, workspace: Workspace): readonly string[] => {
         .map(
           (state) => `state:${String(state.id)} !owner:${workspace.me.mentionName} !is:archived`,
         );
+    case "mergedNotMoved":
+      return ["is:started !is:archived has:pr"];
   }
 };
 
@@ -98,6 +106,7 @@ export const groupingOf = (view: View): Grouping => {
     case "query":
       return "state";
     case "inReview":
+    case "mergedNotMoved":
       return "owner";
   }
 };
@@ -105,8 +114,19 @@ export const groupingOf = (view: View): Grouping => {
 export const isReviewView = (view: View): boolean => {
   switch (view.kind) {
     case "query":
+    case "mergedNotMoved":
       return false;
     case "inReview":
+      return true;
+  }
+};
+
+export const showsOnlyMerged = (view: View): boolean => {
+  switch (view.kind) {
+    case "query":
+    case "inReview":
+      return false;
+    case "mergedNotMoved":
       return true;
   }
 };
@@ -116,6 +136,7 @@ export const draftFor = (view: View): string => {
     case "query":
       return view.text === "" ? "" : `${view.text} `;
     case "inReview":
+    case "mergedNotMoved":
       return "";
   }
 };
@@ -124,6 +145,8 @@ export const viewLabel = (view: View, workspace: Workspace): string => {
   switch (view.kind) {
     case "inReview":
       return reviewLabel;
+    case "mergedNotMoved":
+      return mergedLabel;
     case "query":
       return (
         filterShowing(view, workspace)?.label ?? (view.text === "" ? "all stories" : view.text)

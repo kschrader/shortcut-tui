@@ -21,7 +21,9 @@ CONSTANTS
     GuardAutoRefresh,
     KeepOnRefresh,
     KeepOnFailure,
-    IdleChecksRequests
+    IdleChecksRequests,
+    MergedQueries,
+    SelectFromShownRows
 
 NoStory == 0
 NoQuery == ""
@@ -38,7 +40,7 @@ RequestIds == 0..MaxRequestId
 Request(kind, rid, q, s) == [kind |-> kind, rid |-> rid, query |-> q, story |-> s, stories |-> {}]
 PullRequestsRequest(rid, S) == [kind |-> "prs", rid |-> rid, query |-> NoQuery, story |-> NoStory, stories |-> S]
 
-Absent == [status |-> "absent", reload |-> "idle", rid |-> 0, query |-> NoQuery, stories |-> {}, story |-> NoStory, answer |-> 0]
+Absent == [status |-> "absent", reload |-> "idle", rid |-> 0, query |-> NoQuery, stories |-> {}, merged |-> {}, story |-> NoStory, answer |-> 0]
 FirstLoad(rid) == [Absent EXCEPT !.status = "firstLoad", !.rid = rid]
 Failed(rid) == [Absent EXCEPT !.status = "failed", !.answer = rid]
 NoPullRequests == [Absent EXCEPT !.status = "loaded"]
@@ -71,6 +73,21 @@ FirstOf(S) == IF S = {} THEN NoStory ELSE CHOOSE s \in S : \A t \in S : s <= t
 Rank(S, s) == Cardinality({t \in S : t < s})
 At(S, i) == CHOOSE s \in S : Rank(S, s) = i
 Shows(model, s) == HasValue(model.results) /\ s \in model.results.stories
+
+(* A query in MergedQueries lists only the stories whose latest pull       *)
+(* request answer says merged, as the merged-not-moved filter does.        *)
+ShownRows(model) ==
+    IF ~HasValue(model.results) THEN {}
+    ELSE IF model.results.query \in MergedQueries
+         THEN model.results.stories \cap model.prs.stories \cap model.prs.merged
+         ELSE model.results.stories
+
+(* SelectFromShownRows is TRUE in every faithful configuration. FALSE      *)
+(* selects from every searched story, hidden ones included.                *)
+Selectable(model) ==
+    IF SelectFromShownRows THEN ShownRows(model)
+    ELSE IF HasValue(model.results) THEN model.results.stories ELSE {}
+
 Clamp(i, lo, hi) == IF i < lo THEN lo ELSE IF i > hi THEN hi ELSE i
 
 Search(model, q) ==
@@ -90,7 +107,8 @@ FetchDetail(model, s) ==
 LoadPullRequests(model, found) ==
     LET linking == found \cap StoriesWithPullRequests
         rid == model.nextRid
-        kept == [model.prs EXCEPT !.stories = model.prs.stories \cap linking]
+        kept == [model.prs EXCEPT !.stories = model.prs.stories \cap linking,
+                                  !.merged = model.prs.merged \cap linking]
     IN IF linking = {}
        THEN <<[model EXCEPT !.prs = NoPullRequests], {}>>
        ELSE << [model EXCEPT !.prs = Refetch(kept, rid), !.nextRid = rid + 1],
@@ -101,6 +119,11 @@ Select(model, s) ==
     IN IF s # NoStory /\ NeedsFetch(model.details[s])
        THEN FetchDetail(picked, s)
        ELSE <<picked, {}>>
+
+FollowShownRows(model) ==
+    LET rows == Selectable(model)
+        next == IF model.selected \in rows THEN model.selected ELSE FirstOf(rows)
+    IN IF next = model.selected THEN <<model, {}>> ELSE Select(model, next)
 
 Refresh(model) ==
     CASE model.workspace.status = "firstLoad" -> <<model, {}>>
@@ -144,9 +167,10 @@ OnSearchSucceeded(model, req, found) ==
     ELSE LET loaded == [model EXCEPT !.results =
                             [Absent EXCEPT !.status = "loaded", !.query = req.query,
                                            !.stories = found, !.answer = req.rid]]
-             selected == Select(loaded, IF model.selected \in found THEN model.selected ELSE FirstOf(found))
-             checking == LoadPullRequests(selected[1], found)
-         IN <<checking[1], selected[2] \cup checking[2]>>
+             checking == LoadPullRequests(loaded, found)
+             rows == Selectable(checking[1])
+             selected == Select(checking[1], IF model.selected \in rows THEN model.selected ELSE FirstOf(rows))
+         IN <<selected[1], checking[2] \cup selected[2]>>
 
 OnSearchFailed(model, req) ==
     IF ~SearchResponseApplies(model, req) THEN <<model, {}>>
@@ -164,23 +188,24 @@ OnDetailFailed(model, req) ==
 PullRequestsResponseApplies(model, req) ==
     ~CheckPullRequestsRequestId \/ Awaiting(model.prs, req.rid)
 
-OnPullRequestsLoaded(model, req) ==
+OnPullRequestsLoaded(model, req, merged) ==
     IF ~PullRequestsResponseApplies(model, req) THEN <<model, {}>>
-    ELSE <<[model EXCEPT !.prs =
-               [Absent EXCEPT !.status = "loaded", !.stories = req.stories, !.answer = req.rid]], {}>>
+    ELSE FollowShownRows([model EXCEPT !.prs =
+               [Absent EXCEPT !.status = "loaded", !.stories = req.stories, !.merged = merged,
+                              !.answer = req.rid]])
 
 OnPullRequestsFailed(model, req) ==
     IF ~Awaiting(model.prs, req.rid) THEN <<model, {}>>
     ELSE <<[model EXCEPT !.prs = Fail(model.prs, req.rid)], {}>>
 
 OnSelectionMoved(model, delta) ==
-    IF ~HasValue(model.results) \/ model.results.stories = {} THEN <<model, {}>>
-    ELSE LET S == model.results.stories
+    IF Selectable(model) = {} THEN <<model, {}>>
+    ELSE LET S == Selectable(model)
              current == IF model.selected \in S THEN Rank(S, model.selected) ELSE -1
          IN Select(model, At(S, Clamp(current + delta, 0, Cardinality(S) - 1)))
 
 OnStoryClicked(model, s) ==
-    IF model.focus.mode # "browsing" \/ ~Shows(model, s) THEN <<model, {}>>
+    IF model.focus.mode # "browsing" \/ s \notin Selectable(model) THEN <<model, {}>>
     ELSE Select(model, s)
 
 OnQueryEditStarted(model) ==
@@ -243,6 +268,10 @@ UserActs ==
     \/ UserSends(OnHelpOpened(m))
     \/ UserSends(OnHelpClosed(m))
 
+(* Which linked stories GitHub says are merged matters only to a query in    *)
+(* MergedQueries, so other queries take one answer and keep the state space. *)
+MergedAnswers(req) == IF m.query \in MergedQueries THEN SUBSET req.stories ELSE {{}}
+
 Answer(req) ==
     /\ UNCHANGED userRequests
     /\ CASE req.kind = "workspace" ->
@@ -253,7 +282,8 @@ Answer(req) ==
          [] req.kind = "detail" ->
                 Apply(OnDetailSucceeded(m, req)) \/ Apply(OnDetailFailed(m, req))
          [] req.kind = "prs" ->
-                Apply(OnPullRequestsLoaded(m, req)) \/ Apply(OnPullRequestsFailed(m, req))
+                \/ \E merged \in MergedAnswers(req) : Apply(OnPullRequestsLoaded(m, req, merged))
+                \/ Apply(OnPullRequestsFailed(m, req))
 
 NetworkAnswers(rid) == \E req \in network : req.rid = rid /\ Answer(req)
 
@@ -268,7 +298,8 @@ Spec == Init /\ [][Next]_vars /\ \A rid \in RequestIds : WF_vars(NetworkAnswers(
 -----------------------------------------------------------------------------
 
 Remote == [status : Statuses, reload : Reloads, rid : RequestIds \cup {MaxRequestId + 1},
-           query : AllQueries, stories : SUBSET Stories, story : Stories \cup {NoStory},
+           query : AllQueries, stories : SUBSET Stories, merged : SUBSET Stories,
+           story : Stories \cup {NoStory},
            answer : RequestIds \cup {MaxRequestId + 1}]
 
 TypeOK ==
@@ -304,10 +335,10 @@ QueryEditingNeedsWorkspace ==
 OnlyEditingHoldsADraft ==
     m.focus.mode # "editing" => m.focus.draft = NoQuery
 
-SelectionIsInResults ==
+SelectionIsShown ==
     HasValue(m.results) =>
-        /\ m.selected = NoStory \/ m.selected \in m.results.stories
-        /\ m.results.stories # {} => m.selected # NoStory
+        /\ m.selected = NoStory \/ m.selected \in ShownRows(m)
+        /\ ShownRows(m) # {} => m.selected # NoStory
 
 SelectedStoryHasDetail ==
     m.selected # NoStory => m.details[m.selected].status # "absent"
@@ -364,11 +395,14 @@ SelectedDetailArrives ==
 HasBadge(model, s) == HasValue(model.prs) /\ s \in model.prs.stories
 
 (* With the question unchanged, no step hides shown results, a shown detail, *)
-(* or a badge on a story that is still shown.                                *)
+(* a badge on a story that is still shown, or a listed row that is still     *)
+(* found before GitHub answers again.                                        *)
 RefreshNeverHidesShownData ==
     [][m'.query = m.query =>
          /\ HasValue(m.results) => HasValue(m'.results)
          /\ \A s \in Stories : HasValue(m.details[s]) => HasValue(m'.details[s])
-         /\ \A s \in Stories : HasBadge(m, s) /\ Shows(m', s) => HasBadge(m', s)]_vars
+         /\ \A s \in Stories : HasBadge(m, s) /\ Shows(m', s) => HasBadge(m', s)
+         /\ \A s \in ShownRows(m) :
+                Shows(m', s) /\ m'.prs.answer = m.prs.answer => s \in ShownRows(m')]_vars
 
 =============================================================================

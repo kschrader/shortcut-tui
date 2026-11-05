@@ -5,10 +5,11 @@ import type { PullRequestId, StorySummary } from "../shortcut/types.ts";
 import { groupingOf } from "./filters.ts";
 import { detail, ownedBy, summary, workspaceFor } from "./fixtures.ts";
 import {
+  listedStories,
   moveViolations,
   pickedTarget,
   serverState,
-  shownStories,
+  searchedStories,
   stateById,
   type World,
 } from "./interleaving.moves.ts";
@@ -24,12 +25,20 @@ import {
 import { changesOf, unseenChanges } from "./glance.ts";
 import type { Effect, Model, Msg, PullRequestView } from "./model.ts";
 import { orderFor } from "./order.ts";
+import { shownStories } from "./rows.ts";
 import { init, update } from "./update.ts";
 
 const seeds = 300;
 const DAY_MS = 86_400_000;
 const stepsPerSeed = 200;
 const queries = ["is:started", "label:urgent", ""];
+const answeredStates: readonly PullRequestState[] = [
+  "ready",
+  "checks-running",
+  "unknown",
+  "merged",
+  "closed",
+];
 const storyPool = [1, 2, 3, 4];
 const ownersInPool: Record<number, readonly string[]> = {
   1: ["Zed"],
@@ -128,13 +137,9 @@ const respond = (
                 id,
                 {
                   status: "loaded",
-                  value: [
-                    pullRequestAnswer(
-                      requestId,
-                      index,
-                      pick(random, ["ready", "checks-running", "unknown"]),
-                    ),
-                  ],
+                  value: Array.from({ length: 1 + Math.floor(random() * 2) }, (_, nth) =>
+                    pullRequestAnswer(requestId, 2 * index + nth, pick(random, answeredStates)),
+                  ),
                 },
               ]),
             ),
@@ -154,7 +159,7 @@ const respond = (
       }
       const state = stateById(effect.stateId);
       if (executed === undefined) world.server.set(effect.storyId, state);
-      const shown = shownStories(model).find((story) => story.id === effect.storyId);
+      const shown = searchedStories(model).find((story) => story.id === effect.storyId);
       return {
         type: "moveSucceeded",
         requestId,
@@ -171,7 +176,7 @@ const respond = (
 };
 
 const userMsg = (random: Random, model: Model): Msg => {
-  const shown = shownStories(model);
+  const shown = searchedStories(model);
   const clicks: Msg[] =
     shown.length === 0 ? [] : [{ type: "storyClicked", storyId: pick(random, shown).id }];
   return pick<Msg>(random, [
@@ -196,7 +201,7 @@ const userMsg = (random: Random, model: Model): Msg => {
 
 const glanceViolations = (before: Model, after: Model): string[] => {
   const found: string[] = [];
-  const shown = shownStories(after);
+  const shown = searchedStories(after);
   const selected = after.selectedStoryId;
   if (selected !== null && unseenChanges(after).has(selected)) {
     found.push(`selected story ${String(selected)} carries a change mark`);
@@ -225,7 +230,11 @@ const violations = (model: Model, issued: readonly Effect[], world: World): stri
   }
   found.push(...remoteViolations(model, issued, world));
   found.push(...moveViolations(model, issued, world));
-  const shown = shownStories(model);
+  const listed = listedStories(model);
+  if (!Bun.deepEquals(shownStories(model), listed)) {
+    found.push(`the list shows ${JSON.stringify(shownStories(model).map((story) => story.id))}`);
+  }
+  const shown = searchedStories(model);
   const grouping = groupingOf(model.question.view);
   if (!Bun.deepEquals(shown.toSorted(orderFor(grouping)), shown)) {
     found.push(`shown stories are out of ${grouping} order`);
@@ -293,7 +302,13 @@ const explore = (seed: number): string[] => {
 
   for (let step = 0; step < stepsPerSeed; step++) {
     if (random() < 0.55) {
-      const effect = pick(random, issued);
+      const awaited = awaitedRequests(model);
+      const target = awaited.length > 0 && random() < 0.5 ? pick(random, awaited) : null;
+      const effect =
+        target === null
+          ? pick(random, issued)
+          : issued.find((candidate) => candidate.requestId === target);
+      if (effect === undefined) return [`seed ${String(seed)}: awaited request never sent`];
       const succeed = random() < 0.8;
       const problems = apply(respond(random, effect, succeed, world, model), effect, succeed);
       if (problems.length > 0) return problems;
@@ -316,7 +331,7 @@ const explore = (seed: number): string[] => {
   if (awaitedRequests(model).length > 0) {
     return [`seed ${String(seed)}: requests still loading after every response was delivered`];
   }
-  const unsettled = shownStories(model).filter(
+  const unsettled = searchedStories(model).filter(
     (story) => story.state.id !== serverState(world.server, story.id).id,
   );
   return unsettled.map(

@@ -56,7 +56,7 @@ test("the header names my started stories at startup", async () => {
   expect(header()).toContain("my started stories");
 });
 
-test("f shows team stories waiting for review, without mine, and f again goes back", async () => {
+test("f shows team stories waiting for review, without mine, then merged work, then goes back", async () => {
   const { frame, header, until, press } = await launch();
   await press("f");
   await until(() => frame().includes("Paginate the iteration list"));
@@ -64,6 +64,8 @@ test("f shows team stories waiting for review, without mine, and f again goes ba
   expect(frame()).toContain("Fix flaky label sync test");
   expect(frame()).not.toContain("Rate-limit integration retries");
   expect(frame()).not.toContain("Login redirect drops the return");
+  await press("f");
+  await until(() => header().includes("merged, not moved · team"));
   await press("f");
   await until(() => frame().includes("Login redirect drops the return"));
   expect(header()).toContain("my started stories");

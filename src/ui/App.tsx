@@ -12,6 +12,7 @@ import {
 } from "../app/filters.ts";
 import { pickerStates } from "../app/moves.ts";
 import { reloadFailure } from "../app/remote.ts";
+import { shownStories } from "../app/rows.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { ageLabel, storyCount } from "./format.ts";
 import { StoryDetailPane } from "./StoryDetailPane.tsx";
@@ -121,6 +122,7 @@ type BodyProps = {
 
 const Results = (props: BodyProps) => {
   const { results } = props.model;
+  const stories = shownStories(props.model);
   switch (results.status) {
     case "firstLoad":
       return <Centered headline="Loading stories…" hint="Asking Shortcut" color={colors.accent} />;
@@ -133,7 +135,7 @@ const Results = (props: BodyProps) => {
         />
       );
     case "loaded":
-      return results.value.stories.length === 0 ? (
+      return stories.length === 0 ? (
         <Centered
           headline="No stories match"
           hint="Press / to change the query or r to refresh"
@@ -142,7 +144,7 @@ const Results = (props: BodyProps) => {
       ) : (
         <Browser
           {...props}
-          stories={results.value.stories}
+          stories={stories}
           grouping={groupingOf(results.value.question.view)}
           reviewing={isReviewView(results.value.question.view)}
         />
@@ -174,14 +176,15 @@ const loadingStatus: Status = { text: "loading…", color: colors.accent };
 
 const errorStatus: Status = { text: "error", color: colors.error };
 
-const resultsStatus = (results: Model["results"]): Status => {
+const resultsStatus = (model: Model): Status => {
+  const { results } = model;
   switch (results.status) {
     case "firstLoad":
       return loadingStatus;
     case "failed":
       return errorStatus;
     case "loaded": {
-      const text = storyCount(results.value.stories.length);
+      const text = storyCount(shownStories(model).length);
       switch (results.reload.status) {
         case "inFlight":
           return loadingStatus;
@@ -194,14 +197,14 @@ const resultsStatus = (results: Model["results"]): Status => {
   }
 };
 
-const status = ({ workspace, results }: Model): Status => {
-  switch (workspace.status) {
+const status = (model: Model): Status => {
+  switch (model.workspace.status) {
     case "firstLoad":
       return loadingStatus;
     case "failed":
       return errorStatus;
     case "loaded":
-      return resultsStatus(results);
+      return resultsStatus(model);
   }
 };
 
@@ -254,9 +257,9 @@ const bottomBar = (
   };
 };
 
-const yourReviewCount = ({ results, pullRequests }: Model): number =>
-  results.status === "loaded" && isReviewView(results.value.question.view)
-    ? results.value.stories.filter((story) => awaitsYourReview(story, pullRequests)).length
+const yourReviewCount = (model: Model): number =>
+  isReviewView(model.question.view)
+    ? shownStories(model).filter((story) => awaitsYourReview(story, model.pullRequests)).length
     : 0;
 
 const freshness = (model: Model, now: Date, room: number): string | null => {
@@ -276,10 +279,7 @@ const Overlay = ({ model, height }: { model: Model; height: number }) => {
     case "readOnly":
       return <ReadOnlyNotice />;
     case "picking": {
-      const story =
-        model.results.status === "loaded"
-          ? model.results.value.stories.find((candidate) => candidate.id === focus.storyId)
-          : undefined;
+      const story = shownStories(model).find((candidate) => candidate.id === focus.storyId);
       if (story === undefined || model.workspace.status !== "loaded") return null;
       return (
         <MovePicker
@@ -300,10 +300,7 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
   const [draggedListWidth, setDraggedListWidth] = useState<number | null>(null);
   const listWidth = listWidthFor(width, draggedListWidth);
 
-  const selectedStory =
-    model.results.status === "loaded"
-      ? model.results.value.stories.find((story) => story.id === model.selectedStoryId)
-      : undefined;
+  const selectedStory = shownStories(model).find((story) => story.id === model.selectedStoryId);
 
   useKeyboard((key) => {
     setCopyNotice(null);

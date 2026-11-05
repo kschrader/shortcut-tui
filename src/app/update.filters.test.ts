@@ -54,8 +54,16 @@ describe("filterCycled", () => {
     expect(model.selectedStoryId).toBe(summary(2).id);
   });
 
-  test("from the review view it returns to my started stories", () => {
+  test("from the review view it searches every owner's started stories that link a pull request", () => {
     const [cycled, effects] = update(reviewing(), cycle);
+    expect(only(effects, "searchStories").queries).toEqual(["is:started !is:archived has:pr"]);
+    expect(cycled.question).toEqual(withoutFloor({ kind: "mergedNotMoved" }));
+  });
+
+  test("from merged, not moved it returns to my started stories", () => {
+    const [merged, mergedEffects] = update(reviewing(), cycle);
+    const [shown] = answer(merged, only(mergedEffects, "searchStories"), []);
+    const [cycled, effects] = update(shown, cycle);
     expect(only(effects, "searchStories").queries).toEqual([myStartedQuery]);
     expect(cycled.question).toEqual(queryQuestion(myStartedQuery));
   });

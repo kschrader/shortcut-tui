@@ -26,6 +26,12 @@ const suites: Record<string, readonly ModelCheck[]> = {
       budgetSeconds: 60,
     },
     {
+      cfg: "NaiveSelection.cfg",
+      tla: "StoryBrowser.tla",
+      expect: "violation of SelectionIsShown",
+      budgetSeconds: 60,
+    },
+    {
       cfg: "UnguardedAutoRefresh.cfg",
       tla: "StoryBrowser.tla",
       expect: "violation of AutoRefreshWaitsForIdle",

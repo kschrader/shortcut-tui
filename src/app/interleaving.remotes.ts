@@ -1,4 +1,4 @@
-import { shownStories, type World } from "./interleaving.moves.ts";
+import { listedStories, searchedStories, type World } from "./interleaving.moves.ts";
 import type { Effect, Model, Question, RequestId } from "./model.ts";
 import { queriesFor } from "./filters.ts";
 import { awaited, inFlight } from "./remote.ts";
@@ -115,10 +115,11 @@ const resultsViolations = (model: Model, issued: readonly Effect[], world: World
           `stories from a search other than the last applied one: ${stale[0]?.name ?? ""}`,
         );
       }
+      const listed = listedStories(model);
       const selected = model.selectedStoryId;
-      if (selected === null && stories.length > 0) found.push("stories loaded but none selected");
-      if (selected !== null && !stories.some((story) => story.id === selected)) {
-        found.push(`selected story ${String(selected)} is not in the results`);
+      if (selected === null && listed.length > 0) found.push("stories listed but none selected");
+      if (selected !== null && !listed.some((story) => story.id === selected)) {
+        found.push(`selected story ${String(selected)} is not listed`);
       }
       switch (results.reload.status) {
         case "idle":
@@ -142,7 +143,7 @@ const resultsViolations = (model: Model, issued: readonly Effect[], world: World
 
 const pullRequestViolations = (model: Model, issued: readonly Effect[], world: World): string[] => {
   const found: string[] = [];
-  const shown = shownStories(model);
+  const shown = searchedStories(model);
   const latestLoad = latest(issued, (effect) => effect.type === "loadPullRequests");
   const applied = world.applied.get("prs") ?? null;
   const { value, reload } = model.pullRequests;
@@ -264,7 +265,7 @@ export const hiddenShownData = (before: Model, after: Model): string[] => {
       found.push(`a step hid the shown detail of story ${String(storyId)}`);
     }
   }
-  const shownAfter = shownStories(after);
+  const shownAfter = searchedStories(after);
   for (const storyId of before.pullRequests.value.keys()) {
     const still = shownAfter.find((story) => story.id === storyId);
     if (
@@ -273,6 +274,17 @@ export const hiddenShownData = (before: Model, after: Model): string[] => {
       !after.pullRequests.value.has(storyId)
     ) {
       found.push(`a step dropped the kept pull request status of story ${String(storyId)}`);
+    }
+  }
+  const listedAfter = listedStories(after);
+  for (const story of listedStories(before)) {
+    const { id } = story;
+    if (
+      shownAfter.some((candidate) => candidate.id === id) &&
+      Bun.deepEquals(before.pullRequests.value.get(id), after.pullRequests.value.get(id)) &&
+      !listedAfter.some((candidate) => candidate.id === id)
+    ) {
+      found.push(`a step hid the listed story ${String(id)} before GitHub answered again`);
     }
   }
   return found;

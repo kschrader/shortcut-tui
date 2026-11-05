@@ -1,6 +1,7 @@
 import { storyMergeStatus, type StoryMergeStatus } from "../github/pull-request-state.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import type { Cached, Change, Glance, Model, StoryPullRequests } from "./model.ts";
+import { shownStories } from "./rows.ts";
 
 const mergeStatusOf = (
   story: StorySummary,
@@ -38,11 +39,11 @@ export const changesBetween = (seen: Glance | undefined, now: Glance): readonly 
   return changes;
 };
 
-const shownStories = (model: Model): readonly StorySummary[] =>
+const searchedStories = (model: Model): readonly StorySummary[] =>
   model.results.status === "loaded" ? model.results.value.stories : [];
 
 const selectedStory = (model: Model): StorySummary | null =>
-  shownStories(model).find((story) => story.id === model.selectedStoryId) ?? null;
+  searchedStories(model).find((story) => story.id === model.selectedStoryId) ?? null;
 
 export const changesOf = (model: Model, storyId: StoryId): readonly Change[] => {
   const story = shownStories(model).find((candidate) => candidate.id === storyId);
@@ -65,7 +66,7 @@ export const noticed = (before: Model, after: Model): Model["seen"] => {
   const seen = new Map(after.seen);
   const now = (story: StorySummary) => glanceOf(story, after.pullRequests);
   if (answersNewQuestion(before, after)) {
-    for (const story of shownStories(after)) seen.set(story.id, now(story));
+    for (const story of searchedStories(after)) seen.set(story.id, now(story));
     return seen;
   }
   const left = selectedStory(before);
@@ -74,7 +75,7 @@ export const noticed = (before: Model, after: Model): Model["seen"] => {
     const mergeStatus = glance.mergeStatus ?? seen.get(left.id)?.mergeStatus ?? null;
     seen.set(left.id, { ...glance, mergeStatus });
   }
-  for (const story of shownStories(after)) {
+  for (const story of searchedStories(after)) {
     const record = seen.get(story.id);
     const glance = now(story);
     if (after.moves.has(story.id)) {

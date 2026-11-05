@@ -1,3 +1,4 @@
+import type { PullRequestState } from "../github/types.ts";
 import type { StoryId, WorkflowState, WorkflowStateId } from "../shortcut/types.ts";
 import { toDo, workflowStates } from "./fixtures.ts";
 import type { Effect, Model, RequestId } from "./model.ts";
@@ -24,15 +25,28 @@ export type World = {
 export const serverState = (states: ServerStates, id: StoryId): WorkflowState =>
   states.get(id) ?? toDo;
 
-export const shownStories = (model: Model) =>
+export const searchedStories = (model: Model) =>
   model.results.status === "loaded" ? model.results.value.stories : [];
+
+const finishedWork = (states: readonly PullRequestState[]) =>
+  states.includes("merged") && states.every((state) => state === "merged" || state === "closed");
+
+export const listedStories = (model: Model) => {
+  const stories = searchedStories(model);
+  if (model.results.status !== "loaded") return stories;
+  if (model.results.value.question.view.kind !== "mergedNotMoved") return stories;
+  return stories.filter((story) => {
+    const list = model.pullRequests.value.get(story.id);
+    return list?.status === "loaded" && finishedWork(list.value.map((pr) => pr.state));
+  });
+};
 
 export const moveViolations = (model: Model, issued: readonly Effect[], world: World): string[] => {
   const found: string[] = [];
   const unanswered = issued.filter(
     (effect) => effect.type === "moveStory" && !world.delivered.has(effect.requestId),
   );
-  for (const story of shownStories(model)) {
+  for (const story of searchedStories(model)) {
     const inFlight = unanswered.filter(
       (effect) => effect.type === "moveStory" && effect.storyId === story.id,
     );
@@ -73,7 +87,7 @@ export const moveViolations = (model: Model, issued: readonly Effect[], world: W
   }
   const { focus } = model;
   if (focus.mode === "picking") {
-    if (!shownStories(model).some((story) => story.id === focus.storyId)) {
+    if (!listedStories(model).some((story) => story.id === focus.storyId)) {
       found.push("the picker is open on a story that is not shown");
     }
     if (model.workspace.status === "loaded" && !model.workspace.value.canWrite) {
@@ -86,7 +100,7 @@ export const moveViolations = (model: Model, issued: readonly Effect[], world: W
 export const pickedTarget = (model: Model): [StoryId, WorkflowStateId] | null => {
   const { focus } = model;
   if (focus.mode !== "picking" || model.workspace.status !== "loaded") return null;
-  const story = shownStories(model).find((candidate) => candidate.id === focus.storyId);
+  const story = listedStories(model).find((candidate) => candidate.id === focus.storyId);
   if (story === undefined) return null;
   const target = pickerStates(model.workspace.value, story)[focus.cursor];
   return target === undefined ? null : [story.id, target.id];
