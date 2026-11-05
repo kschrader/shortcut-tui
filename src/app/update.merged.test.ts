@@ -26,6 +26,7 @@ const view = (number: number, state: PullRequestState): PullRequestView => ({
   github: { owner: "acme", repo: "app", number },
   state,
   reviews: null,
+  optionalFailing: [],
 });
 
 const linked = (...states: PullRequestState[]): Settled<readonly PullRequestView[]> => ({

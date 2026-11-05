@@ -11,7 +11,7 @@ export type FakeGitHubOptions = { delayMs?: number };
 
 const noReviews: Reviews = { requested: [], submitted: [] };
 
-const demo: Record<number, [PullRequestState, Reviews?]> = {
+const demo: Record<number, [PullRequestState, Reviews?, (readonly string[])?]> = {
   3902: ["merged", { requested: [], submitted: [{ login: "priya", verdict: "approved" }] }],
   3948: ["merged"],
   3951: ["ready", { requested: [], submitted: [{ login: "sam", verdict: "approved" }] }],
@@ -41,6 +41,7 @@ const demo: Record<number, [PullRequestState, Reviews?]> = {
       ],
       submitted: [],
     },
+    ["pr-preview"],
   ],
   3971: ["checks-running", { requested: [], submitted: [{ login: "alex", verdict: "commented" }] }],
   3980: ["merged"],
@@ -49,9 +50,9 @@ const demo: Record<number, [PullRequestState, Reviews?]> = {
 };
 
 const answers: ReadonlyMap<string, GitHubPullRequest> = new Map(
-  Object.entries(demo).map(([number, [state, reviews = noReviews]]) => [
+  Object.entries(demo).map(([number, [state, reviews = noReviews, optionalFailing = []]]) => [
     pullRequestKey({ ...DEMO_REPOSITORY, number: Number(number) }),
-    { state, reviews },
+    { state, reviews, optionalFailing },
   ]),
 );
 

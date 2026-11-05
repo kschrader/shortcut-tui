@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { settleLimited } from "../concurrency.ts";
-import { ChecksPage, checksFields, type Check } from "./checks.ts";
+import { ChecksPage, checksFields, optionalFailures, type Check } from "./checks.ts";
 import {
   awaitsMergeability,
   checksCanDecide,
@@ -401,7 +401,11 @@ export const createGitHubClient = ({
           const checks = checksFor(ref);
           return [
             pullRequestKey(ref),
-            { state: classify(raw, checks), reviews: reviewsOf(raw, viewerOf(ref)) },
+            {
+              state: classify(raw, checks),
+              reviews: reviewsOf(raw, viewerOf(ref)),
+              optionalFailing: checks === null ? [] : optionalFailures(checks),
+            },
           ];
         }),
       );

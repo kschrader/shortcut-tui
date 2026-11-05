@@ -48,9 +48,12 @@ const Field = ({ label, value }: { label: string; value: string }) => (
   </text>
 );
 
+const optionalFailingLabel = (names: readonly string[]) =>
+  `optional ${names.length === 1 ? "check" : "checks"} failing: ${names.join(", ")}`;
+
 const PullRequestItem = ({ pullRequest }: { pullRequest: PullRequestView }) => {
   const { glyph, description, color } = badgeStyle[pullRequest.state];
-  const { url, github, reviews } = pullRequest;
+  const { url, github, reviews, optionalFailing } = pullRequest;
   return (
     <box marginTop={1} flexDirection="column">
       <text wrapMode="word">
@@ -66,6 +69,11 @@ const PullRequestItem = ({ pullRequest }: { pullRequest: PullRequestView }) => {
       {reviews === null ? null : (
         <text wrapMode="word" fg={asksForYourReview(reviews) ? colors.accent : colors.dim}>
           {reviewSummary(reviews)}
+        </text>
+      )}
+      {optionalFailing.length === 0 ? null : (
+        <text wrapMode="word" fg={colors.dim}>
+          {optionalFailingLabel(optionalFailing)}
         </text>
       )}
     </box>

@@ -29,7 +29,11 @@ export type Reviews = {
   submitted: readonly SubmittedReview[];
 };
 
-export type GitHubPullRequest = { state: PullRequestState; reviews: Reviews };
+export type GitHubPullRequest = {
+  state: PullRequestState;
+  reviews: Reviews;
+  optionalFailing: readonly string[];
+};
 
 export type GitHubPullRequests = ReadonlyMap<string, GitHubPullRequest>;
 

@@ -40,6 +40,7 @@ export type SearchResults = { question: Question; stories: readonly StorySummary
 export type PullRequestView = LinkedPullRequest & {
   state: PullRequestState;
   reviews: Reviews | null;
+  optionalFailing: readonly string[];
 };
 
 export type StoryPullRequests = ReadonlyMap<StoryId, Settled<readonly PullRequestView[]>>;

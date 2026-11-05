@@ -15,6 +15,7 @@ const view = (number: number, state: PullRequestState): PullRequestView => ({
   github: { owner: "acme", repo: "app", number },
   state,
   reviews: null,
+  optionalFailing: [],
 });
 
 const story = (pullRequestCount: number) => summary(1, { pullRequestCount });

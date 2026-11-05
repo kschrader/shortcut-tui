@@ -30,6 +30,7 @@ const view = (number: number, state: PullRequestState, title: string): PullReque
   github: { owner: "useshortcut", repo: "monorepo", number },
   state,
   reviews: null,
+  optionalFailing: [],
 });
 
 const linked = [
@@ -108,6 +109,29 @@ test("a pull request link GitHub does not know shows once, as a terminal hyperli
   expect(rows).toHaveLength(1);
   const [row] = rows;
   expect(screen.renderer.getLinkAt(lines[row].indexOf(url), row)).toBe(url);
+});
+
+test("the detail pane names the optional checks failing on a pull request, wrapping when long", async () => {
+  const waiting: PullRequestView = {
+    ...view(4044, "needs-review", "Wait for approval"),
+    optionalFailing: ["pr-preview"],
+  };
+  const many: PullRequestView = {
+    ...view(4045, "ready", "Ship it"),
+    optionalFailing: ["pr-preview", "storybook-visual-diff", "bundlewatch", "lighthouse-ci"],
+  };
+  const { frame } = await show(
+    withPullRequests(cached(new Map([[storyId(101), settled([waiting, many])]]))),
+    { width: 100, height: 40 },
+  );
+  const pane = frame()
+    .split("\n")
+    .map((line) => line.slice(line.indexOf("│") + 1).trim());
+  const at = pane.findIndex((line) => line.includes("#4044"));
+  expect(pane.slice(at, at + 6)).toContain("optional check failing: pr-preview");
+  expect(pane.join(" ")).toContain(
+    "optional checks failing: pr-preview, storybook-visual-diff, bundlewatch, lighthouse-ci",
+  );
 });
 
 test("a story without pull requests has no pull request section", async () => {

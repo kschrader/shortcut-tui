@@ -198,8 +198,14 @@ test("loading pull requests asks GitHub once for every story's pull requests", a
     pullRequests: async (refs) => {
       asked.push(refs);
       return new Map([
-        [pullRequestKey(monorepo(3917)), { state: "conflicts", reviews: askingYou }],
-        [pullRequestKey(monorepo(3911)), { state: "ready", reviews: noReviews }],
+        [
+          pullRequestKey(monorepo(3917)),
+          { state: "conflicts", reviews: askingYou, optionalFailing: ["pr-preview"] },
+        ],
+        [
+          pullRequestKey(monorepo(3911)),
+          { state: "ready", reviews: noReviews, optionalFailing: [] },
+        ],
       ]);
     },
   };
@@ -218,8 +224,8 @@ test("loading pull requests asks GitHub once for every story's pull requests", a
         {
           status: "loaded",
           value: [
-            { ...toggle, state: "conflicts", reviews: askingYou },
-            { ...gitlab, state: "unknown", reviews: null },
+            { ...toggle, state: "conflicts", reviews: askingYou, optionalFailing: ["pr-preview"] },
+            { ...gitlab, state: "unknown", reviews: null, optionalFailing: [] },
           ],
         },
       ],
@@ -228,8 +234,8 @@ test("loading pull requests asks GitHub once for every story's pull requests", a
         {
           status: "loaded",
           value: [
-            { ...docs, state: "ready", reviews: noReviews },
-            { ...toggle, state: "conflicts", reviews: askingYou },
+            { ...docs, state: "ready", reviews: noReviews, optionalFailing: [] },
+            { ...toggle, state: "conflicts", reviews: askingYou, optionalFailing: ["pr-preview"] },
           ],
         },
       ],
@@ -266,7 +272,12 @@ test("a failing move becomes a moveFailed message for its story", async () => {
 
 const answeredBy = (answers: [PullRequestRef, PullRequestState][]): GitHubClient => ({
   pullRequests: async () =>
-    new Map(answers.map(([ref, state]) => [pullRequestKey(ref), { state, reviews: noReviews }])),
+    new Map(
+      answers.map(([ref, state]) => [
+        pullRequestKey(ref),
+        { state, reviews: noReviews, optionalFailing: [] },
+      ]),
+    ),
 });
 
 const loadedStates = async (github: GitHubClient, links: readonly LinkedPullRequest[]) => {
@@ -385,7 +396,7 @@ test("a story whose pull request list fails is marked failed while the rest stil
   });
   expect(msg.pullRequests.get(z.custom<StoryId>().parse(8))).toEqual({
     status: "loaded",
-    value: [{ ...gitlab, state: "unknown", reviews: null }],
+    value: [{ ...gitlab, state: "unknown", reviews: null, optionalFailing: [] }],
   });
 });
 

@@ -69,6 +69,7 @@ const pullRequestsOf = async (
                 ...pr,
                 state: answer?.state ?? shortcutState(pr),
                 reviews: answer?.reviews ?? null,
+                optionalFailing: answer?.optionalFailing ?? [],
               };
             }),
           },

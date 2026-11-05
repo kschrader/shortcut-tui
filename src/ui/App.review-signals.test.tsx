@@ -51,6 +51,7 @@ const view = (
   github: { owner: "useshortcut", repo: "monorepo", number },
   state,
   reviews,
+  optionalFailing: [],
 });
 
 const forYou: Reviews = {

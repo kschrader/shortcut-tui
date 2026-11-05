@@ -41,3 +41,13 @@ test("the demo list shows behind, blocked, and unknown story badges", async () =
     expect(rows).toContain(badge);
   }
 });
+
+test("the demo has a pull request that needs review while an optional check fails", async () => {
+  const { pullRequests } = await demoPullRequests();
+  const waiting = [...pullRequests.value.values()].flatMap((list) =>
+    list.status === "loaded"
+      ? list.value.filter((pr) => pr.state === "needs-review" && pr.optionalFailing.length > 0)
+      : [],
+  );
+  expect(waiting.map((pr) => pr.optionalFailing)).toEqual([["pr-preview"]]);
+});

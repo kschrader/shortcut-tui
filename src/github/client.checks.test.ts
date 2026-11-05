@@ -51,7 +51,11 @@ test("a failing rollup whose only failure is optional and whose review gate wait
       ],
     }),
   });
-  expect(await stateOf(github, 4045)).toBe("needs-review");
+  const answer = (await github.client.pullRequests([ref("monorepo", 4045)])).get(
+    pullRequestKey(ref("monorepo", 4045)),
+  );
+  expect(answer?.state).toBe("needs-review");
+  expect(answer?.optionalFailing).toEqual(["pr-preview"]);
   const [first, second] = checkQueries(github.calls);
   expect(checkQueries(github.calls)).toHaveLength(2);
   expect(flags(first ?? []).has("a0")).toBe(false);
