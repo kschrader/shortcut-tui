@@ -1,29 +1,22 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef, useState } from "react";
-import { changesOf, unseenChanges } from "../app/glance.ts";
-import type { Change, Model, Msg } from "../app/model.ts";
-import {
-  AGE_FLOOR_LABEL,
-  groupingOf,
-  isReviewView,
-  viewLabel,
-  type Grouping,
-} from "../app/filters.ts";
+import { unseenChanges } from "../app/glance.ts";
+import type { Model, Msg, Reload } from "../app/model.ts";
+import { AGE_FLOOR_LABEL, isReviewView, viewLabel } from "../app/filters.ts";
 import { pickerStates } from "../app/moves.ts";
 import { reloadFailure } from "../app/remote.ts";
-import { shownStories } from "../app/rows.ts";
+import { rowsOf, shownStories } from "../app/rows.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
+import { Body } from "./Body.tsx";
 import { ageLabel, storyCount } from "./format.ts";
-import { StoryDetailPane } from "./StoryDetailPane.tsx";
 import { HelpOverlay } from "./HelpOverlay.tsx";
 import { bindingFor, hintFor } from "./keys.ts";
 import { MovePicker } from "./MovePicker.tsx";
-import { pullRequestToOpen, pullRequestTrouble, storyPullRequests } from "./pull-requests.ts";
+import { pullRequestToOpen, pullRequestTrouble } from "./pull-requests.ts";
 import { ReadOnlyNotice } from "./ReadOnlyNotice.tsx";
 import { awaitsYourReview } from "./reviews.ts";
-import { listWidthFor, Splitter } from "./Splitter.tsx";
-import { StoryList } from "./StoryList.tsx";
+import { listWidthFor } from "./Splitter.tsx";
 import { colors } from "./theme.ts";
 
 type Props = {
@@ -42,139 +35,23 @@ type CopyNotice =
 const STATUS_BAR_PADDING = 2;
 const STATUS_BAR_GAP = 2;
 
-const Centered = ({ headline, hint, color }: { headline: string; hint: string; color: string }) => (
-  <box flexGrow={1} justifyContent="center" alignItems="center" flexDirection="column">
-    <text fg={color}>
-      <b>{headline}</b>
-    </text>
-    <text fg={colors.dim}>{hint}</text>
-  </box>
-);
-
-const Browser = ({
-  model,
-  now,
-  stories,
-  grouping,
-  reviewing,
-  scrollRef,
-  unseen,
-  listWidth,
-  onSelect,
-  onResize,
-}: {
-  model: Model;
-  now: Date;
-  stories: readonly StorySummary[];
-  grouping: Grouping;
-  reviewing: boolean;
-  scrollRef: React.RefObject<ScrollBoxRenderable | null>;
-  unseen: ReadonlyMap<StoryId, readonly Change[]>;
-  listWidth: number;
-  onSelect: (id: StoryId) => void;
-  onResize: (column: number) => void;
-}) => {
-  const selected = stories.find((story) => story.id === model.selectedStoryId) ?? null;
-  return (
-    <box flexGrow={1} flexDirection="row">
-      <box width={listWidth} flexDirection="column" backgroundColor={colors.background}>
-        <StoryList
-          stories={stories}
-          selectedId={model.selectedStoryId}
-          pullRequests={model.pullRequests}
-          moves={model.moves}
-          unseen={unseen}
-          grouping={grouping}
-          reviewing={reviewing}
-          now={now}
-          width={listWidth}
-          onSelect={onSelect}
-        />
-      </box>
-      <Splitter onDrag={onResize} />
-      <box flexGrow={1} flexDirection="column" backgroundColor={colors.panel}>
-        {selected === null ? (
-          <Centered headline="No story selected" hint="Pick one from the list" color={colors.dim} />
-        ) : (
-          <StoryDetailPane
-            summary={selected}
-            detail={model.details.get(selected.id)}
-            pullRequests={storyPullRequests(selected, model.pullRequests)}
-            changes={changesOf(model, selected.id)}
-            now={now}
-            scrollRef={scrollRef}
-          />
-        )}
-      </box>
-    </box>
-  );
-};
-
-type BodyProps = {
-  model: Model;
-  now: Date;
-  scrollRef: React.RefObject<ScrollBoxRenderable | null>;
-  unseen: ReadonlyMap<StoryId, readonly Change[]>;
-  listWidth: number;
-  onSelect: (id: StoryId) => void;
-  onResize: (column: number) => void;
-};
-
-const Results = (props: BodyProps) => {
-  const { results } = props.model;
-  const stories = shownStories(props.model);
-  switch (results.status) {
-    case "firstLoad":
-      return <Centered headline="Loading stories…" hint="Asking Shortcut" color={colors.accent} />;
-    case "failed":
-      return (
-        <Centered
-          headline="Search failed"
-          hint={`${results.message}  ·  press r to retry or / to change the query`}
-          color={colors.error}
-        />
-      );
-    case "loaded":
-      return stories.length === 0 ? (
-        <Centered
-          headline="No stories match"
-          hint="Press / to change the query or r to refresh"
-          color={colors.dim}
-        />
-      ) : (
-        <Browser
-          {...props}
-          stories={stories}
-          grouping={groupingOf(results.value.question.view)}
-          reviewing={isReviewView(results.value.question.view)}
-        />
-      );
-  }
-};
-
-const Body = (props: BodyProps) => {
-  const { workspace } = props.model;
-  switch (workspace.status) {
-    case "firstLoad":
-      return <Centered headline="Loading…" hint="Connecting to Shortcut" color={colors.accent} />;
-    case "failed":
-      return (
-        <Centered
-          headline="Could not load your workspace"
-          hint={`${workspace.message}  ·  press r to retry`}
-          color={colors.error}
-        />
-      );
-    case "loaded":
-      return <Results {...props} />;
-  }
-};
-
 type Status = { text: string; color: string };
 
 const loadingStatus: Status = { text: "loading…", color: colors.accent };
 
 const errorStatus: Status = { text: "error", color: colors.error };
+
+const countStatus = (count: number, reload: Reload): Status => {
+  const text = storyCount(count);
+  switch (reload.status) {
+    case "inFlight":
+      return loadingStatus;
+    case "failed":
+      return { text, color: colors.warning };
+    case "idle":
+      return { text, color: colors.ok };
+  }
+};
 
 const resultsStatus = (model: Model): Status => {
   const { results } = model;
@@ -184,14 +61,14 @@ const resultsStatus = (model: Model): Status => {
     case "failed":
       return errorStatus;
     case "loaded": {
-      const text = storyCount(shownStories(model).length);
-      switch (results.reload.status) {
-        case "inFlight":
+      const rows = rowsOf(results.value, model.pullRequests);
+      switch (rows.status) {
+        case "checking":
           return loadingStatus;
-        case "failed":
-          return { text, color: colors.warning };
-        case "idle":
-          return { text, color: colors.ok };
+        case "unchecked":
+          return errorStatus;
+        case "shown":
+          return countStatus(rows.stories.length, results.reload);
       }
     }
   }

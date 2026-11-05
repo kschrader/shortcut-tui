@@ -41,6 +41,18 @@ test("the review filter finds stories other people own in a review state", async
   ]);
 });
 
+test("has:pr keeps the stories that link a pull request and !has:pr the rest", async () => {
+  const client = createFakeShortcutClient();
+  const all = await client.searchStories("");
+  const linking = await client.searchStories("has:pr");
+  const unlinked = await client.searchStories("!has:pr");
+  expect(linking.length).toBeGreaterThan(0);
+  expect(unlinked.length).toBeGreaterThan(0);
+  expect(linking.every((story) => story.pullRequestCount > 0)).toBe(true);
+  expect(unlinked.every((story) => story.pullRequestCount === 0)).toBe(true);
+  expect(linking.length + unlinked.length).toBe(all.length);
+});
+
 test("free text narrows by story name", async () => {
   const byText = await createFakeShortcutClient().searchStories("webhook");
   expect(byText.map((story) => story.name)).toEqual(["Document webhook retry behavior"]);

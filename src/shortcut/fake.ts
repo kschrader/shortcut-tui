@@ -47,6 +47,8 @@ const matchesQuery = (story: StoryDetail, query: string): boolean =>
       if (term.startsWith("state:")) return `state:${String(story.state.id)}` === term;
       if (term === "!is:done") return story.state.progress !== "done";
       if (term === "is:started") return story.state.progress === "started";
+      if (term === "has:pr") return story.pullRequestCount > 0;
+      if (term === "!has:pr") return story.pullRequestCount === 0;
       if (term.includes(":")) return true;
       return story.name.toLowerCase().includes(term.toLowerCase());
     });

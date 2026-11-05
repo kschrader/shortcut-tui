@@ -43,6 +43,9 @@ const demo: Record<number, [PullRequestState, Reviews?]> = {
     },
   ],
   3971: ["checks-running", { requested: [], submitted: [{ login: "alex", verdict: "commented" }] }],
+  3980: ["merged"],
+  3981: ["merged"],
+  3982: ["closed"],
 };
 
 const answers: ReadonlyMap<string, GitHubPullRequest> = new Map(
