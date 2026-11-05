@@ -45,17 +45,19 @@ A story shows the status of its least ready open pull request. An unknown link c
 | Badge | Meaning |
 | --- | --- |
 | `≠ conflicts` | The branch conflicts with its base |
-| `✗ CI failing` | A check failed or errored |
+| `✗ CI failing` | A required check failed or errored |
 | `! changes` | A reviewer requested changes |
 | `↓ behind` | The branch must be updated from its base before merging |
 | `◌ draft` | The pull request is a draft |
-| `○ review` | A review is required before merging |
+| `○ review` | A review is required before merging, or the `review-gate` check is waiting for approval |
 | `⊟ blocked` | A branch rule other than review blocks merging, such as unresolved conversations or required signed commits |
-| `◔ CI running` | Checks are still running |
+| `◔ CI running` | Required checks are still running |
 | `? unknown` | Open, with no status from GitHub. The link is not a GitHub pull request, `gh` cannot see it, the query failed or timed out, GitHub was still computing mergeability after a second look, or Shortcut could not list the story's pull requests. Press `r` to ask again; that does not help for links to other hosts or pull requests `gh` cannot see |
 | `✓ ready` | GitHub reports the pull request can be merged |
 | `◉ merged` | Merged into any base branch, as GitHub's `MERGED` state reports. This need not be the repository's default branch |
 | `⊘ closed` | Closed without merging |
+
+CI failing and CI running count only the checks that the branch rules require. When GitHub's overall check status is failing or pending and that could decide the badge, the app asks GitHub for every check on the pull request and whether it is required, 100 checks per query page. A check that is not required never makes the badge failing or running. The detail pane names the ones that failed under the pull request, for example `optional check failing: pr-preview`. A `review-gate` check in progress means the pull request is waiting for approval, so it shows `○ review` even when it is a required check. Conflicts and a failed required check still take precedence. If GitHub cannot list a pull request's checks, its badge falls back to the overall status: any failed check counts as failing, and any pending check counts as running.
 
 In narrow terminals the badge shows only its symbol. Press `?` for the same legend in the app.
 
