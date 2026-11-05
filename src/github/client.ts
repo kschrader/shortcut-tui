@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { settleLimited } from "../concurrency.ts";
+import { ChecksPage, checksFields, type Check } from "./checks.ts";
 import {
   awaitsMergeability,
+  checksCanDecide,
   classify,
   RawPullRequestSchema,
   type RawPullRequest,
@@ -18,6 +20,7 @@ export const GH_SETUP_HINT = "GitHub status needs the gh CLI: gh auth login";
 
 const GH_AUTH_REQUIRED_EXIT_CODE = 4;
 const PULL_REQUESTS_PER_QUERY = 10;
+const CHECKED_PULL_REQUESTS_PER_QUERY = 5;
 const GH_QUERIES_IN_FLIGHT = 4;
 const PULL_REQUEST_FIELDS = `state merged isDraft reviewDecision mergeable mergeStateStatus statusCheckRollup { state } ${REVIEW_FIELDS}`;
 const VIEWER_QUERY = "query { viewer { login } }";
@@ -307,6 +310,78 @@ const withMergeability = async (
   return [...answers.values()].flatMap(({ ref, raw }) => (raw === null ? [] : [{ ref, raw }]));
 };
 
+const ChecksResponse = z.object({
+  data: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+
+const RepositoryChecks = z.record(z.string(), ChecksPage);
+
+type Paging = { ref: PullRequestRef; checks: readonly Check[]; after: string | null };
+
+const checksQueryArgs = (pages: readonly Paging[]): string[] => {
+  const variables = pages.flatMap((_, i) => [
+    `$o${i}: String!`,
+    `$n${i}: String!`,
+    `$a${i}: String`,
+  ]);
+  const selections = pages.map(
+    ({ ref: { number } }, i) =>
+      `r${i}: repository(owner: $o${i}, name: $n${i}) { p${number}: pullRequest(number: ${number}) { ${checksFields(number, `$a${i}`)} } }`,
+  );
+  return [
+    "api",
+    "graphql",
+    "-f",
+    `query=query(${variables.join(", ")}) { ${selections.join(" ")} }`,
+    ...pages.flatMap(({ ref: { owner, repo }, after }, i) => [
+      "-f",
+      `o${i}=${owner}`,
+      "-f",
+      `n${i}=${repo}`,
+      ...(after === null ? [] : ["-f", `a${i}=${after}`]),
+    ]),
+  ];
+};
+
+const nextPages = async (gh: Gh, pages: readonly Paging[]): Promise<(ChecksPage | null)[]> => {
+  const output = await ask(gh, checksQueryArgs(pages));
+  const response = ChecksResponse.safeParse(parseJson(output.stdout));
+  const data = response.success ? response.data.data : null;
+  if (data === null || data === undefined) {
+    throw queryFailed(firstLine(output.stderr) || `gh exited ${output.exitCode}`);
+  }
+  return pages.map(({ ref: { number } }, i) => {
+    const page = RepositoryChecks.safeParse(data[`r${i}`]);
+    return page.success ? (page.data[`p${number}`] ?? null) : null;
+  });
+};
+
+const checksOf = async (gh: Gh, answered: readonly Answered[]) => {
+  const known = new Map<string, readonly Check[]>();
+  let paging = answered.flatMap(({ ref, raw }): Paging[] =>
+    checksCanDecide(raw) ? [{ ref, checks: [], after: null }] : [],
+  );
+  while (paging.length > 0) {
+    const batches = chunked(paging, CHECKED_PULL_REQUESTS_PER_QUERY);
+    const settled = await settleLimited(batches, GH_QUERIES_IN_FLIGHT, (batch) =>
+      nextPages(gh, batch),
+    );
+    paging = batches.flatMap((batch, b) => {
+      const result = settled[b];
+      if (result?.status !== "fulfilled") return [];
+      return batch.flatMap(({ ref, checks }, i): Paging[] => {
+        const page = result.value[i];
+        if (page === null || page === undefined) return [];
+        const gathered = [...checks, ...page.checks];
+        if (page.next !== null) return [{ ref, checks: gathered, after: page.next }];
+        known.set(pullRequestKey(ref), gathered);
+        return [];
+      });
+    });
+  }
+  return (ref: PullRequestRef) => known.get(pullRequestKey(ref)) ?? null;
+};
+
 export const createGitHubClient = ({
   run = ghRunner(),
   recheckAfterMs = 2000,
@@ -317,12 +392,18 @@ export const createGitHubClient = ({
   return {
     async pullRequests(refs) {
       const answered = await withMergeability(gh, refs, recheckAfterMs);
-      const viewerOf = await viewerFor(gh, identity, answered);
+      const [viewerOf, checksFor] = await Promise.all([
+        viewerFor(gh, identity, answered),
+        checksOf(gh, answered),
+      ]);
       return new Map(
-        answered.map(({ ref, raw }) => [
-          pullRequestKey(ref),
-          { state: classify(raw), reviews: reviewsOf(raw, viewerOf(ref)) },
-        ]),
+        answered.map(({ ref, raw }) => {
+          const checks = checksFor(ref);
+          return [
+            pullRequestKey(ref),
+            { state: classify(raw, checks), reviews: reviewsOf(raw, viewerOf(ref)) },
+          ];
+        }),
       );
     },
   };

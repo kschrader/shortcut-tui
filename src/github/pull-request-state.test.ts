@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { Check } from "./checks.ts";
 import { classify, RawPullRequestSchema, storyMergeStatus } from "./pull-request-state.ts";
 import type { PullRequestState } from "./types.ts";
 
@@ -47,6 +48,11 @@ const cases: readonly [string, Record<string, unknown>, PullRequestState][] = [
     "ready",
   ],
   ["mergeable with hooks", { mergeStateStatus: "HAS_HOOKS" }, "ready"],
+  [
+    "mergeable while optional checks still run",
+    { mergeStateStatus: "UNSTABLE", ...rollup("PENDING") },
+    "ready",
+  ],
   [
     "mergeability unknown with checks pending (live #3939)",
     { mergeable: "UNKNOWN", ...rollup("PENDING") },
@@ -106,10 +112,111 @@ const cases: readonly [string, Record<string, unknown>, PullRequestState][] = [
   ],
 ];
 
-describe("classify", () => {
+describe("classify from the rollup alone", () => {
   for (const [name, fields, expected] of cases) {
     test(`${name} is ${expected}`, () => {
-      expect(classify(RawPullRequestSchema.parse({ ...open, ...fields }))).toBe(expected);
+      expect(classify(RawPullRequestSchema.parse({ ...open, ...fields }), null)).toBe(expected);
+    });
+  }
+});
+
+const required = (name: string, outcome: Check["outcome"]): Check => ({
+  name,
+  required: true,
+  outcome,
+});
+const optional = (name: string, outcome: Check["outcome"]): Check => ({
+  name,
+  required: false,
+  outcome,
+});
+
+const requiredPassing = ["type-check", "lint", "vitest", "betterer", "unit-tests"].map((name) =>
+  required(name, "passed"),
+);
+
+const live4044 = { mergeStateStatus: "BLOCKED", reviewDecision: null, ...rollup("FAILURE") };
+
+const checkCases: readonly [string, Record<string, unknown>, readonly Check[], PullRequestState][] =
+  [
+    [
+      "an optional failure and the review gate waiting, required checks green (live #4044)",
+      live4044,
+      [...requiredPassing, optional("pr-preview", "failed"), required("review-gate", "running")],
+      "needs-review",
+    ],
+    [
+      "the review gate waiting while not required",
+      live4044,
+      [...requiredPassing, optional("review-gate", "running")],
+      "needs-review",
+    ],
+    [
+      "a required failure while the review gate waits",
+      live4044,
+      [required("vitest", "failed"), required("review-gate", "running")],
+      "checks-failing",
+    ],
+    [
+      "a required status context that errored",
+      { mergeStateStatus: "BLOCKED", ...rollup("ERROR") },
+      [required("ci/circleci", "failed")],
+      "checks-failing",
+    ],
+    [
+      "a required check still running",
+      { mergeStateStatus: "BLOCKED", ...rollup("PENDING") },
+      [required("vitest", "running"), optional("pr-preview", "running")],
+      "checks-running",
+    ],
+    [
+      "only optional checks pending",
+      { mergeStateStatus: "BLOCKED", ...rollup("PENDING") },
+      [...requiredPassing, optional("pr-preview", "running")],
+      "blocked",
+    ],
+    [
+      "only optional checks failing with review required",
+      { reviewDecision: "REVIEW_REQUIRED", mergeStateStatus: "BLOCKED", ...rollup("FAILURE") },
+      [...requiredPassing, optional("pr-preview", "failed")],
+      "needs-review",
+    ],
+    [
+      "the review gate passed but branch rules still block",
+      { mergeStateStatus: "BLOCKED", ...rollup("FAILURE") },
+      [required("review-gate", "passed"), optional("pr-preview", "failed")],
+      "blocked",
+    ],
+    [
+      "mergeable with only optional checks failing (live #3033)",
+      { mergeStateStatus: "UNSTABLE", ...rollup("FAILURE") },
+      [...requiredPassing, optional("pr-preview", "failed")],
+      "ready",
+    ],
+    [
+      "conflicts with a required failure",
+      { mergeable: "CONFLICTING", ...rollup("FAILURE") },
+      [required("vitest", "failed")],
+      "conflicts",
+    ],
+    [
+      "conflicts with the review gate waiting",
+      { mergeStateStatus: "DIRTY", ...rollup("PENDING") },
+      [required("review-gate", "running")],
+      "conflicts",
+    ],
+    [
+      "changes requested while the review gate waits",
+      { reviewDecision: "CHANGES_REQUESTED", mergeStateStatus: "BLOCKED", ...rollup("PENDING") },
+      [required("review-gate", "running")],
+      "changes-requested",
+    ],
+  ];
+
+describe("classify from the checks GitHub listed", () => {
+  for (const [name, fields, checks, expected] of checkCases) {
+    test(`${name} is ${expected}`, () => {
+      expect(classify(RawPullRequestSchema.parse({ ...open, ...fields }), checks)).toBe(expected);
     });
   }
 });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { signalsOf, type Check, type CheckSignals } from "./checks.ts";
 import { reviewFields } from "./reviews.ts";
 import type { PullRequestState } from "./types.ts";
 
@@ -27,39 +28,53 @@ export type RawPullRequest = z.infer<typeof RawPullRequestSchema>;
 export const DECIDED_BY_OTHER_FIELDS = {
   reviewDecision: ["APPROVED"],
   mergeable: ["MERGEABLE"],
-  mergeStateStatus: ["UNSTABLE"],
   statusCheckRollup: ["SUCCESS"],
 } as const satisfies {
   [Field in keyof RawPullRequest]?: readonly NonNullable<RawPullRequest[Field]>[];
 };
 
-const CLASSIFICATION: readonly (readonly [PullRequestState, (pr: RawPullRequest) => boolean])[] = [
+type Facts = Omit<RawPullRequest, "statusCheckRollup"> & { checks: CheckSignals };
+
+const CLASSIFICATION: readonly (readonly [PullRequestState, (pr: Facts) => boolean])[] = [
   ["merged", (pr) => pr.merged || pr.state === "MERGED"],
   ["closed", (pr) => pr.state === "CLOSED"],
   ["draft", (pr) => pr.isDraft],
   ["conflicts", (pr) => pr.mergeable === "CONFLICTING" || pr.mergeStateStatus === "DIRTY"],
-  [
-    "checks-failing",
-    (pr) => pr.statusCheckRollup === "FAILURE" || pr.statusCheckRollup === "ERROR",
-  ],
+  ["checks-failing", (pr) => pr.checks.failing],
   ["changes-requested", (pr) => pr.reviewDecision === "CHANGES_REQUESTED"],
   ["behind", (pr) => pr.mergeStateStatus === "BEHIND"],
-  ["ready", (pr) => pr.mergeStateStatus === "CLEAN" || pr.mergeStateStatus === "HAS_HOOKS"],
   [
-    "checks-running",
-    (pr) => pr.statusCheckRollup === "PENDING" || pr.statusCheckRollup === "EXPECTED",
+    "ready",
+    (pr) =>
+      pr.mergeStateStatus === "CLEAN" ||
+      pr.mergeStateStatus === "HAS_HOOKS" ||
+      pr.mergeStateStatus === "UNSTABLE",
   ],
-  ["needs-review", (pr) => pr.reviewDecision === "REVIEW_REQUIRED"],
+  ["checks-running", (pr) => pr.checks.running],
+  ["needs-review", (pr) => pr.reviewDecision === "REVIEW_REQUIRED" || pr.checks.awaitingApproval],
   ["blocked", (pr) => pr.mergeStateStatus === "BLOCKED"],
 ];
+
+const rollupSignals = (pr: RawPullRequest): CheckSignals => ({
+  failing: pr.statusCheckRollup === "FAILURE" || pr.statusCheckRollup === "ERROR",
+  running: pr.statusCheckRollup === "PENDING" || pr.statusCheckRollup === "EXPECTED",
+  awaitingApproval: false,
+});
 
 export const awaitsMergeability = (pr: RawPullRequest): boolean =>
   pr.state === "OPEN" &&
   !pr.isDraft &&
   (pr.mergeable === "UNKNOWN" || pr.mergeStateStatus === "UNKNOWN");
 
-export const classify = (pr: RawPullRequest): PullRequestState =>
-  CLASSIFICATION.find(([, holds]) => holds(pr))?.[0] ?? "unknown";
+export const classify = (pr: RawPullRequest, checks: readonly Check[] | null): PullRequestState => {
+  const facts = { ...pr, checks: checks === null ? rollupSignals(pr) : signalsOf(checks) };
+  return CLASSIFICATION.find(([, holds]) => holds(facts))?.[0] ?? "unknown";
+};
+
+export const checksCanDecide = (pr: RawPullRequest): boolean => {
+  const state = classify(pr, null);
+  return state === "checks-failing" || state === "checks-running";
+};
 
 export type StoryMergeStatus = "none" | PullRequestState;
 

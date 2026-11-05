@@ -90,6 +90,57 @@ const pullRequestAnswer = (pullRequests: Table, args: readonly string[]): GhOutp
   );
 };
 
+export const checkRun = (name: string, state: string, isRequired = false) => ({
+  __typename: "CheckRun",
+  name,
+  status: state === "IN_PROGRESS" || state === "QUEUED" ? state : "COMPLETED",
+  conclusion: state === "IN_PROGRESS" || state === "QUEUED" ? null : state,
+  isRequired,
+});
+
+export const statusContext = (context: string, state: string, isRequired = false) => ({
+  __typename: "StatusContext",
+  context,
+  state,
+  isRequired,
+});
+
+const isPages = (value: unknown): value is readonly unknown[][] =>
+  Array.isArray(value) && value.every((page) => Array.isArray(page));
+
+const checksAnswer = (pullRequests: Table, args: readonly string[]): GhOutput => {
+  const variables = flags(args);
+  const query = variables.get("query") ?? "";
+  const data: Record<string, Record<string, unknown>> = {};
+  for (const [, alias, ownerVar, nameVar, pullAlias, number, afterVar] of query.matchAll(
+    /(\w+): repository\(owner: \$(\w+), name: \$(\w+)\) \{ (\w+): pullRequest\(number: (\d+)\) \{.*?after: \$(\w+)/g,
+  )) {
+    if (alias === undefined || pullAlias === undefined || afterVar === undefined) continue;
+    const key = `${variables.get(ownerVar ?? "") ?? ""}/${variables.get(nameVar ?? "") ?? ""}#${number ?? ""}`;
+    const entry = pullRequests[key] ?? {};
+    if (entry["checksFail"] === true)
+      return { exitCode: 1, stdout: "", stderr: "HTTP 502: Bad Gateway\n" };
+    const pages = entry["checks"];
+    const at = Number(variables.get(afterVar) ?? "0");
+    data[alias] = {
+      [pullAlias]: isPages(pages)
+        ? {
+            statusCheckRollup: {
+              contexts: {
+                pageInfo: {
+                  hasNextPage: at + 1 < pages.length,
+                  endCursor: at + 1 < pages.length ? String(at + 1) : null,
+                },
+                nodes: pages[at] ?? [],
+              },
+            },
+          }
+        : { statusCheckRollup: null },
+    };
+  }
+  return answer(0, { data });
+};
+
 export const fakeGitHubFor = (account: GhAccount, ...answersPerCall: [Table, ...Table[]]) => {
   const calls: string[][] = [];
   const concurrency = { now: 0, max: 0 };
@@ -103,6 +154,12 @@ export const fakeGitHubFor = (account: GhAccount, ...answersPerCall: [Table, ...
     const variables = flags(args);
     const about = accountAnswer(account, variables.get("query") ?? "", variables.get("org") ?? "");
     if (about !== null) return about;
+    if ((variables.get("query") ?? "").includes("contexts(")) {
+      return checksAnswer(
+        answersPerCall[Math.max(pullRequestCalls - 1, 0)] ?? answersPerCall[0],
+        args,
+      );
+    }
     pullRequestCalls += 1;
     return pullRequestAnswer(answersPerCall[pullRequestCalls - 1] ?? answersPerCall[0], args);
   };
