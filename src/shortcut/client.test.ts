@@ -73,6 +73,21 @@ test("a token with a scope beyond read can write", async () => {
   expect((await client.loadWorkspace()).canWrite).toBe(true);
 });
 
+const withScopes = (scopes: readonly string[]) => ({
+  ...whoamiReadWrite,
+  entity: { ...whoamiReadWrite.entity, authorization: { scopes } },
+});
+
+const canWrite = async (scopes: readonly string[]) =>
+  (await stub(at("/api/v4/whoami", json(withScopes(scopes)))).client.loadWorkspace()).canWrite;
+
+test("only a token that can write stories can move them", async () => {
+  expect(await canWrite(["read", "story-write"])).toBe(true);
+  expect(await canWrite(["admin"])).toBe(true);
+  expect(await canWrite(["read", "comment-write"])).toBe(false);
+  expect(await canWrite(["read"])).toBe(false);
+});
+
 test("searchStories reads every page and maps embedded names", async () => {
   const { client, calls } = stub(
     whoamiRoute,

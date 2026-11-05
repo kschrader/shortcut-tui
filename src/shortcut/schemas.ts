@@ -34,8 +34,10 @@ const memberRef = z.object({ id: memberId, name: z.string() }) satisfies z.ZodTy
 const nestedList = <T extends z.ZodType>(item: T) =>
   z.object({ entities: z.array(item) }).transform((list) => list.entities);
 
-const canWriteWith = (scopes: readonly string[] | undefined): boolean =>
-  scopes === undefined || scopes.some((scope) => scope !== "read");
+const STORY_WRITE_SCOPES: ReadonlySet<string> = new Set(["write", "story-write", "admin"]);
+
+const canMoveStoriesWith = (scopes: readonly string[] | undefined): boolean =>
+  scopes === undefined || scopes.some((scope) => STORY_WRITE_SCOPES.has(scope));
 
 export const WhoamiSchema = z
   .object({
@@ -48,7 +50,7 @@ export const WhoamiSchema = z
   .transform(({ entity }): Omit<Workspace, "workflowStates"> => ({
     me: { id: entity.member.id, name: entity.member.name, mentionName: entity.member.mention_name },
     slug: entity.workspace.slug,
-    canWrite: canWriteWith(entity.authorization?.scopes),
+    canWrite: canMoveStoriesWith(entity.authorization?.scopes),
   }));
 
 export const WORKFLOW_STATE_FIELDS = "id,name,type,position,workflow";
