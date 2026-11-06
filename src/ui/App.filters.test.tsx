@@ -109,7 +109,7 @@ test("my stories keep their workflow state dividers", async () => {
   const { frame } = await launch();
   expect(dividers(frame())).toEqual([
     "── In Review  2  · Engineering",
-    "── In Progress  2  · Engineering",
+    "── In Progress  4  · Engineering",
   ]);
 });
 

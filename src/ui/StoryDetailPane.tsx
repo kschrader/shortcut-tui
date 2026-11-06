@@ -2,8 +2,9 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import type { Ref } from "react";
 import type { Change, PullRequestView, Remote } from "../app/model.ts";
 import type { StoryMergeStatus } from "../github/pull-request-state.ts";
+import { orderFor } from "../app/order.ts";
 import { reloadFailure } from "../app/remote.ts";
-import type { StoryDetail, StorySummary } from "../shortcut/types.ts";
+import type { Progress, StoryDetail, StorySummary } from "../shortcut/types.ts";
 import {
   dateLabel,
   epicName,
@@ -119,9 +120,43 @@ const PullRequestSection = ({
   </box>
 );
 
+const progressStyle: Record<Progress, { glyph: string; color: string }> = {
+  unstarted: { glyph: "○", color: colors.dim },
+  started: { glyph: "◐", color: colors.accent },
+  done: { glyph: "✓", color: colors.ok },
+};
+
+const SubTaskItem = ({ story }: { story: StorySummary }) => {
+  const { glyph, color } = progressStyle[story.state.progress];
+  return (
+    <text wrapMode="word">
+      <span fg={color}>{`${glyph} `}</span>
+      <a href={story.appUrl}>{String(story.id)}</a>
+      {` ${story.name} `}
+      <span fg={colors.dim}>{`${story.state.name} · ${ownerNames(story.owners)}`}</span>
+    </text>
+  );
+};
+
+const SubTasks = ({ subTasks }: { subTasks: readonly StorySummary[] }) => {
+  if (subTasks.length === 0) return null;
+  const finished = subTasks.filter((story) => story.state.progress === "done").length;
+  return (
+    <box marginTop={1} flexDirection="column">
+      <text fg={colors.accent}>
+        <b>{`Sub-tasks (${String(finished)}/${String(subTasks.length)} done)`}</b>
+      </text>
+      {subTasks.toSorted(orderFor("state")).map((story) => (
+        <SubTaskItem key={story.id} story={story} />
+      ))}
+    </box>
+  );
+};
+
 const Body = ({ detail }: { detail: StoryDetail }) => (
   <box flexDirection="column">
     <Field label="Labels" value={detail.labels.length === 0 ? "None" : detail.labels.join(", ")} />
+    <SubTasks subTasks={detail.subTasks} />
     <box marginTop={1} flexDirection="column">
       <text fg={colors.accent}>
         <b>Description</b>
@@ -211,6 +246,13 @@ export const StoryDetailPane = ({
         <Field label="Estimate" value={estimateLabel(summary.estimate)} />
         <Field label="Owners" value={ownerNames(summary.owners)} />
         <Field label="Epic" value={epicName(summary.epic)} />
+        {summary.parent === null ? null : (
+          <text wrapMode="word">
+            <span fg={colors.dim}>{"Parent".padEnd(10)}</span>
+            <a href={summary.parent.appUrl}>{String(summary.parent.id)}</a>
+            {` ${summary.parent.name}`}
+          </text>
+        )}
         <text wrapMode="word">
           <span fg={colors.dim}>{"URL".padEnd(10)}</span>
           <a href={summary.appUrl}>{summary.appUrl}</a>

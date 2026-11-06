@@ -4,7 +4,7 @@ import type { Grouping } from "../app/filters.ts";
 import type { Cached, Change, StoryMove, StoryPullRequests } from "../app/model.ts";
 import { ownerGroupLabel } from "../app/order.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
-import { estimateLabel, fit, typeStyle, WAITED_WIDTH, waitedLabel } from "./format.ts";
+import { estimateLabel, fit, nameCell, typeStyle, WAITED_WIDTH, waitedLabel } from "./format.ts";
 import { badgeStyle, BADGE_LABEL_WIDTH, storyBadge, type Badge } from "./pull-requests.ts";
 import { awaitsYourReview, YOUR_REVIEW_MARK } from "./reviews.ts";
 import { colors } from "./theme.ts";
@@ -149,6 +149,7 @@ const StoryRow = ({
     markColumnWidth -
     reviewMarkWidth(yours) -
     AGE_COLUMN_WIDTH;
+  const cell = nameCell(story, nameWidth);
   return (
     <box
       id={`story-${story.id}`}
@@ -163,7 +164,8 @@ const StoryRow = ({
         {yours === null ? null : <span fg={colors.accent}>{yours ? YOUR_REVIEW_MARK : " "}</span>}
         <span fg={color}>{glyph}</span>
         <span fg={colors.dim}>{` ${idLabel} `}</span>
-        {selected ? <b>{fit(story.name, nameWidth)}</b> : fit(story.name, nameWidth)}
+        <span fg={colors.dim}>{cell.mark}</span>
+        {selected ? <b>{cell.name}</b> : cell.name}
         <span fg={colors.dim}>{` ${waited.padStart(WAITED_WIDTH)}`}</span>
         <span fg={mark?.color ?? colors.dim}>
           {mark === null ? "".padEnd(markColumnWidth) : ` ${mark.text}`.padEnd(markColumnWidth)}

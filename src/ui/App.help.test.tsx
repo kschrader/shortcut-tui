@@ -34,6 +34,8 @@ test("the overlay explains the marks on a changed story and on one asking for yo
   expect(text).toContain("List marks");
   expect(text).toContain("• changed since you last looked");
   expect(text).toContain("@ asks for your review");
+  expect(text).toContain("↳ is a sub-task");
+  expect(text).toContain("▸5 has 5 sub-tasks");
 });
 
 test("keys that only work inside another mode stay out of the overlay", async () => {

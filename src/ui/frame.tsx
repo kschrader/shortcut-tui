@@ -13,7 +13,11 @@ import type {
 } from "../app/model.ts";
 import { queryQuestion } from "../app/filters.ts";
 import { glanceOf } from "../app/glance.ts";
+import { createFakeClock } from "../app/fake-clock.ts";
 import { idle } from "../app/remote.ts";
+import { useStoryBrowser } from "../app/runtime.ts";
+import { createFakeGitHubClient } from "../github/fake.ts";
+import { createFakeShortcutClient } from "../shortcut/fake.ts";
 import type {
   EpicId,
   MemberId,
@@ -217,4 +221,45 @@ export const show = async (
     await screen.renderOnce();
   };
   return { screen, dispatched, calls, rerender, frame: () => screen.captureCharFrame() };
+};
+
+export const launchDemo = async ({ width = 80, height = 24 } = {}) => {
+  const clock = createFakeClock(new Date("2026-11-02T09:00:00Z"));
+  const clients = {
+    shortcut: createFakeShortcutClient({ teammateMovesOnRefresh: true }),
+    github: createFakeGitHubClient(),
+  };
+  const Root = () => {
+    const { model, dispatch, now } = useStoryBrowser(clients, {
+      clock,
+      autoRefresh: { mode: "off" },
+    });
+    return (
+      <App
+        model={model}
+        now={now}
+        dispatch={dispatch}
+        quit={() => {}}
+        openUrl={() => {}}
+        copyText={() => true}
+      />
+    );
+  };
+  const screen = await testRender(<Root />, { width, height });
+  current = screen;
+  Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", false);
+  const frame = () => screen.captureCharFrame();
+  const until = async (reached: () => boolean) => {
+    for (let turn = 0; turn < 100 && !reached(); turn += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+      await screen.renderOnce();
+    }
+    if (!reached()) throw new Error(`the demo never got there:\n${frame()}`);
+  };
+  const press = async (key: string) => {
+    screen.mockInput.pressKey(key);
+    await screen.renderOnce();
+  };
+  await until(() => frame().includes("Login redirect drops the return"));
+  return { screen, frame, until, press };
 };

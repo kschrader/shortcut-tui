@@ -12,6 +12,21 @@ export const typeStyle: Record<StoryType, { glyph: string; color: string }> = {
   chore: { glyph: "■", color: "#7aa2f7" },
 };
 
+export const SUB_TASK_MARK = "↳";
+export const PARENT_MARK = "▸";
+
+const familyMark = ({ parent, subTaskCount }: StorySummary): string => {
+  const asChild = parent === null ? "" : `${SUB_TASK_MARK} `;
+  const asParent = subTaskCount > 0 ? `${PARENT_MARK}${String(subTaskCount)} ` : "";
+  return `${asChild}${asParent}`;
+};
+
+export const nameCell = (story: StorySummary, width: number): { mark: string; name: string } => {
+  const mark = familyMark(story);
+  const cell = fit(`${mark}${story.name}`, width);
+  return { mark: cell.slice(0, mark.length), name: cell.slice(mark.length) };
+};
+
 export const ownerNames = (owners: readonly MemberRef[]): string =>
   owners.length === 0 ? "Unassigned" : owners.map((owner) => owner.name).join(", ");
 

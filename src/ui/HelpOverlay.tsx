@@ -1,3 +1,4 @@
+import { PARENT_MARK, SUB_TASK_MARK } from "./format.ts";
 import { bindingsUsableIn } from "./keys.ts";
 import { BADGE_LABEL_WIDTH, badgeStyle } from "./pull-requests.ts";
 import { YOUR_REVIEW_MARK } from "./reviews.ts";
@@ -69,6 +70,14 @@ export const HelpOverlay = () => (
           <text>
             <span fg={colors.accent}>{YOUR_REVIEW_MARK}</span>
             {" asks for your review"}
+          </text>
+          <text>
+            <span fg={colors.dim}>{SUB_TASK_MARK}</span>
+            {" is a sub-task"}
+          </text>
+          <text>
+            <span fg={colors.dim}>{`${PARENT_MARK}5`}</span>
+            {" has 5 sub-tasks"}
           </text>
         </box>
       </box>

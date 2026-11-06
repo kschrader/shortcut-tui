@@ -207,3 +207,18 @@ test("moved:*..DAY keeps the stories that moved into their state on or before th
     "Fix flaky label sync test",
   ]);
 });
+
+test("a parent's detail lists its sub-tasks as they stand now, and a child points back at it", async () => {
+  const client = createFakeShortcutClient();
+  const parentId = storyId.parse(1016);
+  const child = storyId.parse(1018);
+  const before = await client.getStory(parentId);
+  expect(before.subTaskCount).toBe(4);
+  expect(before.subTasks.map((story) => story.id)).toContain(child);
+  const inChild = before.subTasks.find((story) => story.id === child);
+  expect(inChild?.parent?.id).toBe(parentId);
+  const finished = workflowStateId.parse(500000005);
+  await client.moveStory(child, finished);
+  const after = await client.getStory(parentId);
+  expect(after.subTasks.find((story) => story.id === child)?.state.id).toBe(finished);
+});
