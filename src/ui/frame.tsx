@@ -80,6 +80,8 @@ export const summary = (id: number, overrides: Partial<StorySummary> = {}): Stor
   updatedAt: new Date("2026-10-01T00:00:00Z"),
   movedAt: new Date("2026-10-01T00:00:00Z"),
   pullRequestCount: 0,
+  parent: null,
+  subTaskCount: 0,
   ...overrides,
 });
 
@@ -155,6 +157,7 @@ export const detail: StoryDetail = {
       createdAt: new Date("2026-10-06T12:00:00Z"),
     },
   ],
+  subTasks: [],
 };
 
 export const browsing = (overrides: Partial<Model> = {}) =>

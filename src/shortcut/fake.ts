@@ -7,7 +7,8 @@ import {
   seededStories,
   workspace,
 } from "./demo-stories.ts";
-import type { ShortcutClient, StoryDetail, StorySummary, WorkflowState } from "./types.ts";
+import type { SeededStory } from "./demo-stories.ts";
+import type { ShortcutClient, StorySummary, WorkflowState } from "./types.ts";
 
 export type FakeOptions = {
   delayMs?: number;
@@ -23,20 +24,20 @@ const summaryOf = ({
   labels: _labels,
   comments: _comments,
   ...summary
-}: StoryDetail): StorySummary => summary;
+}: SeededStory): StorySummary => summary;
 
-const isMine = (story: StoryDetail) => story.owners.some((owner) => owner.id === me.id);
+const isMine = (story: SeededStory) => story.owners.some((owner) => owner.id === me.id);
 
 const MOVED_BY = /^moved:\*\.\.(\d{4})-(\d{2})-(\d{2})$/;
 
-const movedBy = (story: StoryDetail, term: string): boolean => {
+const movedBy = (story: SeededStory, term: string): boolean => {
   const day = MOVED_BY.exec(term);
   if (day === null) return true;
   const nextDay = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]) + 1);
   return story.movedAt.getTime() < nextDay.getTime();
 };
 
-const matchesQuery = (story: StoryDetail, query: string): boolean =>
+const matchesQuery = (story: SeededStory, query: string): boolean =>
   query
     .split(/\s+/)
     .filter((term) => term !== "")
@@ -88,7 +89,8 @@ export const createFakeShortcutClient = ({
       const story = stories.get(id);
       if (story === undefined)
         throw new Error(`Shortcut API 404 for GET /api/v4/demo/stories/${id}`);
-      return story;
+      const subTasks = [...stories.values()].filter((other) => other.parent?.id === id);
+      return { ...story, subTasks: subTasks.map(summaryOf) };
     },
 
     async listPullRequests(id) {

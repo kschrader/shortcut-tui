@@ -126,3 +126,10 @@ test("state and merge status changes are listed together and explain the later u
     { kind: "pullRequests", from: "ready", to: "merged" },
   ]);
 });
+
+test("a story gaining sub-tasks or a parent is not a change on its own", () => {
+  const seen = summary(1);
+  const parent = { id: storyId(2), name: "Parent", appUrl: "https://app.shortcut.com/story/2" };
+  const now = { ...seen, subTaskCount: 3, parent };
+  expect(changesBetween(glanceOf(seen, prs([])), glanceOf(now, prs([])))).toEqual([]);
+});

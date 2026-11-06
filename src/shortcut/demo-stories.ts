@@ -12,6 +12,7 @@ import type {
   Progress,
   StoryComment,
   StoryDetail,
+  StoryRef,
   StorySummary,
   StoryType,
   WorkflowState,
@@ -111,6 +112,7 @@ type StorySeed = {
   labels: string[];
   comments: StoryComment[];
   pullRequests?: LinkedPullRequest[];
+  parentId?: number;
 };
 
 const seeds: StorySeed[] = [
@@ -370,7 +372,18 @@ export const pullRequestsByStory = new Map(
   seeds.map((seed) => [storyId.parse(seed.id), seed.pullRequests ?? []]),
 );
 
-export const seededStories: readonly StoryDetail[] = seeds.map((seed) => ({
+export type SeededStory = Omit<StoryDetail, "subTasks">;
+
+const appUrlOf = (id: number) => `https://app.shortcut.com/demo/story/${id}`;
+
+const parentOf = ({ parentId }: StorySeed): StoryRef | null => {
+  const parent = seeds.find((seed) => seed.id === parentId);
+  return parent === undefined
+    ? null
+    : { id: storyId.parse(parent.id), name: parent.name, appUrl: appUrlOf(parent.id) };
+};
+
+export const seededStories: readonly SeededStory[] = seeds.map((seed) => ({
   id: storyId.parse(seed.id),
   name: seed.name,
   storyType: seed.storyType,
@@ -378,10 +391,12 @@ export const seededStories: readonly StoryDetail[] = seeds.map((seed) => ({
   estimate: seed.estimate,
   owners: seed.owners,
   epic: seed.epic ?? null,
-  appUrl: `https://app.shortcut.com/demo/story/${seed.id}`,
+  appUrl: appUrlOf(seed.id),
   updatedAt: new Date(seed.updatedAt),
   movedAt: new Date(seed.movedAt ?? seed.updatedAt),
   pullRequestCount: seed.pullRequests?.length ?? 0,
+  parent: parentOf(seed),
+  subTaskCount: seeds.filter((other) => other.parentId === seed.id).length,
   description: seed.description,
   labels: seed.labels,
   comments: seed.comments,

@@ -133,6 +133,22 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
     return comments;
   };
 
+  const listSubTasks = async (api: ShortcutWorkspaceApi, id: StoryId) => {
+    const subTasks: UnplacedSummary[] = [];
+    for await (const raw of client.paginate(
+      api.listStorySubTaskStories(id, { fields: SUMMARY_FIELDS, limit: PAGE_SIZE }),
+    )) {
+      subTasks.push(StorySummarySchema.parse(raw));
+    }
+    return subTasks;
+  };
+
+  const loadBodyAndSubTasks = async (api: ShortcutWorkspaceApi, id: StoryId) => {
+    const { entity } = await api.getStory(id, { fields: DETAIL_FIELDS });
+    const body = StoryBodySchema.parse(entity);
+    return { body, subTasks: body.subTaskCount > 0 ? await listSubTasks(api, id) : [] };
+  };
+
   return {
     loadWorkspace: () => attempt(async () => (await connect()).workspace),
 
@@ -155,13 +171,16 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
       attempt(async () => {
         const current = await connect();
         const { api } = current;
-        const [{ entity }, comments] = await Promise.all([
-          api.getStory(id, { fields: DETAIL_FIELDS }),
+        const [{ body, subTasks }, comments] = await Promise.all([
+          loadBodyAndSubTasks(api, id),
           listComments(api, id),
         ]);
-        const body = StoryBodySchema.parse(entity);
-        const states = await statesCovering(current, [body]);
-        return { ...placeInWorkflow(body, states), comments };
+        const states = await statesCovering(current, [body, ...subTasks]);
+        return {
+          ...placeInWorkflow(body, states),
+          comments,
+          subTasks: subTasks.map((subTask) => placeInWorkflow(subTask, states)),
+        };
       }),
 
     listPullRequests: (id) =>

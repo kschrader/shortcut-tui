@@ -84,6 +84,8 @@ export const storyJson = (id: number, overrides: Record<string, unknown> = {}) =
   moved_at: "2026-10-29T09:15:00Z",
   created_at: "2026-10-20T08:00:00Z",
   pull_requests: nested([], `stories/${id}/pull-requests`),
+  parent_story: null,
+  sub_task_stories: nested([], `stories/${id}/sub-task-stories`),
   ...overrides,
 });
 

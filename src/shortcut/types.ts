@@ -27,6 +27,8 @@ export type Workspace = {
   workflowStates: readonly WorkflowState[];
 };
 
+export type StoryRef = { id: StoryId; name: string; appUrl: string };
+
 export type StorySummary = {
   id: StoryId;
   name: string;
@@ -39,6 +41,8 @@ export type StorySummary = {
   updatedAt: Date;
   movedAt: Date;
   pullRequestCount: number;
+  parent: StoryRef | null;
+  subTaskCount: number;
 };
 
 export type StoryComment = {
@@ -52,6 +56,7 @@ export type StoryDetail = StorySummary & {
   description: string;
   labels: readonly string[];
   comments: readonly StoryComment[];
+  subTasks: readonly StorySummary[];
 };
 
 export type LinkedPullRequest = {

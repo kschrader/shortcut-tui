@@ -156,6 +156,8 @@ test("searchStories reads every page and maps embedded names", async () => {
     updatedAt: new Date("2026-10-30T12:30:00.123Z"),
     movedAt: new Date("2026-10-29T09:15:00Z"),
     pullRequestCount: 2,
+    parent: null,
+    subTaskCount: 0,
   });
   expect(stories[1]?.state.progress).toBe("unstarted");
   expect(stories[1]?.epic).toBeNull();

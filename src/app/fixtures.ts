@@ -89,6 +89,8 @@ export const summary = (id: number, name = `Story ${String(id)}`): StorySummary 
   updatedAt: new Date(0),
   movedAt: new Date(0),
   pullRequestCount: 0,
+  parent: null,
+  subTaskCount: 0,
 });
 
 export const ownedBy = (story: StorySummary, ...names: readonly string[]): StorySummary => ({
@@ -120,4 +122,5 @@ export const detail = (id: number): StoryDetail => ({
   description: `Description of ${String(id)}`,
   labels: [],
   comments: [],
+  subTasks: [],
 });
