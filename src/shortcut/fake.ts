@@ -1,13 +1,6 @@
 import { storyId } from "./schemas.ts";
-import {
-  DEMO_WORKFLOW_STATES,
-  inReview,
-  me,
-  pullRequestsByStory,
-  seededStories,
-  workspace,
-} from "./demo-stories.ts";
-import type { SeededStory } from "./demo-stories.ts";
+import { pullRequestsByStory, seededStories, type SeededStory } from "./demo-stories.ts";
+import { DEMO_WORKFLOW_STATES, inReview, me, workspace } from "./demo-workspace.ts";
 import type { ShortcutClient, StorySummary, WorkflowState } from "./types.ts";
 
 export type FakeOptions = {

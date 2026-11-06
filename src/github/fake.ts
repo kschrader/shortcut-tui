@@ -1,4 +1,4 @@
-import { DEMO_REPOSITORY } from "../shortcut/demo-stories.ts";
+import { DEMO_REPOSITORY } from "../shortcut/demo-workspace.ts";
 import {
   pullRequestKey,
   type GitHubClient,
