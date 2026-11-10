@@ -143,6 +143,8 @@ Press `a` to show only stories that have been in their current state for 4 weeks
 
 `bun run tlc` needs Java and the TLA+ tools. Download [`tla2tools.jar` v1.7.4](https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar) to `spec/tools/`. It must be the stable v1.7.4 release: the v1.8.0 prerelease is rebuilt in place, so it cannot be pinned by checksum. Git ignores that directory.
 
+Each check has a budget of distinct states, such as 200,000 for `StoryBrowser.cfg`, and fails when TLC explores more. The budget counts states rather than seconds because the count is the same on every machine: the story-browser check takes about 10 seconds on an 18-core laptop and about 145 seconds on CI's 2-core runner. A check that runs past 15 minutes fails as hung.
+
 ## Project rules
 
 The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `opentui-text-placement` guards a documented OpenTUI pitfall.
