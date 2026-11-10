@@ -94,6 +94,35 @@ test("the demo's third filter lists every owner's started stories whose pull req
   expect(frame()).not.toContain("@");
 });
 
+const dividersOf = (frame: string) =>
+  lines(frame)
+    .slice(1)
+    .map((line) => line.split("│")[0] ?? "")
+    .filter((line) => line.startsWith("──"))
+    .map((line) => line.replace(/ ─+\s*$/, ""));
+
+test("moving the selected story to Done takes its row and owner group out once Shortcut confirms, and selects the next row, at 80 columns", async () => {
+  const { frame, until, press } = await launchDemo();
+  await press("f");
+  await until(() => frame().includes("Paginate the iteration list"));
+  await press("f");
+  await until(() => frame().includes("Resend failed deliveries"));
+  expect(lines(frame())[0]).toMatch(/merged, not moved · team\s+2 stories/);
+  expect(dividersOf(frame())).toEqual(["── Alex Rivera  1", "── Sam Okafor  1"]);
+  expect(frame()).toContain("▌●   1012 Resend failed deliveries from t…");
+  await press("m");
+  await until(() => frame().includes("Move 1012"));
+  await press("j");
+  await press("j");
+  expect(frame()).toMatch(/▌\s+Done/);
+  await press("\r");
+  await until(() => !frame().includes("Resend failed deliveries"));
+  expect(lines(frame())[0]).toMatch(/merged, not moved · team\s+1 story/);
+  expect(dividersOf(frame())).toEqual(["── Sam Okafor  1"]);
+  expect(frame()).toContain("▌◆   1013 Trim whitespace in imported sto…  2w ◉  1 │");
+  await until(() => frame().includes("Trim titles in the CSV"));
+});
+
 const view = (number: number, state: PullRequestState): PullRequestView => ({
   id: z.custom<PullRequestId>().parse(number),
   title: `Pull request ${String(number)}`,
