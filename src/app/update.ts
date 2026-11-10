@@ -23,7 +23,7 @@ import {
   withoutFloor,
 } from "./filters.ts";
 import { noticed } from "./glance.ts";
-import { shownStories } from "./rows.ts";
+import { rowInPlaceOf, shownStories } from "./rows.ts";
 import {
   awaited,
   fail,
@@ -120,6 +120,13 @@ const closePickerOnHidden = (model: Model): Model => {
   return focus.mode === "picking" && storyIn(model, focus.storyId) === null
     ? { ...model, focus: browsing }
     : model;
+};
+
+const followLeavingRow = (before: Model, after: Model): Step => {
+  const settled = closePickerOnHidden(after);
+  const selected = before.selectedStoryId;
+  if (selected === null || storyIn(settled, selected) !== null) return [settled, []];
+  return select(settled, rowInPlaceOf(shownStories(before), shownStories(settled), selected));
 };
 
 const refresh = (model: Model): Step => {
@@ -247,8 +254,13 @@ const transition = (model: Model, msg: Msg): Step => {
       if (move.pending !== null && move.pending.id !== known.id) {
         return startMove(replaced, msg.storyId, move.pending, known, trustFrom);
       }
-      const moves = new Map(model.moves).set(msg.storyId, { status: "moved", known, trustFrom });
-      return [{ ...replaced, moves }, []];
+      const moves = new Map(model.moves).set(msg.storyId, {
+        status: "moved",
+        known,
+        trustFrom,
+        movedAt: msg.story.movedAt,
+      });
+      return followLeavingRow(model, { ...replaced, moves });
     }
     case "moveFailed": {
       const move = model.moves.get(msg.storyId);

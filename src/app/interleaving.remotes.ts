@@ -279,7 +279,10 @@ export const hiddenShownData = (before: Model, after: Model): string[] => {
   const listedAfter = listedStories(after);
   for (const story of listedStories(before)) {
     const { id } = story;
+    const confirmedMove =
+      before.moves.get(id)?.status === "saving" && after.moves.get(id)?.status === "moved";
     if (
+      !confirmedMove &&
       shownAfter.some((candidate) => candidate.id === id) &&
       Bun.deepEquals(before.pullRequests.value.get(id), after.pullRequests.value.get(id)) &&
       !listedAfter.some((candidate) => candidate.id === id)

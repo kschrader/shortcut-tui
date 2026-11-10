@@ -76,7 +76,7 @@ export type StoryMove =
       target: WorkflowState;
       pending: WorkflowState | null;
     })
-  | (ServerKnown & { status: "moved" })
+  | (ServerKnown & { status: "moved"; movedAt: Date })
   | (ServerKnown & { status: "failed"; message: string });
 
 export type Model = {

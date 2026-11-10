@@ -1,7 +1,7 @@
 import type { PullRequestState } from "../github/types.ts";
-import type { StoryId, WorkflowState, WorkflowStateId } from "../shortcut/types.ts";
+import type { StoryId, StorySummary, WorkflowState, WorkflowStateId } from "../shortcut/types.ts";
 import { toDo, workflowStates } from "./fixtures.ts";
-import type { Effect, Model, RequestId } from "./model.ts";
+import type { Effect, Model, Question, RequestId } from "./model.ts";
 import { pickerStates } from "./moves.ts";
 
 export const stateById = (id: WorkflowStateId): WorkflowState => {
@@ -31,10 +31,38 @@ export const searchedStories = (model: Model) =>
 const finishedWork = (states: readonly PullRequestState[]) =>
   states.includes("merged") && states.every((state) => state === "merged" || state === "closed");
 
+const nextDay = (day: string): Date => {
+  const [year = 0, month = 1, date = 0] = day.split("-").map(Number);
+  return new Date(year, month - 1, date + 1);
+};
+
+const searchStillAsksFor = (model: Model, question: Question, story: StorySummary): boolean => {
+  const floor = question.movedOnOrBefore;
+  if (floor !== null && story.movedAt.getTime() >= nextDay(floor).getTime()) return false;
+  const started = story.state.progress === "started";
+  const { view } = question;
+  switch (view.kind) {
+    case "query":
+      return (
+        model.workspace.status !== "loaded" ||
+        view.text !== `owner:${model.workspace.value.me.mentionName} is:started !is:archived` ||
+        started
+      );
+    case "inReview":
+      return story.state.name.toLowerCase().includes("review");
+    case "mergedNotMoved":
+      return started;
+  }
+};
+
 export const listedStories = (model: Model) => {
-  const stories = searchedStories(model);
-  if (model.results.status !== "loaded") return stories;
-  if (model.results.value.question.view.kind !== "mergedNotMoved") return stories;
+  if (model.results.status !== "loaded") return [];
+  const { question } = model.results.value;
+  const stories = searchedStories(model).filter(
+    (story) =>
+      model.moves.get(story.id)?.status !== "moved" || searchStillAsksFor(model, question, story),
+  );
+  if (question.view.kind !== "mergedNotMoved") return stories;
   return stories.filter((story) => {
     const list = model.pullRequests.value.get(story.id);
     return list?.status === "loaded" && finishedWork(list.value.map((pr) => pr.state));

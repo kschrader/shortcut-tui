@@ -70,6 +70,9 @@ export const carryMoves = (
         case "saving":
           return { ...story, state: intentOf(move) };
         case "moved":
+          return requestId >= move.trustFrom
+            ? story
+            : { ...story, state: move.known, movedAt: move.movedAt };
         case "failed":
           return requestId >= move.trustFrom ? story : { ...story, state: move.known };
       }

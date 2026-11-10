@@ -142,7 +142,12 @@ test("a saving story shows a saving marker, a failed one a failed marker, and th
 });
 
 test("a moved story shows no marker and the bottom bar shows the usual hints", async () => {
-  const moved: StoryMove = { status: "moved", known: done, trustFrom: requestId(9) };
+  const moved: StoryMove = {
+    status: "moved",
+    known: done,
+    trustFrom: requestId(9),
+    movedAt: stories[1].movedAt,
+  };
   const { frame } = await show(browsing({ moves: new Map([[stories[1].id, moved]]) }));
   const text = frame();
   expect(text).not.toContain("saving");

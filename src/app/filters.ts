@@ -1,4 +1,4 @@
-import type { Workspace } from "../shortcut/types.ts";
+import type { StorySummary, WorkflowState, Workspace } from "../shortcut/types.ts";
 import type { CalendarDay, Question, View } from "./model.ts";
 
 export type Grouping = "state" | "owner";
@@ -19,8 +19,11 @@ const inReview: View = { kind: "inReview" };
 
 const mergedNotMoved: View = { kind: "mergedNotMoved" };
 
+const defaultQueryText = (mentionName: string): string =>
+  `owner:${mentionName} is:started !is:archived`;
+
 export const defaultQueryFor = (mentionName: string): View =>
-  queryView(`owner:${mentionName} is:started !is:archived`);
+  queryView(defaultQueryText(mentionName));
 
 const reviewLabel = "waiting for review · team";
 
@@ -78,13 +81,15 @@ export const filterAfter = (view: View, workspace: Workspace): Filter => {
 
 const REVIEW_STATE = /review/i;
 
+const isReviewState = (state: WorkflowState): boolean => REVIEW_STATE.test(state.name);
+
 const viewQueries = (view: View, workspace: Workspace): readonly string[] => {
   switch (view.kind) {
     case "query":
       return [view.text];
     case "inReview":
       return workspace.workflowStates
-        .filter((state) => REVIEW_STATE.test(state.name))
+        .filter(isReviewState)
         .map(
           (state) => `state:${String(state.id)} !owner:${workspace.me.mentionName} !is:archived`,
         );
@@ -100,6 +105,32 @@ export const queriesFor = (question: Question, workspace: Workspace): readonly s
   const clause = `moved:*..${floor}`;
   return queries.map((query) => (query === "" ? clause : `${query} ${clause}`));
 };
+
+const isStarted = (story: StorySummary): boolean => story.state.progress === "started";
+
+const viewWouldFind = (view: View, workspace: Workspace, story: StorySummary): boolean => {
+  switch (view.kind) {
+    case "query":
+      return view.text !== defaultQueryText(workspace.me.mentionName) || isStarted(story);
+    case "inReview":
+      return isReviewState(story.state);
+    case "mergedNotMoved":
+      return isStarted(story);
+  }
+};
+
+const startOfDayAfter = (day: CalendarDay): Date => {
+  const [year = 0, month = 1, date = 0] = day.split("-").map(Number);
+  return new Date(year, month - 1, date + 1);
+};
+
+const movedBy = (floor: CalendarDay | null, story: StorySummary): boolean =>
+  floor === null || story.movedAt.getTime() < startOfDayAfter(floor).getTime();
+
+export const searchWouldFind =
+  (question: Question, workspace: Workspace) =>
+  (story: StorySummary): boolean =>
+    viewWouldFind(question.view, workspace, story) && movedBy(question.movedOnOrBefore, story);
 
 export const groupingOf = (view: View): Grouping => {
   switch (view.kind) {

@@ -50,6 +50,13 @@ const suites: Record<string, readonly ModelCheck[]> = {
       timeoutSeconds: HANG_TIMEOUT_SECONDS,
     },
     {
+      cfg: "NaiveLeave.cfg",
+      tla: "StoryBrowser.tla",
+      expect: "violation of SelectionIsShown",
+      maxDistinctStates: MUTANT_MAX_DISTINCT_STATES,
+      timeoutSeconds: HANG_TIMEOUT_SECONDS,
+    },
+    {
       cfg: "UnguardedAutoRefresh.cfg",
       tla: "StoryBrowser.tla",
       expect: "violation of AutoRefreshWaitsForIdle",

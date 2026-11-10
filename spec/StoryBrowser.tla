@@ -23,7 +23,8 @@ CONSTANTS
     KeepOnFailure,
     IdleChecksRequests,
     MergedQueries,
-    SelectFromShownRows
+    SelectFromShownRows,
+    FollowLeavingRow
 
 NoStory == 0
 NoQuery == ""
@@ -75,18 +76,26 @@ At(S, i) == CHOOSE s \in S : Rank(S, s) = i
 Shows(model, s) == HasValue(model.results) /\ s \in model.results.stories
 
 (* A query in MergedQueries lists only the stories whose latest pull       *)
-(* request answer says merged, as the merged-not-moved filter does.        *)
+(* request answer says merged, as the merged-not-moved filter does. A story *)
+(* whose confirmed move its search would no longer find has left the rows.  *)
+Left(model) == {s \in Stories : model.left[s] # 0}
+
 ShownRows(model) ==
     IF ~HasValue(model.results) THEN {}
-    ELSE IF model.results.query \in MergedQueries
-         THEN model.results.stories \cap model.prs.stories \cap model.prs.merged
-         ELSE model.results.stories
+    ELSE (IF model.results.query \in MergedQueries
+          THEN model.results.stories \cap model.prs.stories \cap model.prs.merged
+          ELSE model.results.stories) \ Left(model)
 
 (* SelectFromShownRows is TRUE in every faithful configuration. FALSE      *)
 (* selects from every searched story, hidden ones included.                *)
 Selectable(model) ==
     IF SelectFromShownRows THEN ShownRows(model)
     ELSE IF HasValue(model.results) THEN model.results.stories ELSE {}
+
+LastOf(S) == IF S = {} THEN NoStory ELSE CHOOSE s \in S : \A t \in S : t <= s
+
+InPlaceOf(rows, s) ==
+    IF \E t \in rows : t > s THEN FirstOf({t \in rows : t > s}) ELSE LastOf({t \in rows : t < s})
 
 Clamp(i, lo, hi) == IF i < lo THEN lo ELSE IF i > hi THEN hi ELSE i
 
@@ -124,6 +133,17 @@ FollowShownRows(model) ==
     LET rows == Selectable(model)
         next == IF model.selected \in rows THEN model.selected ELSE FirstOf(rows)
     IN IF next = model.selected THEN <<model, {}>> ELSE Select(model, next)
+
+(* Shortcut confirmed a move that takes s out of what its search asks for. *)
+(* The move took a request id, and searches sent after it is confirmed are *)
+(* trusted to say whether s is still found. FollowLeavingRow is TRUE in   *)
+(* every faithful configuration. FALSE leaves the selection where it was. *)
+OnMoveLeaves(model, s) ==
+    LET trust == model.nextRid + 1
+        gone == [model EXCEPT !.left[s] = trust, !.nextRid = trust]
+    IN IF FollowLeavingRow /\ model.selected = s
+       THEN Select(gone, InPlaceOf(ShownRows(gone), s))
+       ELSE <<gone, {}>>
 
 Refresh(model) ==
     CASE model.workspace.status = "firstLoad" -> <<model, {}>>
@@ -166,7 +186,9 @@ OnSearchSucceeded(model, req, found) ==
     IF ~SearchResponseApplies(model, req) THEN <<model, {}>>
     ELSE LET loaded == [model EXCEPT !.results =
                             [Absent EXCEPT !.status = "loaded", !.query = req.query,
-                                           !.stories = found, !.answer = req.rid]]
+                                           !.stories = found, !.answer = req.rid],
+                            !.left = [s \in Stories |->
+                                IF req.rid >= model.left[s] THEN 0 ELSE model.left[s]]]
              checking == LoadPullRequests(loaded, found)
              rows == Selectable(checking[1])
              selected == Select(checking[1], IF model.selected \in rows THEN model.selected ELSE FirstOf(rows))
@@ -239,6 +261,7 @@ Init ==
              selected |-> NoStory,
              details |-> [s \in Stories |-> Absent],
              prs |-> NoPullRequests,
+             left |-> [s \in Stories |-> 0],
              focus |-> [mode |-> "browsing", draft |-> NoQuery],
              nextRid |-> 2 ]
     /\ network = {Request("workspace", 1, NoQuery, NoStory)}
@@ -267,6 +290,9 @@ UserActs ==
     \/ UserSends(Refresh(m))
     \/ UserSends(OnHelpOpened(m))
     \/ UserSends(OnHelpClosed(m))
+    \/ /\ userRequests < MaxUserRequests
+       /\ \E s \in ShownRows(m) : Apply(OnMoveLeaves(m, s))
+       /\ userRequests' = userRequests + 1
 
 (* Which linked stories GitHub says are merged matters only to a query in    *)
 (* MergedQueries, so other queries take one answer and keep the state space. *)
@@ -309,6 +335,7 @@ TypeOK ==
     /\ m.selected \in Stories \cup {NoStory}
     /\ m.details \in [Stories -> Remote]
     /\ m.prs \in Remote
+    /\ m.left \in [Stories -> 0..(MaxRequestId + 1)]
     /\ m.focus \in [mode : {"browsing", "editing", "help"}, draft : AllQueries]
     /\ userRequests \in 0..MaxUserRequests
 
@@ -394,15 +421,18 @@ SelectedDetailArrives ==
 
 HasBadge(model, s) == HasValue(model.prs) /\ s \in model.prs.stories
 
+LeavesNow(s) == m.left[s] = 0 /\ m'.left[s] # 0
+
 (* With the question unchanged, no step hides shown results, a shown detail, *)
 (* a badge on a story that is still shown, or a listed row that is still     *)
-(* found before GitHub answers again.                                        *)
+(* found before GitHub answers again, unless a confirmed move took it out.   *)
 RefreshNeverHidesShownData ==
     [][m'.query = m.query =>
          /\ HasValue(m.results) => HasValue(m'.results)
          /\ \A s \in Stories : HasValue(m.details[s]) => HasValue(m'.details[s])
          /\ \A s \in Stories : HasBadge(m, s) /\ Shows(m', s) => HasBadge(m', s)
          /\ \A s \in ShownRows(m) :
-                Shows(m', s) /\ m'.prs.answer = m.prs.answer => s \in ShownRows(m')]_vars
+                Shows(m', s) /\ m'.prs.answer = m.prs.answer /\ ~LeavesNow(s) =>
+                    s \in ShownRows(m')]_vars
 
 =============================================================================

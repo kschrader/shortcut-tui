@@ -61,7 +61,7 @@ const resultsStatus = (model: Model): Status => {
     case "failed":
       return errorStatus;
     case "loaded": {
-      const rows = rowsOf(results.value, model.pullRequests);
+      const rows = rowsOf(model, results.value);
       switch (rows.status) {
         case "checking":
           return loadingStatus;

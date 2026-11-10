@@ -63,7 +63,7 @@ const deliver = (
 const shownIds = (model: Model) => shownStories(model).map((story) => story.id);
 
 const rowsStatus = (model: Model) =>
-  model.results.status === "loaded" ? rowsOf(model.results.value, model.pullRequests) : null;
+  model.results.status === "loaded" ? rowsOf(model, model.results.value) : null;
 
 const ann1 = linking(1, "Ann", new Date(5_000));
 const ann2 = linking(2, "Ann", new Date(1_000));

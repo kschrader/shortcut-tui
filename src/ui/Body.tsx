@@ -104,7 +104,7 @@ const noMatch = (view: View): { headline: string; hint: string } => {
 
 const Rows = (props: BodyProps & { results: SearchResults }) => {
   const { results, model } = props;
-  const rows = rowsOf(results, model.pullRequests);
+  const rows = rowsOf(model, results);
   switch (rows.status) {
     case "checking":
       return (
