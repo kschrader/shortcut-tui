@@ -7,6 +7,25 @@ A terminal client for [Shortcut](https://www.shortcut.com). It lists your open s
 
 Built on [OpenTUI](https://github.com/anomalyco/opentui) 0.8 and the Shortcut REST API v4 through [`@shortcut/client/v4`](https://www.npmjs.com/package/@shortcut/client).
 
+## Project rules
+
+The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `opentui-text-placement` guards a documented OpenTUI pitfall. `parse-shortcut-responses` is preventive: no defect led to it, but the generated client types leave out fields Shortcut sends, such as `formatted_vcs_branch_name`, so only a schema says what a response holds. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
+
+| Rule | Enforced by |
+| --- | --- |
+| No comments. Use a better name or a test | `shortcut-tui/no-comments` |
+| Branch on a union with a `switch`, so new variants fail type-check | `shortcut-tui/switch-on-discriminant` |
+| Read every page of a v4 list | `shortcut-tui/paginate-v4-lists` |
+| Read keys through `keyBindings` in `src/ui/keys.ts`, so help and the hint bar match the handler | `shortcut-tui/keys-from-table` |
+| Put text only inside `<text>` | `shortcut-tui/opentui-text-placement` |
+| Compare every value a raw API schema allows outside the schema, so no pull request state falls through to unknown | `shortcut-tui/classify-every-raw-enum-value` |
+| Cap concurrent requests with `settleLimited` instead of `Promise.all` over a mapped array | `shortcut-tui/bound-fan-out` |
+| No `console` output. It corrupts the screen | `no-console` |
+| No `process.exit`. Destroy the renderer so the terminal is restored | `unicorn/no-process-exit` |
+| Parse API data at the boundary. A Shortcut response goes straight to a schema's `.parse`, and only `src/shortcut/client.ts` imports the Shortcut client. `gh` output arrives as `unknown`, so it cannot be used before a schema parses it | `shortcut-tui/parse-shortcut-responses`, `no-restricted-imports`, and `typescript/no-unsafe-*` |
+
+When you find a defect, add a lint rule against it if a lint can detect it. Otherwise add a test that fails on it. This one is a practice; no check enforces it.
+
 ## Run it
 
 1. Install [Bun](https://bun.sh).
@@ -150,22 +169,3 @@ Press `a` to show only stories that have been in their current state for 4 weeks
 `bun run tlc` needs Java and the TLA+ tools. Download [`tla2tools.jar` v1.7.4](https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar) to `spec/tools/`. It must be the stable v1.7.4 release: the v1.8.0 prerelease is rebuilt in place, so it cannot be pinned by checksum. Git ignores that directory.
 
 Each check has a budget of distinct states, such as 200,000 for `StoryBrowser.cfg`, and fails when TLC explores more. The budget counts states rather than seconds because the count is the same on every machine: the story-browser check takes about 10 seconds on an 18-core laptop and about 145 seconds on CI's 2-core runner. A check that runs past 15 minutes fails as hung.
-
-## Project rules
-
-The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `opentui-text-placement` guards a documented OpenTUI pitfall. `parse-shortcut-responses` is preventive: no defect led to it, but the generated client types leave out fields Shortcut sends, such as `formatted_vcs_branch_name`, so only a schema says what a response holds. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
-
-| Rule | Enforced by |
-| --- | --- |
-| No comments. Use a better name or a test | `shortcut-tui/no-comments` |
-| Branch on a union with a `switch`, so new variants fail type-check | `shortcut-tui/switch-on-discriminant` |
-| Read every page of a v4 list | `shortcut-tui/paginate-v4-lists` |
-| Read keys through `keyBindings` in `src/ui/keys.ts`, so help and the hint bar match the handler | `shortcut-tui/keys-from-table` |
-| Put text only inside `<text>` | `shortcut-tui/opentui-text-placement` |
-| Compare every value a raw API schema allows outside the schema, so no pull request state falls through to unknown | `shortcut-tui/classify-every-raw-enum-value` |
-| Cap concurrent requests with `settleLimited` instead of `Promise.all` over a mapped array | `shortcut-tui/bound-fan-out` |
-| No `console` output. It corrupts the screen | `no-console` |
-| No `process.exit`. Destroy the renderer so the terminal is restored | `unicorn/no-process-exit` |
-| Parse API data at the boundary. A Shortcut response goes straight to a schema's `.parse`, and only `src/shortcut/client.ts` imports the Shortcut client. `gh` output arrives as `unknown`, so it cannot be used before a schema parses it | `shortcut-tui/parse-shortcut-responses`, `no-restricted-imports`, and `typescript/no-unsafe-*` |
-
-When you find a defect, add a lint rule against it if a lint can detect it. Otherwise add a test that fails on it. This one is a practice; no check enforces it.
