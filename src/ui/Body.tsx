@@ -3,6 +3,7 @@ import { changesOf } from "../app/glance.ts";
 import type { Change, Model, SearchResults, View } from "../app/model.ts";
 import { groupingOf, isReviewView, type Grouping } from "../app/filters.ts";
 import { rowsOf } from "../app/rows.ts";
+import { showsCachedList } from "../app/startup.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { storyCount } from "./format.ts";
 import { storyPullRequests } from "./pull-requests.ts";
@@ -68,6 +69,7 @@ const Browser = ({
           <StoryDetailPane
             summary={selected}
             detail={model.details.get(selected.id)}
+            cached={showsCachedList(model)}
             pullRequests={storyPullRequests(selected, model.pullRequests)}
             changes={changesOf(model, selected.id)}
             now={now}
@@ -156,6 +158,7 @@ const Results = (props: BodyProps) => {
 
 export const Body = (props: BodyProps) => {
   const { workspace } = props.model;
+  if (showsCachedList(props.model)) return <Results {...props} />;
   switch (workspace.status) {
     case "firstLoad":
       return <Centered headline="Loading…" hint="Connecting to Shortcut" color={colors.accent} />;

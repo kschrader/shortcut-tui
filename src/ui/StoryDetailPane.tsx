@@ -22,6 +22,7 @@ import { colors } from "./theme.ts";
 type Props = {
   summary: StorySummary;
   detail: Remote<StoryDetail> | undefined;
+  cached: boolean;
   pullRequests: StoryPullRequestList | null;
   changes: readonly Change[];
   now: Date;
@@ -230,9 +231,20 @@ const Note = ({ text, color }: { text: string; color: string }) => (
   </box>
 );
 
-const Detail = ({ detail }: { detail: Remote<StoryDetail> | undefined }) => {
+const Detail = ({
+  detail,
+  cached,
+}: {
+  detail: Remote<StoryDetail> | undefined;
+  cached: boolean;
+}) => {
   switch (detail?.status) {
     case undefined:
+      return cached ? (
+        <Note text="Details load when Shortcut answers" color={colors.dim} />
+      ) : (
+        <Note text="Loading details…" color={colors.dim} />
+      );
     case "firstLoad":
       return <Note text="Loading details…" color={colors.dim} />;
     case "failed":
@@ -257,6 +269,7 @@ const Detail = ({ detail }: { detail: Remote<StoryDetail> | undefined }) => {
 export const StoryDetailPane = ({
   summary,
   detail,
+  cached,
   pullRequests,
   changes,
   now,
@@ -302,7 +315,7 @@ export const StoryDetailPane = ({
       {pullRequests === null ? null : (
         <PullRequestSection count={summary.pullRequestCount} pullRequests={pullRequests} />
       )}
-      <Detail detail={detail} />
+      <Detail detail={detail} cached={cached} />
     </scrollbox>
   );
 };

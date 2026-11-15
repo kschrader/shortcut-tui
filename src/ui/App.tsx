@@ -3,10 +3,11 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useRef, useState } from "react";
 import { unseenChanges } from "../app/glance.ts";
 import type { Model, Msg, Reload } from "../app/model.ts";
-import { AGE_FLOOR_LABEL, isReviewView, viewLabel } from "../app/filters.ts";
+import { AGE_FLOOR_LABEL, filters, isReviewView, viewLabel } from "../app/filters.ts";
 import { pickerStates } from "../app/moves.ts";
-import { reloadFailure } from "../app/remote.ts";
+import { awaited, reloadFailure } from "../app/remote.ts";
 import { rowsOf, shownStories } from "../app/rows.ts";
+import { cachedAt } from "../app/startup.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { Body } from "./Body.tsx";
 import { ageLabel, storyCount } from "./format.ts";
@@ -75,7 +76,15 @@ const resultsStatus = (model: Model): Status => {
   }
 };
 
-const status = (model: Model): Status => {
+const cachedStatus = (model: Model, savedAt: Date, now: Date): Status => {
+  const loading = model.workspace.status === "firstLoad" || awaited(model.results) !== null;
+  const age = `cached ${ageLabel(savedAt, now)}`;
+  return { text: loading ? `${age}  ·  ${loadingStatus.text}` : age, color: colors.warning };
+};
+
+const status = (model: Model, now: Date): Status => {
+  const savedAt = cachedAt(model);
+  if (savedAt !== null) return cachedStatus(model, savedAt, now);
   switch (model.workspace.status) {
     case "firstLoad":
       return loadingStatus;
@@ -86,11 +95,12 @@ const status = (model: Model): Status => {
   }
 };
 
-const queryLabel = ({ workspace, question }: Model): string => {
+const queryLabel = (model: Model): string => {
+  const { workspace, question } = model;
   switch (workspace.status) {
     case "firstLoad":
     case "failed":
-      return "";
+      return cachedAt(model) === null ? "" : filters[0].label;
     case "loaded":
       return viewLabel(question.view, workspace.value);
   }
@@ -129,6 +139,11 @@ const bottomBar = (
   const move = selectedStory === undefined ? undefined : model.moves.get(selectedStory.id);
   if (model.focus.mode === "browsing" && move?.status === "failed") {
     return { text: `✗ Move failed  ·  m to retry  ·  ${move.message}`, color: colors.error };
+  }
+  const { workspace } = model;
+  if (model.focus.mode === "browsing" && workspace.status === "failed") {
+    const text = `✗ Could not load your workspace  ·  r to retry  ·  ${workspace.message}`;
+    return { text, color: colors.warning };
   }
   const refreshFailed = model.focus.mode === "browsing" ? reloadFailure(model.results) : null;
   if (refreshFailed !== null) {
@@ -237,7 +252,7 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
     }
   });
 
-  const { text, color } = status(model);
+  const { text, color } = status(model, now);
   const unseen = unseenChanges(model);
   const forYou = yourReviewCount(model);
   const bottom = bottomBar(model, selectedStory, copyNotice, readOnlyNotice);
