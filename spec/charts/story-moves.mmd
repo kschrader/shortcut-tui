@@ -13,8 +13,8 @@ stateDiagram-v2
   s0: Shows Ready
   s1: Shows In Progress, saving In Progress
   s2: Move failed, shows Ready
-  s3: Moved, shows In Progress
-  s4: Shows Ready, saving In Progress, Ready queued
+  s3: Shows Ready, saving In Progress, Ready queued
+  s4: Moved, shows In Progress
   s5: Shows Ready, saving Ready
   s6: Shows In Progress
   s7: Move failed, shows In Progress
@@ -22,24 +22,24 @@ stateDiagram-v2
   [*] --> s0
   s0 --> s1: you pick In Progress
   s1 --> s2: Shortcut refuses the move to In Progress
-  s1 --> s3: Shortcut confirms the move to In Progress
-  s1 --> s4: you pick Ready [while a move saves]
+  s1 --> s3: you pick Ready [while a move saves]
   s2 --> s1: you pick In Progress
-  s3 --> s5: you pick Ready
-  s4 --> s2: Shortcut refuses the move to In Progress
-  s4 --> s5: Shortcut confirms the move to In Progress, the queued pick is sent
+  s1 --> s4: Shortcut confirms the move to In Progress
+  s3 --> s2: Shortcut refuses the move to In Progress
   s2 --> s0: the refresh returns
-  s3 --> s6: the refresh returns
+  s4 --> s5: you pick Ready
+  s3 --> s5: Shortcut confirms the move to In Progress, the queued pick is sent
+  s4 --> s6: the refresh returns
   s5 --> s7: Shortcut refuses the move to Ready
-  s5 --> s8: Shortcut confirms the move to Ready
   s6 --> s5: you pick Ready
+  s5 --> s8: Shortcut confirms the move to Ready
   s7 --> s6: the refresh returns
   s8 --> s0: the refresh returns
   class s0 teal
   class s1 blue
   class s2 orange
-  class s3 teal
-  class s4 blue
+  class s3 blue
+  class s4 teal
   class s5 blue
   class s6 teal
   class s7 orange

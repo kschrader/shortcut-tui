@@ -112,6 +112,27 @@ const suites: Record<string, readonly ModelCheck[]> = {
       maxDistinctStates: MUTANT_MAX_DISTINCT_STATES,
       timeoutSeconds: HANG_TIMEOUT_SECONDS,
     },
+    {
+      cfg: "TeammateMoves.cfg",
+      tla: "StoryMoves.tla",
+      expect: "pass",
+      maxDistinctStates: 30_000,
+      timeoutSeconds: HANG_TIMEOUT_SECONDS,
+    },
+    {
+      cfg: "WriteWithoutRead.cfg",
+      tla: "StoryMoves.tla",
+      expect: "violation of NeverWritesOverAMoveMadeBeforeItsRead",
+      maxDistinctStates: MUTANT_MAX_DISTINCT_STATES,
+      timeoutSeconds: HANG_TIMEOUT_SECONDS,
+    },
+    {
+      cfg: "ReadWriteWindow.cfg",
+      tla: "StoryMoves.tla",
+      expect: "violation of NeverWritesOverATeammatesMove",
+      maxDistinctStates: MUTANT_MAX_DISTINCT_STATES,
+      timeoutSeconds: HANG_TIMEOUT_SECONDS,
+    },
   ],
   big: [
     {

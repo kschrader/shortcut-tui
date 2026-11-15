@@ -7,6 +7,16 @@
 (* fixed, and the server applies it, the first time it is answered; later  *)
 (* answers only replay the response. Every story is in every search        *)
 (* result.                                                                 *)
+(*                                                                         *)
+(* With ReadBeforeWrite, Shortcut answers a move in two steps, as the      *)
+(* moveStory effect in src/app/effects.ts asks for them: it reads the      *)
+(* story, and it writes the story only when the read saw the state the     *)
+(* app believed. A teammate can move the story between the two steps.      *)
+(* Shortcut has no conditional update, so nothing closes that window.      *)
+(* StoryMoves.cfg has no teammates and answers a move in one step. The     *)
+(* read in its own step would take that config past its state budget, and  *)
+(* TeammateMoves.cfg checks that the read changes nothing until a teammate *)
+(* moves a story.                                                          *)
 EXTENDS Integers, FiniteSets
 
 CONSTANTS
@@ -15,23 +25,29 @@ CONSTANTS
     MaxPicks,
     MaxSearches,
     MaxRid,
-    Serialize
+    Serialize,
+    ReadBeforeWrite,
+    MaxTeammateMoves
 
 NoStory == 0
 NoState == 0
 Initial == CHOOSE st \in States : \A other \in States : st <= other
 
-VARIABLES m, server, outcome, network, picks, searches
+VARIABLES m, server, outcome, network, picks, searches, read, replaced,
+          teammateMoves
 
-vars == <<m, server, outcome, network, picks, searches>>
+vars == <<m, server, outcome, network, picks, searches, read, replaced,
+          teammateMoves>>
 
 RequestIds == 1..MaxRid
 NoSnap == [s \in Stories |-> NoState]
 
-MoveRequest(rid, s, t) ==
-    [kind |-> "move", rid |-> rid, story |-> s, target |-> t, snap |-> NoSnap]
+MoveRequest(rid, s, t, known) ==
+    [kind |-> "move", rid |-> rid, story |-> s, target |-> t, known |-> known,
+     snap |-> NoSnap]
 SearchRequest(rid, snap) ==
-    [kind |-> "search", rid |-> rid, story |-> NoStory, target |-> NoState, snap |-> snap]
+    [kind |-> "search", rid |-> rid, story |-> NoStory, target |-> NoState,
+     known |-> NoState, snap |-> snap]
 
 Slot(status, rid, target, pending, known, trustFrom) ==
     [status |-> status, rid |-> rid, target |-> target, pending |-> pending,
@@ -57,7 +73,7 @@ StartMove(model, s, t, known, trustFrom) ==
     IN << [model EXCEPT !.display[s] = t,
                         !.move[s] = Saving(rid, t, known, trustFrom),
                         !.nextRid = rid + 1],
-          {MoveRequest(rid, s, t)} >>
+          {MoveRequest(rid, s, t, known)} >>
 
 Pick(model, s, t) ==
     LET slot == model.move[s]
@@ -118,6 +134,14 @@ OnMoveFailed(model, req) ==
                                   !.move[s] = FailedMove(slot.known, slot.trustFrom)],
                     {} >>
 
+(* The app shows what the read found and sends nothing, the queued pick    *)
+(* included: the user picked it against a state that no longer holds.      *)
+OnMoveConflicted(model, req, found) ==
+    IF ~MoveAnswerApplies(model, req) THEN <<model, {}>>
+    ELSE << [model EXCEPT !.display[req.story] = found,
+                          !.move[req.story] = FailedMove(found, model.nextRid)],
+            {} >>
+
 Init ==
     /\ m = [ display |-> [s \in Stories |-> Initial],
              move |-> [s \in Stories |-> NoMove],
@@ -128,6 +152,9 @@ Init ==
     /\ network = {}
     /\ picks = 0
     /\ searches = 0
+    /\ read = [rid \in RequestIds |-> NoState]
+    /\ replaced = [rid \in RequestIds |-> NoState]
+    /\ teammateMoves = 0
 
 Apply(step) ==
     /\ m' = step[1]
@@ -139,39 +166,82 @@ UserPicks ==
     /\ picks < MaxPicks
     /\ \E s \in Stories : \E t \in States \ {m.display[s]} : Apply(Pick(m, s, t))
     /\ picks' = picks + 1
-    /\ UNCHANGED <<server, outcome, searches>>
+    /\ UNCHANGED <<server, outcome, searches, read, replaced, teammateMoves>>
 
 UserSearches ==
     /\ searches < MaxSearches
     /\ Apply(Search(m, server))
     /\ searches' = searches + 1
-    /\ UNCHANGED <<server, outcome, picks>>
+    /\ UNCHANGED <<server, outcome, picks, read, replaced, teammateMoves>>
+
+(* Someone else moves a story in Shortcut. Nothing tells the app.          *)
+ATeammateMoves ==
+    /\ teammateMoves < MaxTeammateMoves
+    /\ \E s \in Stories : \E t \in States \ {server[s]} :
+           server' = [server EXCEPT ![s] = t]
+    /\ teammateMoves' = teammateMoves + 1
+    /\ UNCHANGED <<m, outcome, network, picks, searches, read, replaced>>
 
 (* The server reads each story either when the search was sent or when it  *)
 (* is answered, so a response can mix pre-move and post-move states.        *)
 AnswerSearch(req) ==
-    /\ UNCHANGED <<server, outcome>>
+    /\ UNCHANGED <<server, outcome, read, replaced>>
     /\ \/ \E seen \in {f \in [Stories -> States] : \A s \in Stories : f[s] \in {req.snap[s], server[s]}} :
              Apply(OnSearchSucceeded(m, req, seen))
        \/ Apply(OnSearchFailed(m, req))
 
+(* Shortcut answers the read that the app makes before it writes. A story  *)
+(* already in the picked state needs no write. A story in the state the    *)
+(* app believes goes on to the write. Any other state is a conflict.       *)
+ShortcutReads(req) ==
+    LET found == server[req.story]
+        result == IF found = req.target THEN "ok"
+                  ELSE IF found = req.known THEN "undecided" ELSE "conflict"
+    IN /\ read' = [read EXCEPT ![req.rid] = found]
+       /\ outcome' = [outcome EXCEPT ![req.rid] = result]
+       /\ UNCHANGED <<server, replaced>>
+       /\ IF result = "ok" THEN Apply(OnMoveSucceeded(m, req))
+          ELSE IF result = "conflict"
+               THEN Apply(OnMoveConflicted(m, req, found))
+               ELSE UNCHANGED <<m, network>>
+
+ShortcutWrites(req) ==
+    /\ outcome' = [outcome EXCEPT ![req.rid] = "ok"]
+    /\ replaced' = [replaced EXCEPT ![req.rid] = server[req.story]]
+    /\ server' = [server EXCEPT ![req.story] = req.target]
+    /\ UNCHANGED read
+    /\ Apply(OnMoveSucceeded(m, req))
+
+(* Either the read or the write can fail, and the story then stays as it   *)
+(* was.                                                                    *)
+ShortcutRefuses(req) ==
+    /\ outcome' = [outcome EXCEPT ![req.rid] = "fail"]
+    /\ read' = [read EXCEPT ![req.rid] = NoState]
+    /\ UNCHANGED <<server, replaced>>
+    /\ Apply(OnMoveFailed(m, req))
+
+Replay(req) ==
+    /\ UNCHANGED <<server, outcome, read, replaced>>
+    /\ Apply(IF outcome[req.rid] = "ok" THEN OnMoveSucceeded(m, req)
+             ELSE IF outcome[req.rid] = "fail" THEN OnMoveFailed(m, req)
+             ELSE OnMoveConflicted(m, req, read[req.rid]))
+
 AnswerMove(req) ==
-    LET undecided == outcome[req.rid] = "undecided"
-    IN \E result \in IF undecided THEN {"ok", "fail"} ELSE {outcome[req.rid]} :
-        /\ outcome' = [outcome EXCEPT ![req.rid] = result]
-        /\ server' = IF undecided /\ result = "ok"
-                     THEN [server EXCEPT ![req.story] = req.target]
-                     ELSE server
-        /\ Apply(IF result = "ok" THEN OnMoveSucceeded(m, req) ELSE OnMoveFailed(m, req))
+    IF outcome[req.rid] # "undecided" THEN Replay(req)
+    ELSE \/ ShortcutRefuses(req)
+         \/ IF ReadBeforeWrite /\ read[req.rid] = NoState
+            THEN ShortcutReads(req)
+            ELSE ShortcutWrites(req)
 
 Answer(req) ==
-    /\ UNCHANGED <<picks, searches>>
+    /\ UNCHANGED <<picks, searches, teammateMoves>>
     /\ CASE req.kind = "search" -> AnswerSearch(req)
          [] req.kind = "move" -> AnswerMove(req)
 
 NetworkAnswers(rid) == \E req \in network : req.rid = rid /\ Answer(req)
 
-Next == UserPicks \/ UserSearches \/ \E req \in network : Answer(req)
+Next ==
+    UserPicks \/ UserSearches \/ ATeammateMoves \/ \E req \in network : Answer(req)
 
 Spec == Init /\ [][Next]_vars /\ \A rid \in RequestIds : WF_vars(NetworkAnswers(rid))
 
@@ -191,9 +261,12 @@ TypeOK ==
     /\ m.move \in [Stories -> MoveSlots]
     /\ m.results \in Results
     /\ server \in [Stories -> States]
-    /\ outcome \in [RequestIds -> {"undecided", "ok", "fail"}]
+    /\ outcome \in [RequestIds -> {"undecided", "ok", "fail", "conflict"}]
     /\ picks \in 0..MaxPicks
     /\ searches \in 0..MaxSearches
+    /\ read \in [RequestIds -> {NoState} \cup States]
+    /\ replaced \in [RequestIds -> {NoState} \cup States]
+    /\ teammateMoves \in 0..MaxTeammateMoves
 
 RequestIdsStayInModelBounds == m.nextRid <= MaxRid + 1
 
@@ -208,15 +281,42 @@ AtMostOneMoveInFlight ==
 
 SavingTracksTheInFlightMove ==
     \A s \in Stories :
-        Undecided(s) = IF m.move[s].status = "saving"
-                       THEN {MoveRequest(m.move[s].rid, s, m.move[s].target)}
-                       ELSE {}
+        {<<req.rid, req.target>> : req \in Undecided(s)} =
+            IF m.move[s].status = "saving"
+            THEN {<<m.move[s].rid, m.move[s].target>>}
+            ELSE {}
 
 KnownMatchesServer ==
     \A s \in Stories : m.move[s].status # "none" => m.move[s].known = server[s]
 
 SettledDisplayMatchesServer ==
     \A s \in Stories : Undecided(s) = {} => m.display[s] = server[s]
+
+(* While the app is the only one moving stories, the read finds what the   *)
+(* app believes, and the rules for the app alone hold with the read in     *)
+(* its own step.                                                           *)
+ConflictsNeedATeammate ==
+    teammateMoves = 0 => \A rid \in RequestIds : outcome[rid] # "conflict"
+
+RulesForTheAppAloneHoldUntilATeammateMoves ==
+    teammateMoves = 0 => KnownMatchesServer /\ SettledDisplayMatchesServer
+
+MoveRequests == {req \in network : req.kind = "move"}
+
+(* A write changed a state other than the one the app believed Shortcut    *)
+(* held when it sent the move.                                             *)
+WroteOverAMove(req) ==
+    replaced[req.rid] \notin {NoState, req.known, req.target}
+
+(* What the read gives: a write goes over another move only when that move *)
+(* came after the app read the story in the state it believed.             *)
+NeverWritesOverAMoveMadeBeforeItsRead ==
+    \A req \in MoveRequests : WroteOverAMove(req) => read[req.rid] = req.known
+
+(* What the read cannot give: this fails when a teammate moves the story   *)
+(* between the read and the write.                                         *)
+NeverWritesOverATeammatesMove ==
+    \A req \in MoveRequests : ~WroteOverAMove(req)
 
 EverythingSettles ==
     <>[](/\ m.results.reload # "inFlight"
