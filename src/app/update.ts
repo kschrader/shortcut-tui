@@ -9,7 +9,14 @@ import type {
   StartupList,
   Step,
 } from "./model.ts";
-import { applyMove, carryMoves, nextMove, pickerStates, withSubTask } from "./moves.ts";
+import {
+  applyMove,
+  carryMoves,
+  nextMove,
+  pickerStates,
+  withSubTask,
+  type MoveEvent,
+} from "./moves.ts";
 import {
   ageFloorFrom,
   draftFor,
@@ -182,6 +189,14 @@ const resultsArrived = (
   return [selected, [...detailEffects, ...pullRequestEffects, ...savedForStartup(shown, loadedAt)]];
 };
 
+const storyRead = (model: Model, storyId: StoryId, story: StorySummary, event: MoveEvent): Step => {
+  const step = nextMove(model.moves.get(storyId), event, model.nextRequestId);
+  if (step === null) return [model, []];
+  const details = withSubTask(model.details, story);
+  const applied = applyMove({ ...model, details }, storyId, step, story);
+  return step.kind === "hold" ? followLeavingRow(model, applied[0]) : applied;
+};
+
 export const init = (saved: StartupList | null = null): Step => {
   const requestId = firstRequestId;
   return [
@@ -245,15 +260,16 @@ const transition = (model: Model, msg: Msg): Step => {
     }
     case "moveSucceeded": {
       const { requestId, storyId, story } = msg;
-      const step = nextMove(
-        model.moves.get(storyId),
-        { type: "confirmed", requestId, state: story.state, movedAt: story.movedAt },
-        model.nextRequestId,
-      );
-      if (step === null) return [model, []];
-      const details = withSubTask(model.details, story);
-      const applied = applyMove({ ...model, details }, storyId, step, story);
-      return step.kind === "hold" ? followLeavingRow(model, applied[0]) : applied;
+      const { state, movedAt } = story;
+      return storyRead(model, storyId, story, { type: "confirmed", requestId, state, movedAt });
+    }
+    case "moveConflicted": {
+      const { requestId, storyId, story } = msg;
+      return storyRead(model, storyId, story, {
+        type: "conflicted",
+        requestId,
+        state: story.state,
+      });
     }
     case "moveFailed": {
       const { requestId, storyId, message } = msg;

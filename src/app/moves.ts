@@ -14,6 +14,7 @@ type Saving = Extract<StoryMove, { status: "saving" }>;
 export type MoveEvent =
   | { type: "picked"; target: WorkflowState; shown: WorkflowState }
   | { type: "confirmed"; requestId: RequestId; state: WorkflowState; movedAt: Date }
+  | { type: "conflicted"; requestId: RequestId; state: WorkflowState }
   | { type: "refused"; requestId: RequestId; message: string };
 
 export type MoveStep =
@@ -73,6 +74,17 @@ const refused = (saving: Saving, message: string, nextRequestId: RequestId): Mov
   return { kind: "hold", move: { status: "failed", message, known, trustFrom }, shows: known };
 };
 
+const conflicted = (found: WorkflowState, nextRequestId: RequestId): MoveStep => ({
+  kind: "hold",
+  move: {
+    status: "failed",
+    message: `it was moved to ${found.name} first`,
+    known: found,
+    trustFrom: nextRequestId,
+  },
+  shows: found,
+});
+
 const awaiting = (move: StoryMove | undefined, requestId: RequestId): Saving | null =>
   move?.status === "saving" && move.requestId === requestId ? move : null;
 
@@ -88,6 +100,10 @@ export const nextMove = (
       const saving = awaiting(move, event.requestId);
       return saving === null ? null : confirmed(saving, event.state, event.movedAt, nextRequestId);
     }
+    case "conflicted":
+      return awaiting(move, event.requestId) === null
+        ? null
+        : conflicted(event.state, nextRequestId);
     case "refused": {
       const saving = awaiting(move, event.requestId);
       return saving === null ? null : refused(saving, event.message, nextRequestId);
@@ -151,14 +167,14 @@ export const applyMove = (
     case "hold":
       return [{ ...restate(model, storyId, step.shows, replacement), moves }, []];
     case "send": {
-      const { requestId, target } = step.move;
+      const { requestId, target, known } = step.move;
       return [
         {
           ...restate(model, storyId, target, replacement),
           moves,
           nextRequestId: requestIdAfter(requestId),
         },
-        [{ type: "moveStory", requestId, storyId, stateId: target.id }],
+        [{ type: "moveStory", requestId, storyId, stateId: target.id, knownStateId: known.id }],
       ];
     }
   }

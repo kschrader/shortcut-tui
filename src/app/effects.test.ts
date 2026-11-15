@@ -262,10 +262,11 @@ test("a GitHub failure fails the whole pull request load with GitHub's message",
 
 test("a failing move becomes a moveFailed message for its story", async () => {
   const stateId = z.custom<WorkflowStateId>().parse(3);
+  const knownStateId = z.custom<WorkflowStateId>().parse(1);
   expect(
     await runEffect(
       failing(failingClient),
-      { type: "moveStory", requestId, storyId, stateId },
+      { type: "moveStory", requestId, storyId, stateId, knownStateId },
       noon,
     ),
   ).toEqual({ type: "moveFailed", requestId, storyId, message: "HTTP 403" });

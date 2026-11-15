@@ -118,6 +118,7 @@ export type Msg =
   | { type: "pullRequestsLoaded"; requestId: RequestId; pullRequests: StoryPullRequests }
   | { type: "pullRequestsFailed"; requestId: RequestId; message: string }
   | { type: "moveSucceeded"; requestId: RequestId; storyId: StoryId; story: StorySummary }
+  | { type: "moveConflicted"; requestId: RequestId; storyId: StoryId; story: StorySummary }
   | { type: "moveFailed"; requestId: RequestId; storyId: StoryId; message: string }
   | { type: "selectionMoved"; delta: number }
   | { type: "storyClicked"; storyId: StoryId }
@@ -145,6 +146,12 @@ export type RemoteRequest =
   | { type: "searchStories"; requestId: RequestId; queries: readonly string[] }
   | { type: "getStory"; requestId: RequestId; storyId: StoryId }
   | { type: "loadPullRequests"; requestId: RequestId; storyIds: readonly StoryId[] }
-  | { type: "moveStory"; requestId: RequestId; storyId: StoryId; stateId: WorkflowStateId };
+  | {
+      type: "moveStory";
+      requestId: RequestId;
+      storyId: StoryId;
+      stateId: WorkflowStateId;
+      knownStateId: WorkflowStateId;
+    };
 
 export type Effect = RemoteRequest | { type: "saveStartupList"; list: StartupList };

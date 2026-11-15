@@ -15,6 +15,7 @@ import {
   stories,
   summary,
 } from "./frame.tsx";
+import { update } from "../app/update.ts";
 import { hintFor } from "./keys.ts";
 
 afterEach(cleanup);
@@ -139,6 +140,34 @@ test("a saving story shows a saving marker, a failed one a failed marker, and th
   expect(rowOf(text, " 103 ")).toContain("✗ failed");
   expect(rowOf(text, " 102 ")).not.toContain("saving");
   expect(text).toContain("✗ Move failed  ·  m to retry  ·  Shortcut API 422");
+});
+
+test("a move that found the story somewhere else shows it there, marked failed, and the bottom bar says where it went, whole at 80x24", async () => {
+  const saving: StoryMove = {
+    status: "saving",
+    requestId: requestId(11),
+    target: done,
+    pending: null,
+    known: ready,
+    trustFrom: requestId(1),
+  };
+  const [conflicted] = update(
+    browsing({ moves: new Map([[stories[2].id, saving]]), selectedStoryId: stories[2].id }),
+    {
+      type: "moveConflicted",
+      requestId: requestId(11),
+      storyId: stories[2].id,
+      story: { ...stories[2], state: inProgress },
+    },
+  );
+  const { frame } = await show(conflicted, { width: 80, height: 24 });
+  const lines = frame().split("\n");
+  const row = lines.findIndex((line) => line.includes(" 103 "));
+  expect(lines[row]).toContain("✗ failed");
+  expect(lines.slice(0, row).findLast((line) => line.startsWith("──"))).toContain("In Progress  2");
+  expect(lines.find((line) => line.includes("Move failed"))?.trim()).toBe(
+    "✗ Move failed  ·  m to retry  ·  it was moved to In Progress first",
+  );
 });
 
 test("a moved story shows no marker and the bottom bar shows the usual hints", async () => {
