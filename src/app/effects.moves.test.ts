@@ -12,7 +12,9 @@ import {
   whoamiRoute,
   type Route,
 } from "../shortcut/api-stub.ts";
+import { createFakeShortcutClient } from "../shortcut/fake.ts";
 import { storyId, workflowStateId } from "../shortcut/schemas.ts";
+import type { ShortcutClient } from "../shortcut/types.ts";
 import { runEffect } from "./effects.ts";
 import type { Effect, Msg, RequestId } from "./model.ts";
 
@@ -93,4 +95,33 @@ test("a write that Shortcut refuses becomes a moveFailed message for the story",
     storyId: storyId.parse(42),
     message: "Shortcut API 422 for PATCH /api/v4/acme/stories/42 (invalid_workflow_state)",
   });
+});
+
+test("a teammate's move between the read and the write is overwritten, because Shortcut has no conditional update", async () => {
+  const shortcut = createFakeShortcutClient();
+  const { workflowStates } = await shortcut.loadWorkspace();
+  const [story] = await shortcut.searchStories("owner:me is:started");
+  const teammatesPick = workflowStates.find((state) => state.name === "In Review");
+  const yourPick = workflowStates.find((state) => state.name === "Done");
+  if (story === undefined || teammatesPick === undefined || yourPick === undefined) {
+    throw new Error("the demo workspace changed");
+  }
+  expect(story.state.name).toBe("In Progress");
+  const teammateMovesAfterTheRead: ShortcutClient = {
+    ...shortcut,
+    getStorySummary: async (id) => {
+      const held = await shortcut.getStorySummary(id);
+      await shortcut.moveStory(id, teammatesPick.id);
+      return held;
+    },
+  };
+
+  const msg = await runEffect(
+    { shortcut: teammateMovesAfterTheRead, github },
+    { ...moveToDone, storyId: story.id, stateId: yourPick.id, knownStateId: story.state.id },
+    () => new Date(0),
+  );
+
+  expect(msg.type).toBe("moveSucceeded");
+  expect((await shortcut.getStorySummary(story.id)).state.name).toBe("Done");
 });

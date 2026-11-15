@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import type { StoryDetail, StorySummary } from "../shortcut/types.ts";
 import { detail, doing, finished, inState, storyId, summary, toDo } from "./fixtures.ts";
+import { unseenChanges } from "./glance.ts";
 import type { Effect, Model } from "./model.ts";
 import { answer, browsing, first, only, pick, shown, stateOf, type EffectOf } from "./steps.ts";
 import { update } from "./update.ts";
@@ -96,6 +97,22 @@ test("a refresh sent before the conflict cannot bring back the old state, and on
   ]);
   expect(stateOf(fresh, 1)).toBe("Finished");
   expect(fresh.moves.has(storyId(1))).toBe(false);
+});
+
+test("a conflict does not mark the story as changed, also after the next refresh agrees with it", () => {
+  const [model] = browsing([summary(1), summary(2)]);
+  const [picked, effects] = pick(model, "Finished");
+  const [elsewhere] = update(picked, { type: "selectionMoved", delta: 1 });
+  expect(elsewhere.selectedStoryId).toBe(storyId(2));
+  const [conflicted] = conflict(elsewhere, only(effects, "moveStory"));
+  expect(unseenChanges(conflicted).has(storyId(1))).toBe(false);
+  const [refreshing, refreshEffects] = update(conflicted, { type: "refreshRequested" });
+  const [refreshed] = answer(refreshing, first(refreshEffects, "searchStories"), [
+    movedElsewhere(1),
+    summary(2),
+  ]);
+  expect(refreshed.moves.has(storyId(1))).toBe(false);
+  expect(unseenChanges(refreshed).has(storyId(1))).toBe(false);
 });
 
 test("a conflict for a request that is no longer in flight is dropped", () => {
