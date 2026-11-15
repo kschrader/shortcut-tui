@@ -1,11 +1,12 @@
 ----------------------------- MODULE StoryMoves -----------------------------
-(* Mirrors the move protocol in src/app/update.ts: movePickerConfirmed,     *)
-(* moveSucceeded, moveFailed, and the move handling in resultsArrived. Each *)
-(* operator returns <<model, requests sent>>. The network keeps every       *)
-(* request ever sent, so any of them can be answered at any time, in any    *)
-(* order, any number of times. A move's outcome is fixed, and the server    *)
-(* applies it, the first time it is answered; later answers only replay    *)
-(* the response. Every story is in every search result.                     *)
+(* Mirrors the move protocol in src/app/moves.ts: nextMove for a pick and  *)
+(* for a move's answer, and shownAfterRefresh and moveAfterRefresh for a   *)
+(* search's answer. Each operator returns <<model, requests sent>>. The    *)
+(* network keeps every request ever sent, so any of them can be answered   *)
+(* at any time, in any order, any number of times. A move's outcome is     *)
+(* fixed, and the server applies it, the first time it is answered; later  *)
+(* answers only replay the response. Every story is in every search        *)
+(* result.                                                                 *)
 EXTENDS Integers, FiniteSets
 
 CONSTANTS

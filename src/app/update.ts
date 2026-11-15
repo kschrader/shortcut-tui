@@ -10,7 +10,7 @@ import type {
   Step,
   StoryPullRequests,
 } from "./model.ts";
-import { carryMoves, pickerStates, restate, startMove } from "./moves.ts";
+import { carryMoves, nextMove, pickerStates, restate, type MoveStep } from "./moves.ts";
 import {
   ageFloorFrom,
   defaultQueryFor,
@@ -180,6 +180,30 @@ const resultsArrived = (
   return [selected, [...detailEffects, ...pullRequestEffects]];
 };
 
+const applyMove = (
+  model: Model,
+  storyId: StoryId,
+  step: MoveStep,
+  replacement?: StorySummary,
+): Step => {
+  const moves = new Map(model.moves).set(storyId, step.move);
+  switch (step.kind) {
+    case "hold":
+      return [{ ...restate(model, storyId, step.shows, replacement), moves }, []];
+    case "send": {
+      const { requestId, target } = step.move;
+      return [
+        {
+          ...restate(model, storyId, target, replacement),
+          moves,
+          nextRequestId: requestIdAfter(requestId),
+        },
+        [{ type: "moveStory", requestId, storyId, stateId: target.id }],
+      ];
+    }
+  }
+};
+
 export const init = (): Step => {
   const requestId = firstRequestId;
   return [
@@ -246,36 +270,24 @@ const transition = (model: Model, msg: Msg): Step => {
       return [{ ...model, pullRequests: { ...model.pullRequests, reload } }, []];
     }
     case "moveSucceeded": {
-      const move = model.moves.get(msg.storyId);
-      if (move?.status !== "saving" || move.requestId !== msg.requestId) return [model, []];
-      const known = msg.story.state;
-      const trustFrom = model.nextRequestId;
-      const replaced = restate(model, msg.storyId, known, msg.story);
-      if (move.pending !== null && move.pending.id !== known.id) {
-        return startMove(replaced, msg.storyId, move.pending, known, trustFrom);
-      }
-      const moves = new Map(model.moves).set(msg.storyId, {
-        status: "moved",
-        known,
-        trustFrom,
-        movedAt: msg.story.movedAt,
-      });
-      return followLeavingRow(model, { ...replaced, moves });
+      const { requestId, storyId, story } = msg;
+      const step = nextMove(
+        model.moves.get(storyId),
+        { type: "confirmed", requestId, state: story.state, movedAt: story.movedAt },
+        model.nextRequestId,
+      );
+      if (step === null) return [model, []];
+      const applied = applyMove(model, storyId, step, story);
+      return step.kind === "hold" ? followLeavingRow(model, applied[0]) : applied;
     }
     case "moveFailed": {
-      const move = model.moves.get(msg.storyId);
-      if (move?.status !== "saving" || move.requestId !== msg.requestId) return [model, []];
-      const { known, trustFrom } = move;
-      if (move.pending !== null && move.pending.id !== known.id) {
-        return startMove(model, msg.storyId, move.pending, known, trustFrom);
-      }
-      const moves = new Map(model.moves).set(msg.storyId, {
-        status: "failed",
-        message: msg.message,
-        known,
-        trustFrom,
-      });
-      return [{ ...restate(model, msg.storyId, known), moves }, []];
+      const { requestId, storyId, message } = msg;
+      const step = nextMove(
+        model.moves.get(storyId),
+        { type: "refused", requestId, message },
+        model.nextRequestId,
+      );
+      return step === null ? [model, []] : applyMove(model, storyId, step);
     }
     case "selectionMoved": {
       const stories = shownStories(model);
@@ -374,19 +386,13 @@ const transition = (model: Model, msg: Msg): Step => {
       const story = storyIn(model, model.focus.storyId);
       if (story === null) return [closed, []];
       const target = pickerStates(model.workspace.value, story)[model.focus.cursor];
-      if (target === undefined || target.id === story.state.id) return [closed, []];
-      const move = model.moves.get(story.id);
-      if (move?.status === "saving") {
-        const moves = new Map(model.moves).set(story.id, { ...move, pending: target });
-        return [{ ...restate(closed, story.id, target), moves }, []];
-      }
-      return startMove(
-        closed,
-        story.id,
-        target,
-        move?.known ?? story.state,
-        move?.trustFrom ?? firstRequestId,
+      if (target === undefined) return [closed, []];
+      const step = nextMove(
+        model.moves.get(story.id),
+        { type: "picked", target, shown: story.state },
+        model.nextRequestId,
       );
+      return step === null ? [closed, []] : applyMove(closed, story.id, step);
     }
     case "movePickerClosed": {
       if (model.focus.mode !== "picking") return [model, []];

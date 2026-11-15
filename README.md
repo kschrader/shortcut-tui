@@ -171,6 +171,70 @@ Press `a` to show only stories that have been in their current state for 4 weeks
 
 Each check has a budget of distinct states, such as 200,000 for `StoryBrowser.cfg`, and fails when TLC explores more. The budget counts states rather than seconds because the count is the same on every machine: the story-browser check takes about 10 seconds on an 18-core laptop and about 145 seconds on CI's 2-core runner. A check that runs past 15 minutes fails as hung.
 
+### The move protocol
+
+This chart shows how one story moves when you pick a new state for it. It is drawn from `spec/StoryMoves.tla` with one story, two states, two picks and one refresh, and every rule in the spec holds in it. A pick made while a move saves waits in a queue. The app sends it after Shortcut answers, and only when it still differs from what Shortcut has.
+
+```mermaid
+---
+title: "Moving a story while a refresh can race it"
+---
+stateDiagram-v2
+  state "Legend" as legend {
+    lg0: saving
+    lg1: failed
+    lg2: settled
+  }
+  class lg0 blue
+  class lg1 orange
+  class lg2 teal
+  s0: Shows Ready
+  s1: Shows In Progress, saving In Progress
+  s2: Move failed, shows Ready
+  s3: Moved, shows In Progress
+  s4: Shows Ready, saving In Progress, Ready queued
+  s5: Shows Ready, saving Ready
+  s6: Shows In Progress
+  s7: Move failed, shows In Progress
+  s8: Moved, shows Ready
+  [*] --> s0
+  s0 --> s1: you pick In Progress
+  s1 --> s2: Shortcut refuses the move to In Progress
+  s1 --> s3: Shortcut confirms the move to In Progress
+  s1 --> s4: you pick Ready [while a move saves]
+  s2 --> s1: you pick In Progress
+  s3 --> s5: you pick Ready
+  s4 --> s2: Shortcut refuses the move to In Progress
+  s4 --> s5: Shortcut confirms the move to In Progress, the queued pick is sent
+  s2 --> s0: the refresh returns
+  s3 --> s6: the refresh returns
+  s5 --> s7: Shortcut refuses the move to Ready
+  s5 --> s8: Shortcut confirms the move to Ready
+  s6 --> s5: you pick Ready
+  s7 --> s6: the refresh returns
+  s8 --> s0: the refresh returns
+  class s0 teal
+  class s1 blue
+  class s2 orange
+  class s3 teal
+  class s4 blue
+  class s5 blue
+  class s6 teal
+  class s7 orange
+  class s8 teal
+```
+
+The code keeps these transitions in one place, `nextMove` in `src/app/moves.ts`, with `shownAfterRefresh` and `moveAfterRefresh` for a refresh that returns. `src/app/moves.chart.test.ts` replays each arrow of `spec/charts/story-moves.mmd` through those functions and fails when the code lands in a different state, or reacts to a response the chart does not draw. It also fails when this README shows a different chart.
+
+To draw the chart again after you change the spec, run the pstack `statechart` skill's script from `spec/charts/`:
+
+```sh
+TLA2TOOLS="$PWD/../tools/tla2tools.jar" <statechart skill>/scripts/statechart ../StoryMoves.tla \
+  --config story-moves.cfg --view story-moves.view.ts --out <new folder>
+```
+
+Then copy `chart.mmd` from that folder to `story-moves.mmd`, and paste it into this section.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
