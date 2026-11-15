@@ -4,7 +4,7 @@ import type { Change, PullRequestView, Remote } from "../app/model.ts";
 import type { StoryMergeStatus } from "../github/pull-request-state.ts";
 import { orderFor } from "../app/order.ts";
 import { reloadFailure } from "../app/remote.ts";
-import type { Progress, StoryDetail, StorySummary } from "../shortcut/types.ts";
+import type { ChecklistItem, Progress, StoryDetail, StorySummary } from "../shortcut/types.ts";
 import {
   BLOCKED_MARK,
   BLOCKER_MARK,
@@ -171,10 +171,32 @@ const SubTasks = ({ subTasks }: { subTasks: readonly StorySummary[] }) => {
   );
 };
 
+const Checklist = ({ items }: { items: readonly ChecklistItem[] }) => {
+  if (items.length === 0) return null;
+  const finished = items.filter((item) => item.completed).length;
+  return (
+    <box marginTop={1} flexDirection="column">
+      <text fg={colors.accent}>
+        <b>{`Checklist (${String(finished)}/${String(items.length)} done)`}</b>
+      </text>
+      {items.map((item) => {
+        const { glyph, color } = progressStyle[item.completed ? "done" : "unstarted"];
+        return (
+          <text key={item.id} wrapMode="word">
+            <span fg={color}>{`${glyph} `}</span>
+            {item.description}
+          </text>
+        );
+      })}
+    </box>
+  );
+};
+
 const Body = ({ detail }: { detail: StoryDetail }) => (
   <box flexDirection="column">
     <Field label="Labels" value={detail.labels.length === 0 ? "None" : detail.labels.join(", ")} />
     <SubTasks subTasks={detail.subTasks} />
+    <Checklist items={detail.checklist} />
     <box marginTop={1} flexDirection="column">
       <text fg={colors.accent}>
         <b>Description</b>
