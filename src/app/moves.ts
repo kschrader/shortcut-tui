@@ -1,8 +1,8 @@
 import type { StoryId, StorySummary, WorkflowState, Workspace } from "../shortcut/types.ts";
-import type { Model, RequestId, StoryMove } from "./model.ts";
+import type { Model, RequestId, Step, StoryMove } from "./model.ts";
 import { groupingOf } from "./filters.ts";
 import { orderFor } from "./order.ts";
-import { firstRequestId } from "./remote.ts";
+import { firstRequestId, requestIdAfter } from "./remote.ts";
 
 export const pickerStates = (workspace: Workspace, story: StorySummary): readonly WorkflowState[] =>
   workspace.workflowStates
@@ -138,6 +138,30 @@ export const restate = (
     .map((story) => (story.id === storyId ? { ...(replacement ?? story), state } : story))
     .toSorted(orderFor(groupingOf(model.question.view)));
   return { ...model, results: { ...model.results, value: { ...model.results.value, stories } } };
+};
+
+export const applyMove = (
+  model: Model,
+  storyId: StoryId,
+  step: MoveStep,
+  replacement?: StorySummary,
+): Step => {
+  const moves = new Map(model.moves).set(storyId, step.move);
+  switch (step.kind) {
+    case "hold":
+      return [{ ...restate(model, storyId, step.shows, replacement), moves }, []];
+    case "send": {
+      const { requestId, target } = step.move;
+      return [
+        {
+          ...restate(model, storyId, target, replacement),
+          moves,
+          nextRequestId: requestIdAfter(requestId),
+        },
+        [{ type: "moveStory", requestId, storyId, stateId: target.id }],
+      ];
+    }
+  }
 };
 
 export const withSubTask = (details: Model["details"], story: StorySummary): Model["details"] => {

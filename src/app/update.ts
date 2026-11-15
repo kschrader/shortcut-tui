@@ -9,14 +9,7 @@ import type {
   StartupList,
   Step,
 } from "./model.ts";
-import {
-  carryMoves,
-  nextMove,
-  pickerStates,
-  restate,
-  withSubTask,
-  type MoveStep,
-} from "./moves.ts";
+import { applyMove, carryMoves, nextMove, pickerStates, withSubTask } from "./moves.ts";
 import {
   ageFloorFrom,
   draftFor,
@@ -187,30 +180,6 @@ const resultsArrived = (
   const shown = closePickerOnHidden(checking);
   const [selected, detailEffects] = select(shown, shownSelection(shown));
   return [selected, [...detailEffects, ...pullRequestEffects, ...savedForStartup(shown, loadedAt)]];
-};
-
-const applyMove = (
-  model: Model,
-  storyId: StoryId,
-  step: MoveStep,
-  replacement?: StorySummary,
-): Step => {
-  const moves = new Map(model.moves).set(storyId, step.move);
-  switch (step.kind) {
-    case "hold":
-      return [{ ...restate(model, storyId, step.shows, replacement), moves }, []];
-    case "send": {
-      const { requestId, target } = step.move;
-      return [
-        {
-          ...restate(model, storyId, target, replacement),
-          moves,
-          nextRequestId: requestIdAfter(requestId),
-        },
-        [{ type: "moveStory", requestId, storyId, stateId: target.id }],
-      ];
-    }
-  }
 };
 
 export const init = (saved: StartupList | null = null): Step => {
