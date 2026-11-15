@@ -24,10 +24,10 @@ afterEach(cleanup);
 const view = (number: number, state: PullRequestState, title: string): PullRequestView => ({
   id: z.custom<PullRequestId>().parse(number),
   title,
-  url: `https://github.com/useshortcut/monorepo/pull/${String(number)}`,
+  url: `https://github.com/exampleco/storefront/pull/${String(number)}`,
   closed: false,
   draft: false,
-  github: { owner: "useshortcut", repo: "monorepo", number },
+  github: { owner: "exampleco", repo: "storefront", number },
   state,
   reviews: null,
   optionalFailing: [],
@@ -88,7 +88,7 @@ test("each pull request in the detail pane shows its URL as a terminal hyperlink
   const { screen, frame } = await show(withPullRequests(), { width: 120, height: 40 });
   const lines = frame().split("\n");
   for (const number of [3917, 3911]) {
-    const url = `https://github.com/useshortcut/monorepo/pull/${String(number)}`;
+    const url = `https://github.com/exampleco/storefront/pull/${String(number)}`;
     const row = lines.findIndex((line) => line.includes(url));
     expect(row).toBeGreaterThan(-1);
     const column = lines[row].indexOf(url);
@@ -184,13 +184,13 @@ test("an 80-column terminal keeps names readable and shows the status as a glyph
 test("p opens the pull request that decides the badge", async () => {
   const { screen, calls } = await show(withPullRequests());
   screen.mockInput.pressKey("p");
-  expect(calls.opened).toEqual(["https://github.com/useshortcut/monorepo/pull/3917"]);
+  expect(calls.opened).toEqual(["https://github.com/exampleco/storefront/pull/3917"]);
 });
 
 test("p opens the least ready pull request of the selected story", async () => {
   const { screen, calls } = await show(withPullRequests(cached(checked), 102));
   screen.mockInput.pressKey("p");
-  expect(calls.opened).toEqual(["https://github.com/useshortcut/monorepo/pull/3939"]);
+  expect(calls.opened).toEqual(["https://github.com/exampleco/storefront/pull/3939"]);
 });
 
 test("p does nothing for a story without pull requests or before status loads", async () => {
@@ -209,7 +209,7 @@ test("p opens the kept pull request and the row keeps its badge while status rel
   );
   expect(rowOf(frame(), 101)).toMatch(/Fix login redirect\s+4w ✓ ready/);
   screen.mockInput.pressKey("p");
-  expect(calls.opened).toEqual(["https://github.com/useshortcut/monorepo/pull/3917"]);
+  expect(calls.opened).toEqual(["https://github.com/exampleco/storefront/pull/3917"]);
 });
 
 test("a story whose pull requests could not be listed shows unknown and says why", async () => {

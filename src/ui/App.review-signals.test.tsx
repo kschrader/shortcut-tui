@@ -45,10 +45,10 @@ const view = (
 ): PullRequestView => ({
   id: z.custom<PullRequestId>().parse(number),
   title: `Pull request ${String(number)}`,
-  url: `https://github.com/useshortcut/monorepo/pull/${String(number)}`,
+  url: `https://github.com/exampleco/storefront/pull/${String(number)}`,
   closed: false,
   draft: false,
-  github: { owner: "useshortcut", repo: "monorepo", number },
+  github: { owner: "exampleco", repo: "storefront", number },
   state,
   reviews,
   optionalFailing: [],

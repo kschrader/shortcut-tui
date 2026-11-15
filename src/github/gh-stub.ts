@@ -1,7 +1,7 @@
 import { createGitHubClient, type GhOutput, type GhRunner } from "./client.ts";
 import type { PullRequestRef } from "./types.ts";
 
-export const ref = (repo: string, number: number, owner = "useshortcut"): PullRequestRef => ({
+export const ref = (repo: string, number: number, owner = "exampleco"): PullRequestRef => ({
   owner,
   repo,
   number,

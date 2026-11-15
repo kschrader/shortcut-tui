@@ -171,14 +171,14 @@ const linked = (id: number, url: string, github: PullRequestRef | null): LinkedP
   github,
 });
 
-const monorepo = (number: number): PullRequestRef => ({
-  owner: "useshortcut",
-  repo: "monorepo",
+const storefront = (number: number): PullRequestRef => ({
+  owner: "exampleco",
+  repo: "storefront",
   number,
 });
 
-const toggle = linked(1, "https://github.com/useshortcut/monorepo/pull/3917", monorepo(3917));
-const docs = linked(2, "https://github.com/useshortcut/monorepo/pull/3911", monorepo(3911));
+const toggle = linked(1, "https://github.com/exampleco/storefront/pull/3917", storefront(3917));
+const docs = linked(2, "https://github.com/exampleco/storefront/pull/3911", storefront(3911));
 const gitlab = linked(3, "https://gitlab.com/acme/app/-/merge_requests/5", null);
 
 const linkingShortcut: ShortcutClient = {
@@ -199,11 +199,11 @@ test("loading pull requests asks GitHub once for every story's pull requests", a
       asked.push(refs);
       return new Map([
         [
-          pullRequestKey(monorepo(3917)),
+          pullRequestKey(storefront(3917)),
           { state: "conflicts", reviews: askingYou, optionalFailing: ["pr-preview"] },
         ],
         [
-          pullRequestKey(monorepo(3911)),
+          pullRequestKey(storefront(3911)),
           { state: "ready", reviews: noReviews, optionalFailing: [] },
         ],
       ]);
@@ -327,14 +327,14 @@ describe("a pull request GitHub did not answer falls back to what Shortcut knows
 });
 
 test("GitHub's answer outranks Shortcut's flags for a pull request it answered", async () => {
-  const states = await loadedStates(answeredBy([[monorepo(3917), "merged"]]), [
+  const states = await loadedStates(answeredBy([[storefront(3917), "merged"]]), [
     unanswered({ closed: true }),
   ]);
   expect(states).toEqual(["merged"]);
 });
 
 test("a merged GitHub pull request plus a closed GitLab merge request makes the story merged", async () => {
-  const states = await loadedStates(answeredBy([[monorepo(3917), "merged"]]), [
+  const states = await loadedStates(answeredBy([[storefront(3917), "merged"]]), [
     toggle,
     gitlabMr({ closed: true }),
   ]);
@@ -342,7 +342,7 @@ test("a merged GitHub pull request plus a closed GitLab merge request makes the 
 });
 
 test("a merged GitHub pull request plus an open GitLab merge request leaves the story open", async () => {
-  const states = await loadedStates(answeredBy([[monorepo(3917), "merged"]]), [toggle, gitlab]);
+  const states = await loadedStates(answeredBy([[storefront(3917), "merged"]]), [toggle, gitlab]);
   expect(storyMergeStatus(states)).toBe("unknown");
 });
 

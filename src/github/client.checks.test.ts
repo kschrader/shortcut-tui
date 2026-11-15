@@ -8,23 +8,23 @@ const checkQueries = (calls: readonly string[][]) =>
   calls.filter((args) => (flags(args).get("query") ?? "").includes("contexts("));
 
 const stateOf = async (github: ReturnType<typeof fakeGitHub>, number = 4044) =>
-  (await github.client.pullRequests([ref("monorepo", number)])).get(
-    pullRequestKey(ref("monorepo", number)),
+  (await github.client.pullRequests([ref("storefront", number)])).get(
+    pullRequestKey(ref("storefront", number)),
   )?.state;
 
 test("green, absent, and undecidable rollups ask GitHub nothing more", async () => {
   const github = fakeGitHub({
-    "useshortcut/monorepo#1": raw({ mergeStateStatus: "BLOCKED", ...rollup("SUCCESS") }),
-    "useshortcut/monorepo#2": raw({ mergeStateStatus: "BLOCKED" }),
-    "useshortcut/monorepo#3": raw({ isDraft: true, ...rollup("FAILURE") }),
-    "useshortcut/monorepo#4": raw({
+    "exampleco/storefront#1": raw({ mergeStateStatus: "BLOCKED", ...rollup("SUCCESS") }),
+    "exampleco/storefront#2": raw({ mergeStateStatus: "BLOCKED" }),
+    "exampleco/storefront#3": raw({ isDraft: true, ...rollup("FAILURE") }),
+    "exampleco/storefront#4": raw({
       mergeable: "CONFLICTING",
       mergeStateStatus: "DIRTY",
       ...rollup("FAILURE"),
     }),
-    "useshortcut/monorepo#5": raw({ mergeStateStatus: "CLEAN", ...rollup("PENDING") }),
+    "exampleco/storefront#5": raw({ mergeStateStatus: "CLEAN", ...rollup("PENDING") }),
   });
-  const states = await github.client.pullRequests([1, 2, 3, 4, 5].map((n) => ref("monorepo", n)));
+  const states = await github.client.pullRequests([1, 2, 3, 4, 5].map((n) => ref("storefront", n)));
   expect([...states.values()].map(({ state }) => state)).toEqual([
     "blocked",
     "blocked",
@@ -37,8 +37,8 @@ test("green, absent, and undecidable rollups ask GitHub nothing more", async () 
 
 test("a failing rollup whose only failure is optional and whose review gate waits needs review (live #4044)", async () => {
   const github = fakeGitHub({
-    "useshortcut/monorepo#4044": raw({ mergeStateStatus: "BLOCKED", ...rollup("FAILURE") }),
-    "useshortcut/monorepo#4045": raw({
+    "exampleco/storefront#4044": raw({ mergeStateStatus: "BLOCKED", ...rollup("FAILURE") }),
+    "exampleco/storefront#4045": raw({
       mergeStateStatus: "BLOCKED",
       ...rollup("FAILURE"),
       checks: [
@@ -51,8 +51,8 @@ test("a failing rollup whose only failure is optional and whose review gate wait
       ],
     }),
   });
-  const answer = (await github.client.pullRequests([ref("monorepo", 4045)])).get(
-    pullRequestKey(ref("monorepo", 4045)),
+  const answer = (await github.client.pullRequests([ref("storefront", 4045)])).get(
+    pullRequestKey(ref("storefront", 4045)),
   );
   expect(answer?.state).toBe("needs-review");
   expect(answer?.optionalFailing).toEqual(["pr-preview"]);
@@ -65,7 +65,7 @@ test("a failing rollup whose only failure is optional and whose review gate wait
 
 test("a required failure on the second page of checks still fails the pull request", async () => {
   const github = fakeGitHub({
-    "useshortcut/monorepo#4044": raw({
+    "exampleco/storefront#4044": raw({
       mergeStateStatus: "BLOCKED",
       ...rollup("FAILURE"),
       checks: [
@@ -79,7 +79,7 @@ test("a required failure on the second page of checks still fails the pull reque
 
 test("a required check still running keeps the pull request running; optional ones do not", async () => {
   const running = fakeGitHub({
-    "useshortcut/monorepo#4044": raw({
+    "exampleco/storefront#4044": raw({
       mergeStateStatus: "BLOCKED",
       ...rollup("PENDING"),
       checks: [[checkRun("vitest", "QUEUED", true), statusContext("ci/x", "SUCCESS", true)]],
@@ -87,7 +87,7 @@ test("a required check still running keeps the pull request running; optional on
   });
   expect(await stateOf(running)).toBe("checks-running");
   const optionalOnly = fakeGitHub({
-    "useshortcut/monorepo#4044": raw({
+    "exampleco/storefront#4044": raw({
       mergeStateStatus: "BLOCKED",
       ...rollup("PENDING"),
       checks: [[checkRun("vitest", "SUCCESS", true), statusContext("ci/preview", "PENDING")]],
@@ -101,7 +101,7 @@ test("a failed check query falls back to the rollup for its pull requests only",
   const github = fakeGitHub(
     Object.fromEntries(
       numbers.map((n) => [
-        `useshortcut/monorepo#${n}`,
+        `exampleco/storefront#${n}`,
         raw({
           mergeStateStatus: "BLOCKED",
           ...rollup("FAILURE"),
@@ -110,26 +110,26 @@ test("a failed check query falls back to the rollup for its pull requests only",
       ]),
     ),
   );
-  const states = await github.client.pullRequests(numbers.map((n) => ref("monorepo", n)));
+  const states = await github.client.pullRequests(numbers.map((n) => ref("storefront", n)));
   const blocked = new Map<string, PullRequestState>(
-    numbers.slice(0, 10).map((n) => [pullRequestKey(ref("monorepo", n)), "blocked"]),
+    numbers.slice(0, 10).map((n) => [pullRequestKey(ref("storefront", n)), "blocked"]),
   );
   expect(new Map([...states].map(([key, { state }]) => [key, state]))).toEqual(
-    new Map([...blocked, [pullRequestKey(ref("monorepo", 11)), "checks-failing"]]),
+    new Map([...blocked, [pullRequestKey(ref("storefront", 11)), "checks-failing"]]),
   );
   expect(checkQueries(github.calls)).toHaveLength(3);
 });
 
 test("checks GitHub cannot list or describe fall back to the rollup", async () => {
   const github = fakeGitHub({
-    "useshortcut/monorepo#1": raw({ mergeStateStatus: "BLOCKED", ...rollup("PENDING") }),
-    "useshortcut/monorepo#2": raw({
+    "exampleco/storefront#1": raw({ mergeStateStatus: "BLOCKED", ...rollup("PENDING") }),
+    "exampleco/storefront#2": raw({
       mergeStateStatus: "BLOCKED",
       ...rollup("FAILURE"),
       checks: [[checkRun("pr-preview", "SOMETHING_NEW")]],
     }),
   });
-  const states = await github.client.pullRequests([ref("monorepo", 1), ref("monorepo", 2)]);
+  const states = await github.client.pullRequests([ref("storefront", 1), ref("storefront", 2)]);
   expect([...states.values()].map(({ state }) => state)).toEqual([
     "checks-running",
     "checks-failing",

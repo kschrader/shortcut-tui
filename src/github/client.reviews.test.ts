@@ -5,7 +5,7 @@ import { pullRequestKey, type Reviews } from "./types.ts";
 
 const kurt: GhAccount = {
   login: "kschrader",
-  teams: { useshortcut: ["engineering", "managers"] },
+  teams: { exampleco: ["engineering", "managers"] },
 };
 
 const user = (login: string) => ({ requestedReviewer: { __typename: "User", login } });
@@ -15,9 +15,9 @@ const requesting = (...nodes: unknown[]) => raw({ reviewRequests: { nodes } });
 const review = (state: string, login: string) => ({ state, author: { login } });
 
 const reviewsOf = async (account: GhAccount, pullRequest: Record<string, unknown>) => {
-  const github = fakeGitHubFor(account, { "useshortcut/monorepo#1": pullRequest });
-  const answers = await github.client.pullRequests([ref("monorepo", 1)]);
-  return answers.get(pullRequestKey(ref("monorepo", 1)))?.reviews;
+  const github = fakeGitHubFor(account, { "exampleco/storefront#1": pullRequest });
+  const answers = await github.client.pullRequests([ref("storefront", 1)]);
+  return answers.get(pullRequestKey(ref("storefront", 1)))?.reviews;
 };
 
 const identityQueries = (calls: readonly string[][]) =>
@@ -56,12 +56,12 @@ test("a team request on your own pull request does not reach you", async () => {
 test("when your teams cannot be read, direct requests still reach you and team requests are unknown", async () => {
   const account = { ...kurt, teamsFail: true };
   const github = fakeGitHubFor(account, {
-    "useshortcut/monorepo#1": requesting(user("kschrader"), team("engineering")),
-    "useshortcut/monorepo#2": raw({ mergeStateStatus: "CLEAN" }),
+    "exampleco/storefront#1": requesting(user("kschrader"), team("engineering")),
+    "exampleco/storefront#2": raw({ mergeStateStatus: "CLEAN" }),
   });
-  const answers = await github.client.pullRequests([ref("monorepo", 1), ref("monorepo", 2)]);
-  expect(answers.get(pullRequestKey(ref("monorepo", 2)))?.state).toBe("ready");
-  expect(answers.get(pullRequestKey(ref("monorepo", 1)))?.reviews.requested).toEqual([
+  const answers = await github.client.pullRequests([ref("storefront", 1), ref("storefront", 2)]);
+  expect(answers.get(pullRequestKey(ref("storefront", 2)))?.state).toBe("ready");
+  expect(answers.get(pullRequestKey(ref("storefront", 1)))?.reviews.requested).toEqual([
     { kind: "user", login: "kschrader", reachesYou: "yes" },
     { kind: "team", slug: "engineering", reachesYou: "unknown" },
   ]);
@@ -74,22 +74,22 @@ test("when your login cannot be read, every request is unknown and the pull requ
 
 test("your login and teams are asked once per organization across loads", async () => {
   const github = fakeGitHubFor(kurt, {
-    "useshortcut/monorepo#1": requesting(team("engineering")),
-    "useshortcut/web#2": requesting(team("frontend")),
+    "exampleco/storefront#1": requesting(team("engineering")),
+    "exampleco/web#2": requesting(team("frontend")),
     "acme/app#3": requesting(team("ops")),
   });
-  const refs = [ref("monorepo", 1), ref("web", 2), ref("app", 3, "acme")];
+  const refs = [ref("storefront", 1), ref("web", 2), ref("app", 3, "acme")];
   await github.client.pullRequests(refs);
   await github.client.pullRequests(refs);
   const asked = identityQueries(github.calls);
   expect(asked.filter((query) => query.includes("viewer { login }")).length).toBe(1);
   const organizations = github.calls.flatMap((args) => flags(args).get("org") ?? []);
-  expect(organizations.toSorted((a, b) => a.localeCompare(b))).toEqual(["acme", "useshortcut"]);
+  expect(organizations.toSorted((a, b) => a.localeCompare(b))).toEqual(["acme", "exampleco"]);
 });
 
 test("a teams lookup that failed is asked again on the next load", async () => {
   let failing = true;
-  const github = fakeGitHubFor(kurt, { "useshortcut/monorepo#1": requesting(team("engineering")) });
+  const github = fakeGitHubFor(kurt, { "exampleco/storefront#1": requesting(team("engineering")) });
   const client = createGitHubClient({
     run: async (args, signal) =>
       failing && flags(args).has("org")
@@ -98,7 +98,7 @@ test("a teams lookup that failed is asked again on the next load", async () => {
     recheckAfterMs: 0,
   });
   const reach = async () =>
-    (await client.pullRequests([ref("monorepo", 1)])).get(pullRequestKey(ref("monorepo", 1)))
+    (await client.pullRequests([ref("storefront", 1)])).get(pullRequestKey(ref("storefront", 1)))
       ?.reviews.requested[0]?.reachesYou;
   expect(await reach()).toBe("unknown");
   failing = false;
@@ -106,8 +106,8 @@ test("a teams lookup that failed is asked again on the next load", async () => {
 });
 
 test("pull requests that ask no one for review never ask GitHub who you are", async () => {
-  const github = fakeGitHubFor(kurt, { "useshortcut/monorepo#1": raw() });
-  await github.client.pullRequests([ref("monorepo", 1)]);
+  const github = fakeGitHubFor(kurt, { "exampleco/storefront#1": raw() });
+  await github.client.pullRequests([ref("storefront", 1)]);
   expect(identityQueries(github.calls)).toEqual([]);
 });
 

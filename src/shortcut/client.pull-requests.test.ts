@@ -21,7 +21,7 @@ test("listPullRequests reads every page and finds the GitHub pull request behind
       json(
         page(
           [
-            pullRequestJson(1, "https://github.com/useshortcut/monorepo/pull/3917", {
+            pullRequestJson(1, "https://github.com/exampleco/storefront/pull/3917", {
               title: "Add a toggle",
             }),
             pullRequestJson(2, "https://gitlab.com/acme/app/-/merge_requests/5", {
@@ -52,10 +52,10 @@ test("listPullRequests reads every page and finds the GitHub pull request behind
     {
       id: pullRequestId.parse(1),
       title: "Add a toggle",
-      url: "https://github.com/useshortcut/monorepo/pull/3917",
+      url: "https://github.com/exampleco/storefront/pull/3917",
       closed: false,
       draft: false,
-      github: { owner: "useshortcut", repo: "monorepo", number: 3917 },
+      github: { owner: "exampleco", repo: "storefront", number: 3917 },
     },
     {
       id: pullRequestId.parse(2),
