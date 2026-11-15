@@ -201,6 +201,14 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
         };
       }),
 
+    getStorySummary: (id) =>
+      attempt(async () => {
+        const current = await connect();
+        const { entity } = await current.api.getStory(id, { fields: SUMMARY_FIELDS });
+        const story = StorySummarySchema.parse(entity);
+        return placeInWorkflow(story, await statesCovering(current, [story]));
+      }),
+
     listPullRequests: (id) =>
       attempt(async () => {
         const { api } = await connect();

@@ -189,6 +189,9 @@ export const patching =
 
 export const json = (body: unknown) => () => Response.json(body);
 
+export const storyEntity = (entity: unknown) =>
+  json({ $schema: `${API}/api/v4/schemas/StoryEntityWrapper`, entity });
+
 export const whoamiRoute = at("/api/v4/whoami", json(whoami));
 
 export const workflowStatesRoute: Route = (url, method) =>

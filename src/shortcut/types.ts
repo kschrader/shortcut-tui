@@ -82,6 +82,7 @@ export type ShortcutClient = {
   loadWorkspace(): Promise<Workspace>;
   searchStories(query: string): Promise<readonly StorySummary[]>;
   getStory(id: StoryId): Promise<StoryDetail>;
+  getStorySummary(id: StoryId): Promise<StorySummary>;
   listPullRequests(id: StoryId): Promise<readonly LinkedPullRequest[]>;
   moveStory(id: StoryId, stateId: WorkflowStateId): Promise<StorySummary>;
 };

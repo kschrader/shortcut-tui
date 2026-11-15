@@ -79,6 +79,23 @@ test("getStory rejects for an unknown id", async () => {
   expect(outcome).toBe("rejected");
 });
 
+test("getStorySummary returns the story as a search would, in the state a move left it, and rejects for an unknown id", async () => {
+  const client = createFakeShortcutClient();
+  const { workflowStates } = await client.loadWorkspace();
+  const [story] = await client.searchStories("owner:me is:started");
+  if (story === undefined) throw new Error("expected a started story");
+  expect(await client.getStorySummary(story.id)).toEqual(story);
+  const done = workflowStates.find((state) => state.progress === "done");
+  if (done === undefined) throw new Error("expected a done state");
+  await client.moveStory(story.id, done.id);
+  expect((await client.getStorySummary(story.id)).state).toEqual(done);
+  const outcome = await client.getStorySummary(storyId.parse(1)).then(
+    () => "resolved",
+    () => "rejected",
+  );
+  expect(outcome).toBe("rejected");
+});
+
 test("delayMs delays every call", async () => {
   const client = createFakeShortcutClient({ delayMs: 40 });
   const started = performance.now();

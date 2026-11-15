@@ -87,6 +87,14 @@ export const createFakeShortcutClient = ({
       return { ...story, subTasks: subTasks.map(summaryOf) };
     },
 
+    async getStorySummary(id) {
+      await pause(delayMs);
+      const story = stories.get(id);
+      if (story === undefined)
+        throw new Error(`Shortcut API 404 for GET /api/v4/demo/stories/${id}`);
+      return summaryOf(story);
+    },
+
     async listPullRequests(id) {
       await pause(delayMs);
       return pullRequestsByStory.get(id) ?? [];

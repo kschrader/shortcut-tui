@@ -34,6 +34,7 @@ const failingClient: ShortcutClient = {
   loadWorkspace: () => Promise.reject(new Error("offline")),
   searchStories: () => Promise.reject(new Error("HTTP 500")),
   getStory: () => Promise.reject(new Error("not found")),
+  getStorySummary: () => Promise.reject(new Error("HTTP 503")),
   listPullRequests: () => Promise.reject(new Error("HTTP 502")),
   moveStory: () => Promise.reject(new Error("HTTP 403")),
 };
