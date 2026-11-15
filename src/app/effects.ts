@@ -108,13 +108,17 @@ const runEffectUnsafe = async (
         requestId: effect.requestId,
         pullRequests: await pullRequestsOf(clients, effect.storyIds),
       };
-    case "moveStory":
-      return {
-        type: "moveSucceeded",
-        requestId: effect.requestId,
-        storyId: effect.storyId,
-        story: await clients.shortcut.moveStory(effect.storyId, effect.stateId),
-      };
+    case "moveStory": {
+      const { requestId, storyId, stateId, knownStateId } = effect;
+      const held = await clients.shortcut.getStorySummary(storyId);
+      if (held.state.id === stateId)
+        return { type: "moveSucceeded", requestId, storyId, story: held };
+      if (held.state.id !== knownStateId) {
+        return { type: "moveConflicted", requestId, storyId, story: held };
+      }
+      const story = await clients.shortcut.moveStory(storyId, stateId);
+      return { type: "moveSucceeded", requestId, storyId, story };
+    }
   }
 };
 
