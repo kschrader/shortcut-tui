@@ -231,6 +231,19 @@ describe("moving a story", () => {
     expect(done.moves.get(storyId(1))?.status).not.toBe("saving");
   });
 
+  test("a queued pick refused after the move before it was confirmed shows the confirmed state, not the starting one", () => {
+    const [model] = browsing([summary(1)]);
+    const [picked, effects] = pick(model, "Finished");
+    const [second, secondEffects] = pick(picked, "Doing");
+    expect(secondEffects).toEqual([]);
+    const [confirmed, confirmedEffects] = succeed(second, only(effects, "moveStory"));
+    const queued = only(confirmedEffects, "moveStory");
+    expect(queued).toMatchObject({ storyId: storyId(1), stateId: doing.id });
+    const [refused] = fail(confirmed, queued, "nope");
+    expect(stateOf(refused, 1)).toBe("Finished");
+    expect(refused.moves.get(storyId(1))).toMatchObject({ status: "failed", message: "nope" });
+  });
+
   test("a pending intent is still sent when the move before it fails", () => {
     const [model] = browsing([summary(1)]);
     const [picked, effects] = pick(model, "Finished");
