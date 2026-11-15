@@ -1,7 +1,7 @@
 # shortcut-tui
 
 > [!IMPORTANT]
-> This is an **experimental** Shortcut TUI. It was built with agents to test building against a set of defined [project rules](#project-rules), with verification done in [TLA+](#checks). A lint rule enforces each project rule, and a violation fails CI. The exception is parsing API data at the boundary, where lint only stops untyped values from spreading.
+> This is an **experimental** Shortcut TUI. It was built with agents to test building against a set of defined [project rules](#project-rules), with verification done in [TLA+](#checks). A lint rule enforces each project rule, and a violation fails CI.
 
 A terminal client for [Shortcut](https://www.shortcut.com). It lists your open stories and shows the selected story's details, comments, and labels.
 
@@ -153,7 +153,7 @@ Each check has a budget of distinct states, such as 200,000 for `StoryBrowser.cf
 
 ## Project rules
 
-The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `opentui-text-placement` guards a documented OpenTUI pitfall. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
+The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `opentui-text-placement` guards a documented OpenTUI pitfall. `parse-shortcut-responses` is preventive: no defect led to it, but the generated client types leave out fields Shortcut sends, such as `formatted_vcs_branch_name`, so only a schema says what a response holds. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
 
 | Rule | Enforced by |
 | --- | --- |
@@ -166,6 +166,6 @@ The lint config enforces these rules. `no-comments` is the founding rule. `switc
 | Cap concurrent requests with `settleLimited` instead of `Promise.all` over a mapped array | `shortcut-tui/bound-fan-out` |
 | No `console` output. It corrupts the screen | `no-console` |
 | No `process.exit`. Destroy the renderer so the terminal is restored | `unicorn/no-process-exit` |
-| Parse API data at the boundary | Partly. `typescript/no-unsafe-*` stops untyped values from spreading, but nothing checks that data goes through a zod schema |
+| Parse API data at the boundary. A Shortcut response goes straight to a schema's `.parse`, and only `src/shortcut/client.ts` imports the Shortcut client. `gh` output arrives as `unknown`, so it cannot be used before a schema parses it | `shortcut-tui/parse-shortcut-responses`, `no-restricted-imports`, and `typescript/no-unsafe-*` |
 
 When you find a defect, add a lint rule against it if a lint can detect it. Otherwise add a test that fails on it. This one is a practice; no check enforces it.
