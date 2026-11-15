@@ -1,7 +1,7 @@
 # shortcut-tui
 
 > [!IMPORTANT]
-> This is an **experimental** Shortcut TUI. It was built with agents to test building against a set of defined and enforced [project rules](#project-rules), with verification done in [TLA+](#checks).
+> This is an **experimental** Shortcut TUI. It was built with agents to test building against a set of defined [project rules](#project-rules), with verification done in [TLA+](#checks). A lint rule enforces each project rule, and a violation fails CI. The exception is parsing API data at the boundary, where lint only stops untyped values from spreading.
 
 A terminal client for [Shortcut](https://www.shortcut.com). It lists your open stories and shows the selected story's details, comments, and labels.
 
@@ -153,7 +153,7 @@ Each check has a budget of distinct states, such as 200,000 for `StoryBrowser.cf
 
 ## Project rules
 
-The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `opentui-text-placement` guards a documented OpenTUI pitfall.
+The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `opentui-text-placement` guards a documented OpenTUI pitfall. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
 
 | Rule | Enforced by |
 | --- | --- |
@@ -162,8 +162,10 @@ The lint config enforces these rules. `no-comments` is the founding rule. `switc
 | Read every page of a v4 list | `shortcut-tui/paginate-v4-lists` |
 | Read keys through `keyBindings` in `src/ui/keys.ts`, so help and the hint bar match the handler | `shortcut-tui/keys-from-table` |
 | Put text only inside `<text>` | `shortcut-tui/opentui-text-placement` |
+| Compare every value a raw API schema allows outside the schema, so no pull request state falls through to unknown | `shortcut-tui/classify-every-raw-enum-value` |
+| Cap concurrent requests with `settleLimited` instead of `Promise.all` over a mapped array | `shortcut-tui/bound-fan-out` |
 | No `console` output. It corrupts the screen | `no-console` |
 | No `process.exit`. Destroy the renderer so the terminal is restored | `unicorn/no-process-exit` |
-| Parse API data at the boundary | `typescript/no-unsafe-*` |
+| Parse API data at the boundary | Partly. `typescript/no-unsafe-*` stops untyped values from spreading, but nothing checks that data goes through a zod schema |
 
-When you find a defect, add a lint rule against it if a lint can detect it. Otherwise add a test that fails on it.
+When you find a defect, add a lint rule against it if a lint can detect it. Otherwise add a test that fails on it. This one is a practice; no check enforces it.
