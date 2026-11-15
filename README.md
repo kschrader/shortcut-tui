@@ -92,6 +92,10 @@ Press `m` on a story to move it to another state in its workflow. The list shows
 
 Once Shortcut confirms a move, the story leaves the list if the view's search would no longer find it. If the cursor was on it, the cursor goes to the next row, or the row above if it was last. A typed query keeps the story until the next refresh, because the app cannot tell what arbitrary search text would find. With `a` on, every confirmed move leaves the list, typed queries included, because the move sets the story's moved date to today. While the move is saving, or if it fails, the row stays. If a search sent after the move still finds the story, for example because Shortcut's search index has not caught up, the row comes back.
 
+Before the app writes a move, it reads the story from Shortcut again, so a move is two requests. If the story is still in the state the app believes it is in, the app writes the move. If the story is in another state, because a teammate or one of Shortcut's integrations moved it, the app writes nothing. The row shows the story in the state Shortcut holds with `✗ failed`, and the bottom bar says where it went, for example `✗ Move failed  ·  m to retry  ·  it was moved to In Progress first`. Press `m` to pick again from there. A pick you queued while the move was saving is dropped, because you made it before the story moved. If the story is already in the state you picked, the app writes nothing and shows the move as done.
+
+The read does not close the gap completely. Shortcut's API v4 has no update that applies only while a story is still in a given state, as far as we know. So if someone moves the story between the app's read and its write, the app still overwrites that move, and nothing tells you. Before the read, the app could overwrite any move made since its last refresh. Now it can overwrite only a move made between those two requests. `spec/StoryMoves.tla` models the read and the write as separate steps, and its checks show what the read prevents and what it does not; see The move protocol.
+
 Moves to one story are sent one at a time. Picking again while a move is saving records a single pending intent (the latest pick wins), which is sent when the saving move settles. Moves to different stories run in parallel. A refresh that races with a move cannot roll the story back: results that load while a move is saving show the picked state, and results from a search sent before the move settled keep the moved state. `spec/StoryMoves.tla` model checks these rules; see Checks.
 
 Moving needs a read-write token. With a read-only token (`sct_r_...`, whose whoami scopes are only `read`) `m` opens a notice explaining that and sends nothing. A read-only token also shows `! Read-only token: you can browse, but moving stories needs a read-write token` in the bottom bar once the workspace loads, until the next key press.
@@ -143,7 +147,7 @@ rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/shortcut-tui"
 
 ## Changed stories
 
-After a refresh, a story that changed since you last looked at it gets an accent `•` in the left gutter of its row, and the header adds a count, such as `4 stories  ·  1 updated`. A story counts as changed when it is new to the list, its workflow state changed, its pull request status changed, or its Shortcut update time moved for another reason, such as a rename, an owner or description edit, or possibly a comment. A pull request status counts only when GitHub answered both times. A status that is still loading, a failed load, and `? unknown` are not changes. A move you make yourself is not a change.
+After a refresh, a story that changed since you last looked at it gets an accent `•` in the left gutter of its row, and the header adds a count, such as `4 stories  ·  1 updated`. A story counts as changed when it is new to the list, its workflow state changed, its pull request status changed, or its Shortcut update time moved for another reason, such as a rename, an owner or description edit, or possibly a comment. A pull request status counts only when GitHub answered both times. A status that is still loading, a failed load, and `? unknown` are not changes. A move you make yourself is not a change. Neither is a story that your move found in another state: its row shows `✗ failed` in that state, and the bottom bar says where it went.
 
 Selecting a story clears its mark. While it stays selected, the detail pane says what changed, for example `Changed since you last looked: state In Progress → In Review`, including changes that arrive while you look. When you move on, the app records the story as it was at that moment. The first results for a new query or filter mark nothing, because you have not seen them before. Marks are kept in memory only, so each start begins with none. In `--demo`, a teammate moves one of your stories on the first refresh, so press `r` to see a mark.
 
@@ -194,7 +198,7 @@ Press `a` to show only stories that have been in their current state for 4 weeks
 | `bun run lint` | oxlint (type-aware) and oxfmt, including the project rules in `lint/` |
 | `bun run type-check` | TypeScript 7 |
 | `bun test` | Unit, frame, and interleaving tests, plus a fixture test for each project lint rule |
-| `bun run tlc` | TLA+ model checks in `spec/`: the story-browser state machine with its auto-refresh guard, its rule that a refresh never hides shown data, the selection when a confirmed move takes a row out, and a cached startup list that fetches nothing and refuses moves until a search replaces it (`StoryBrowser.tla`), and the story-move protocol (`StoryMoves.tla`), each with deliberately broken configurations that TLC must reject |
+| `bun run tlc` | TLA+ model checks in `spec/`: the story-browser state machine with its auto-refresh guard, its rule that a refresh never hides shown data, the selection when a confirmed move takes a row out, and a cached startup list that fetches nothing and refuses moves until a search replaces it (`StoryBrowser.tla`), and the story-move protocol with its read before each write while a teammate moves stories (`StoryMoves.tla`), each with deliberately broken configurations that TLC must reject |
 | `bun run tlc:big` | A larger TLA+ model, with no pull request links so it stays at about 18 minutes |
 | `bun run smoke` | Read-only calls to the live API with your token |
 
@@ -204,7 +208,7 @@ Each check has a budget of distinct states, such as 200,000 for `StoryBrowser.cf
 
 ### The move protocol
 
-This chart shows how one story moves when you pick a new state for it. It is drawn from `spec/StoryMoves.tla` with one story, two states, two picks and one refresh, and every rule in the spec holds in it. A pick made while a move saves waits in a queue. The app sends it after Shortcut answers, and only when it still differs from what Shortcut has.
+This chart shows how one story moves when you pick a new state for it. It is drawn from `spec/StoryMoves.tla` with one story, two states, two picks, one refresh and no teammate, and every rule its config checks holds in it. A pick made while a move saves waits in a queue. The app sends it after Shortcut answers, and only when it still differs from what Shortcut has.
 
 ```mermaid
 ---
@@ -255,7 +259,21 @@ stateDiagram-v2
   class s8 teal
 ```
 
-The code keeps these transitions in one place, `nextMove` in `src/app/moves.ts`, with `shownAfterRefresh` and `moveAfterRefresh` for a refresh that returns. `src/app/moves.chart.test.ts` replays each arrow of `spec/charts/story-moves.mmd` through those functions and fails when the code lands in a different state, or reacts to a response the chart does not draw. It also fails when this README shows a different chart.
+The code keeps these transitions in one place, `nextMove` in `src/app/moves.ts`, with `shownAfterRefresh` and `moveAfterRefresh` for a refresh that returns. `src/app/moves.chart.test.ts` replays each arrow of `spec/charts/story-moves.mmd` through those functions and fails when the code lands in a different state, or reacts to a response the chart does not draw. It also fails when this README shows a different chart. The chart has no teammate, so it draws no conflict. `nextMove` handles a conflict as well, and `TeammateMoves.cfg` checks it.
+
+Five configs check `spec/StoryMoves.tla`:
+
+| Config | What it checks | TLC must |
+| --- | --- | --- |
+| `StoryMoves.cfg` | The queue and the refresh race, with no teammate | Pass |
+| `UnserializedMoves.cfg` | The same with two moves to one story in flight | Reject it: a settled story shows a state Shortcut does not hold |
+| `TeammateMoves.cfg` | A teammate moves stories, and the app reads before each write. A write never goes over a move made before its read. No move conflicts until a teammate moves a story | Pass |
+| `WriteWithoutRead.cfg` | The same without the read | Reject it: a write goes over a teammate's move that the app never read |
+| `ReadWriteWindow.cfg` | The same with the read, asking that no teammate's move is ever overwritten | Reject it: a teammate moves the story between the read and the write |
+
+`ReadWriteWindow.cfg` is not broken on purpose. It states the gap that the read leaves open, and `bun run tlc` fails on it if a change to the spec ever closes that gap. `src/app/effects.moves.test.ts` replays its trace against the code.
+
+`StoryMoves.cfg` answers a move in one step, without the read. With the read as its own step it explores 57,408 distinct states, past its budget of 50,000. `TeammateMoves.cfg` checks that until a teammate moves a story, the read changes nothing: no move conflicts, and the rules of `StoryMoves.cfg` hold.
 
 To draw the chart again after you change the spec, run the pstack `statechart` skill's script from `spec/charts/`:
 
