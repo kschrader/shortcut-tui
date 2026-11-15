@@ -94,7 +94,7 @@ Once Shortcut confirms a move, the story leaves the list if the view's search wo
 
 Moves to one story are sent one at a time. Picking again while a move is saving records a single pending intent (the latest pick wins), which is sent when the saving move settles. Moves to different stories run in parallel. A refresh that races with a move cannot roll the story back: results that load while a move is saving show the picked state, and results from a search sent before the move settled keep the moved state. `spec/StoryMoves.tla` model checks these rules; see Checks.
 
-Moving needs a read-write token. With a read-only token (`sct_r_...`, whose whoami scopes are only `read`) `m` opens a notice explaining that and sends nothing.
+Moving needs a read-write token. With a read-only token (`sct_r_...`, whose whoami scopes are only `read`) `m` opens a notice explaining that and sends nothing. A read-only token also shows `! Read-only token: you can browse, but moving stories needs a read-write token` in the bottom bar once the workspace loads, until the next key press.
 
 ## Auto-refresh
 
