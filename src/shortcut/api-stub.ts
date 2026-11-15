@@ -87,6 +87,8 @@ export const storyJson = (id: number, overrides: Record<string, unknown> = {}) =
   parent_story: null,
   sub_task_stories: nested([], `stories/${id}/sub-task-stories`),
   formatted_vcs_branch_name: `kurt/sc-${id}/story-${id}`,
+  blocked: false,
+  blocker: false,
   ...overrides,
 });
 

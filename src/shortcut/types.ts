@@ -44,6 +44,8 @@ export type StorySummary = {
   pullRequestCount: number;
   parent: StoryRef | null;
   subTaskCount: number;
+  blocked: boolean;
+  blocker: boolean;
 };
 
 export type StoryComment = {

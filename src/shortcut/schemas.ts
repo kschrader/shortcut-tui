@@ -105,6 +105,8 @@ const summaryFields = {
   parent_story: storyRef.nullable(),
   sub_task_stories: z.object({ total_items: z.number() }),
   formatted_vcs_branch_name: z.string().nullable(),
+  blocked: z.boolean(),
+  blocker: z.boolean(),
 };
 
 export const SUMMARY_FIELDS = fieldsOf(summaryFields);
@@ -142,6 +144,8 @@ const toSummary = (raw: z.infer<typeof summarySchema>): UnplacedSummary => ({
   pullRequestCount: raw.pull_requests.total_items,
   parent: raw.parent_story,
   subTaskCount: raw.sub_task_stories.total_items,
+  blocked: raw.blocked,
+  blocker: raw.blocker,
 });
 
 export const StorySummarySchema = summarySchema.transform(toSummary);

@@ -1,3 +1,4 @@
+import { blockingOf } from "./demo-blocks.ts";
 import { seeds, type StorySeed } from "./demo-seeds.ts";
 import { storyId } from "./schemas.ts";
 import type { StoryDetail, StoryRef } from "./types.ts";
@@ -38,6 +39,7 @@ export const seededStories: readonly SeededStory[] = seeds.map((seed) => ({
   pullRequestCount: seed.pullRequests?.length ?? 0,
   parent: parentOf(seed),
   subTaskCount: seeds.filter((other) => other.parentId === seed.id).length,
+  ...blockingOf(seed.id),
   description: seed.description,
   labels: seed.labels,
   comments: seed.comments,

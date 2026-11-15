@@ -160,6 +160,8 @@ test("searchStories reads every page and maps embedded names", async () => {
     pullRequestCount: 2,
     parent: null,
     subTaskCount: 0,
+    blocked: false,
+    blocker: false,
   });
   expect(stories[1]?.state.progress).toBe("unstarted");
   expect(stories[1]?.epic).toBeNull();

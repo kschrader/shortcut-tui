@@ -92,6 +92,8 @@ export const summary = (id: number, name = `Story ${String(id)}`): StorySummary 
   pullRequestCount: 0,
   parent: null,
   subTaskCount: 0,
+  blocked: false,
+  blocker: false,
 });
 
 export const ownedBy = (story: StorySummary, ...names: readonly string[]): StorySummary => ({

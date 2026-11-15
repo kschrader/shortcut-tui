@@ -87,6 +87,8 @@ export const summary = (id: number, overrides: Partial<StorySummary> = {}): Stor
   pullRequestCount: 0,
   parent: null,
   subTaskCount: 0,
+  blocked: false,
+  blocker: false,
   ...overrides,
 });
 
