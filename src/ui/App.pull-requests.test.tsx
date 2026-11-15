@@ -58,7 +58,7 @@ const withPullRequests = (
   selected = 101,
 ) =>
   browsing({
-    results: loaded({ question: queryQuestion("owner:me"), stories: linked }),
+    results: loaded({ question: queryQuestion("owner:me"), stories: linked, cachedAt: null }),
     selectedStoryId: storyId(selected),
     details: new Map([[storyId(selected), loaded({ ...detail, ...linked[0] })]]),
     pullRequests,
@@ -164,7 +164,7 @@ test("an 80-column terminal keeps names readable and shows the status as a glyph
   const story = summary(316665, { name: longName, pullRequestCount: 1 });
   const { frame } = await show(
     browsing({
-      results: loaded({ question: queryQuestion("owner:me"), stories: [story] }),
+      results: loaded({ question: queryQuestion("owner:me"), stories: [story], cachedAt: null }),
       selectedStoryId: story.id,
       details: new Map(),
       pullRequests: cached(

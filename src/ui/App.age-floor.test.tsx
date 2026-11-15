@@ -10,7 +10,10 @@ const now = new Date("2026-11-02T12:00:00Z");
 const floored = (view: View): Question => ({ view, movedOnOrBefore: ageFloorFrom(now) });
 
 const showing = (question: Question) =>
-  show(browsing({ question, results: loaded({ question, stories }) }), { width: 80, now });
+  show(browsing({ question, results: loaded({ question, stories, cachedAt: null }) }), {
+    width: 80,
+    now,
+  });
 
 const header = (frame: string) => frame.split("\n")[0] ?? "";
 

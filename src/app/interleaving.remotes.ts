@@ -1,5 +1,5 @@
 import { listedStories, searchedStories, type World } from "./interleaving.moves.ts";
-import type { Effect, Model, Question, RequestId } from "./model.ts";
+import type { RemoteRequest, Model, Question, RequestId } from "./model.ts";
 import { queriesFor } from "./filters.ts";
 import { awaited, inFlight } from "./remote.ts";
 
@@ -10,7 +10,7 @@ export const storyName = (queries: readonly string[], requestId: number, id: num
 
 export type Slot = "workspace" | "search" | "prs" | `detail:${string}`;
 
-export const slotOf = (effect: Effect): Slot | null => {
+export const slotOf = (effect: RemoteRequest): Slot | null => {
   switch (effect.type) {
     case "loadWorkspace":
       return "workspace";
@@ -25,7 +25,7 @@ export const slotOf = (effect: Effect): Slot | null => {
   }
 };
 
-export const awaitedBy = (model: Model, effect: Effect): RequestId | null => {
+export const awaitedBy = (model: Model, effect: RemoteRequest): RequestId | null => {
   switch (effect.type) {
     case "loadWorkspace":
       return awaited(model.workspace);
@@ -40,13 +40,13 @@ export const awaitedBy = (model: Model, effect: Effect): RequestId | null => {
   }
 };
 
-const latest = (issued: readonly Effect[], matches: (effect: Effect) => boolean) =>
+const latest = (issued: readonly RemoteRequest[], matches: (effect: RemoteRequest) => boolean) =>
   issued.findLast(matches)?.requestId ?? null;
 
 const marks = (requestId: RequestId | null, shown: string) =>
   requestId !== null && shown === answerMark(requestId);
 
-const workspaceViolations = (model: Model, issued: readonly Effect[]): string[] => {
+const workspaceViolations = (model: Model, issued: readonly RemoteRequest[]): string[] => {
   const found: string[] = [];
   const latestLoad = latest(issued, (effect) => effect.type === "loadWorkspace");
   const { workspace } = model;
@@ -76,7 +76,11 @@ const workspaceViolations = (model: Model, issued: readonly Effect[]): string[] 
 const queriesAsked = (model: Model, question: Question): readonly string[] | null =>
   model.workspace.status === "loaded" ? queriesFor(question, model.workspace.value) : null;
 
-const resultsViolations = (model: Model, issued: readonly Effect[], world: World): string[] => {
+const resultsViolations = (
+  model: Model,
+  issued: readonly RemoteRequest[],
+  world: World,
+): string[] => {
   const found: string[] = [];
   const latestSearch = latest(issued, (effect) => effect.type === "searchStories");
   const applied = world.applied.get("search") ?? null;
@@ -141,7 +145,11 @@ const resultsViolations = (model: Model, issued: readonly Effect[], world: World
   return found;
 };
 
-const pullRequestViolations = (model: Model, issued: readonly Effect[], world: World): string[] => {
+const pullRequestViolations = (
+  model: Model,
+  issued: readonly RemoteRequest[],
+  world: World,
+): string[] => {
   const found: string[] = [];
   const shown = searchedStories(model);
   const latestLoad = latest(issued, (effect) => effect.type === "loadPullRequests");
@@ -190,7 +198,11 @@ const pullRequestViolations = (model: Model, issued: readonly Effect[], world: W
   return found;
 };
 
-const detailViolations = (model: Model, issued: readonly Effect[], world: World): string[] => {
+const detailViolations = (
+  model: Model,
+  issued: readonly RemoteRequest[],
+  world: World,
+): string[] => {
   const found: string[] = [];
   for (const [storyId, remote] of model.details) {
     const latestFetch = latest(
@@ -245,7 +257,7 @@ const detailViolations = (model: Model, issued: readonly Effect[], world: World)
 
 export const remoteViolations = (
   model: Model,
-  issued: readonly Effect[],
+  issued: readonly RemoteRequest[],
   world: World,
 ): string[] => [
   ...workspaceViolations(model, issued),

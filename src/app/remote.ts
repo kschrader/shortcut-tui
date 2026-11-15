@@ -1,4 +1,4 @@
-import type { Reload, Remote, RequestId } from "./model.ts";
+import type { Effect, Reload, Remote, RemoteRequest, RequestId } from "./model.ts";
 
 const isRequestId = (n: number): n is RequestId => Number.isSafeInteger(n) && n > 0;
 
@@ -68,3 +68,17 @@ export const fail = <T>(remote: Remote<T>, message: string): Remote<T> => {
 
 export const reloadFailure = <T>(remote: Remote<T> | undefined): string | null =>
   remote?.status === "loaded" && remote.reload.status === "failed" ? remote.reload.message : null;
+
+export const requestsIn = (effects: readonly Effect[]): RemoteRequest[] =>
+  effects.flatMap((effect) => {
+    switch (effect.type) {
+      case "saveStartupList":
+        return [];
+      case "loadWorkspace":
+      case "searchStories":
+      case "getStory":
+      case "loadPullRequests":
+      case "moveStory":
+        return [effect];
+    }
+  });

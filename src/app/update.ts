@@ -1,14 +1,13 @@
 import type { StoryDetail, StoryId, StorySummary, Workspace } from "../shortcut/types.ts";
 import type {
-  Cached,
   Model,
   Msg,
   Question,
   Reload,
   Remote,
   RequestId,
+  StartupList,
   Step,
-  StoryPullRequests,
 } from "./model.ts";
 import {
   carryMoves,
@@ -20,14 +19,11 @@ import {
 } from "./moves.ts";
 import {
   ageFloorFrom,
-  defaultQueryFor,
   draftFor,
   filterAfter,
   queriesFor,
-  queryQuestion,
   queryView,
   sameQuestion,
-  withoutFloor,
 } from "./filters.ts";
 import { noticed } from "./glance.ts";
 import { rowInPlaceOf, shownStories } from "./rows.ts";
@@ -44,14 +40,17 @@ import {
   reloadFailure,
   requestIdAfter,
 } from "./remote.ts";
-
-const noPullRequests: Cached<StoryPullRequests> = { value: new Map(), reload: idle };
+import {
+  noPullRequests,
+  savedForStartup,
+  showsCachedList,
+  startupQuestion,
+  startupView,
+} from "./startup.ts";
 
 const browsing: Model["focus"] = { mode: "browsing" };
 
 const FOCUS_REFRESH_AFTER_MS = 30_000;
-
-const noQuestion = queryQuestion("");
 
 const search = (model: Model, workspace: Workspace, question: Question): Step => {
   const requestId = model.nextRequestId;
@@ -71,6 +70,7 @@ const search = (model: Model, workspace: Workspace, question: Question): Step =>
 };
 
 const fetchDetail = (model: Model, storyId: StoryId): Step => {
+  if (showsCachedList(model)) return [model, []];
   const requestId = model.nextRequestId;
   return [
     {
@@ -178,13 +178,14 @@ const resultsArrived = (
   loadedAt: Date,
 ): Step => {
   const { stories, moves } = carryMoves(model, requestId, found);
+  const results = loaded({ question: model.question, stories, cachedAt: null });
   const [checking, pullRequestEffects] = loadPullRequests(
-    { ...model, results: loaded({ question: model.question, stories }), loadedAt, moves },
+    { ...model, results, loadedAt, moves },
     stories,
   );
   const shown = closePickerOnHidden(checking);
   const [selected, detailEffects] = select(shown, shownSelection(shown));
-  return [selected, [...detailEffects, ...pullRequestEffects]];
+  return [selected, [...detailEffects, ...pullRequestEffects, ...savedForStartup(shown, loadedAt)]];
 };
 
 const applyMove = (
@@ -211,19 +212,16 @@ const applyMove = (
   }
 };
 
-export const init = (): Step => {
+export const init = (saved: StartupList | null = null): Step => {
   const requestId = firstRequestId;
   return [
     {
       workspace: firstLoad(requestId),
-      question: noQuestion,
-      results: loaded({ question: noQuestion, stories: [] }),
+      ...startupView(saved),
       loadedAt: null,
-      selectedStoryId: null,
       details: new Map(),
       pullRequests: noPullRequests,
       moves: new Map(),
-      seen: new Map(),
       focus: browsing,
       nextRequestId: requestIdAfter(requestId),
     },
@@ -236,8 +234,7 @@ const transition = (model: Model, msg: Msg): Step => {
     case "workspaceLoaded": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
       const withWorkspace: Model = { ...model, workspace: loaded(msg.workspace) };
-      const startup = withoutFloor(defaultQueryFor(msg.workspace.me.mentionName));
-      return search(withWorkspace, msg.workspace, startup);
+      return search(withWorkspace, msg.workspace, startupQuestion(msg.workspace.me.mentionName));
     }
     case "workspaceFailed": {
       if (!isAwaiting(model.workspace, msg.requestId)) return [model, []];
@@ -362,9 +359,8 @@ const transition = (model: Model, msg: Msg): Step => {
       return [{ ...model, focus: browsing }, []];
     }
     case "movePickerOpened": {
-      if (model.focus.mode !== "browsing" || model.workspace.status !== "loaded") {
-        return [model, []];
-      }
+      const blocked = model.focus.mode !== "browsing" || showsCachedList(model);
+      if (blocked || model.workspace.status !== "loaded") return [model, []];
       const story = storyIn(model, model.selectedStoryId);
       if (story === null) return [model, []];
       if (!model.workspace.value.canWrite) return [{ ...model, focus: { mode: "readOnly" } }, []];

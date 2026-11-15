@@ -1,7 +1,7 @@
 import type { PullRequestState } from "../github/types.ts";
 import type { StoryId, StorySummary, WorkflowState, WorkflowStateId } from "../shortcut/types.ts";
 import { toDo, workflowStates } from "./fixtures.ts";
-import type { Effect, Model, Question, RequestId } from "./model.ts";
+import type { RemoteRequest, Model, Question, RequestId } from "./model.ts";
 import { pickerStates } from "./moves.ts";
 
 export const stateById = (id: WorkflowStateId): WorkflowState => {
@@ -69,7 +69,11 @@ export const listedStories = (model: Model) => {
   });
 };
 
-export const moveViolations = (model: Model, issued: readonly Effect[], world: World): string[] => {
+export const moveViolations = (
+  model: Model,
+  issued: readonly RemoteRequest[],
+  world: World,
+): string[] => {
   const found: string[] = [];
   const unanswered = issued.filter(
     (effect) => effect.type === "moveStory" && !world.delivered.has(effect.requestId),

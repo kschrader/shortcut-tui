@@ -5,6 +5,7 @@ import { createFakeClock } from "../app/fake-clock.ts";
 import { withoutFloor } from "../app/filters.ts";
 import type { PullRequestView, SearchResults, StoryPullRequests } from "../app/model.ts";
 import { useStoryBrowser } from "../app/runtime.ts";
+import { noStartupCache } from "../app/store.ts";
 import { createFakeGitHubClient } from "../github/fake.ts";
 import type { PullRequestState } from "../github/types.ts";
 import { createFakeShortcutClient } from "../shortcut/fake.ts";
@@ -41,6 +42,7 @@ const launchDemo = async () => {
     const { model, dispatch, now } = useStoryBrowser(clients, {
       clock,
       autoRefresh: { mode: "off" },
+      startupCache: noStartupCache,
     });
     return (
       <App
@@ -152,7 +154,7 @@ const linking = [
   }),
 ];
 
-const searched = (): SearchResults => ({ question: merged, stories: linking });
+const searched = (): SearchResults => ({ question: merged, stories: linking, cachedAt: null });
 
 const statuses = (first: PullRequestState, second: PullRequestState): StoryPullRequests =>
   new Map([

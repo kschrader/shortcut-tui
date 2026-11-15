@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { testRender } from "@opentui/react/test-utils";
 import { createFakeClock } from "../app/fake-clock.ts";
 import { useStoryBrowser } from "../app/runtime.ts";
+import { noStartupCache } from "../app/store.ts";
 import { createFakeGitHubClient } from "../github/fake.ts";
 import { createFakeShortcutClient } from "../shortcut/fake.ts";
 import { App } from "./App.tsx";
@@ -21,6 +22,7 @@ const launch = async () => {
     const { model, dispatch, now } = useStoryBrowser(clients, {
       clock,
       autoRefresh: { mode: "every", ms: 5 * MINUTE },
+      startupCache: noStartupCache,
     });
     return (
       <App

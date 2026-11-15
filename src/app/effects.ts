@@ -6,7 +6,7 @@ import type {
   StoryId,
   StorySummary,
 } from "../shortcut/types.ts";
-import type { Effect, Msg, Settled, StoryPullRequests } from "./model.ts";
+import type { Msg, RemoteRequest, Settled, StoryPullRequests } from "./model.ts";
 
 export type Clients = { shortcut: ShortcutClient; github: GitHubClient };
 
@@ -77,7 +77,11 @@ const pullRequestsOf = async (
   );
 };
 
-const runEffectUnsafe = async (clients: Clients, effect: Effect, now: () => Date): Promise<Msg> => {
+const runEffectUnsafe = async (
+  clients: Clients,
+  effect: RemoteRequest,
+  now: () => Date,
+): Promise<Msg> => {
   switch (effect.type) {
     case "loadWorkspace":
       return {
@@ -114,7 +118,7 @@ const runEffectUnsafe = async (clients: Clients, effect: Effect, now: () => Date
   }
 };
 
-const failureMsg = (effect: Effect, message: string): Msg => {
+const failureMsg = (effect: RemoteRequest, message: string): Msg => {
   switch (effect.type) {
     case "loadWorkspace":
       return { type: "workspaceFailed", requestId: effect.requestId, message };
@@ -141,7 +145,7 @@ const failureMsg = (effect: Effect, message: string): Msg => {
 
 export const runEffect = async (
   clients: Clients,
-  effect: Effect,
+  effect: RemoteRequest,
   now: () => Date,
 ): Promise<Msg> => {
   try {

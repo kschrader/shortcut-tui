@@ -12,7 +12,7 @@ import {
 } from "./steps.ts";
 import type { Msg } from "./model.ts";
 import { queryQuestion } from "./filters.ts";
-import { awaited, loaded } from "./remote.ts";
+import { awaited, loaded, requestsIn } from "./remote.ts";
 import { init, update } from "./update.ts";
 
 describe("startup", () => {
@@ -61,7 +61,7 @@ describe("search results", () => {
   test("empty results select nothing and fetch nothing", () => {
     const [model, effects] = browsing([]);
     expect(model.selectedStoryId).toBeNull();
-    expect(effects).toEqual([]);
+    expect(requestsIn(effects)).toEqual([]);
   });
 
   test("a response to a superseded search is dropped", () => {
@@ -76,7 +76,7 @@ describe("search results", () => {
 
     const [afterFresh] = answer(afterStale, second, [summary(7)]);
     expect(afterFresh.results).toEqual(
-      loaded({ question: queryQuestion("label:urgent"), stories: [summary(7)] }),
+      loaded({ question: queryQuestion("label:urgent"), stories: [summary(7)], cachedAt: null }),
     );
   });
 

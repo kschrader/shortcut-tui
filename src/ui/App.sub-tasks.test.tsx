@@ -38,7 +38,7 @@ const rows = [plain, child, parent, both, longChild, longParent];
 
 const showing = (stories: readonly StorySummary[], selected = stories[0]) =>
   browsing({
-    results: loaded({ question: queryQuestion("owner:me"), stories }),
+    results: loaded({ question: queryQuestion("owner:me"), stories, cachedAt: null }),
     selectedStoryId: selected?.id ?? null,
     details: new Map(),
   });
@@ -106,7 +106,7 @@ const withChildren = {
 const parentOpen = (height = 40) =>
   show(
     browsing({
-      results: loaded({ question: queryQuestion("owner:me"), stories: [parent] }),
+      results: loaded({ question: queryQuestion("owner:me"), stories: [parent], cachedAt: null }),
       selectedStoryId: parent.id,
       details: new Map([[parent.id, loaded(withChildren)]]),
     }),

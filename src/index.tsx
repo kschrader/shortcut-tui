@@ -1,11 +1,14 @@
 #!/usr/bin/env bun
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
+import { homedir } from "node:os";
 import { useEffect } from "react";
 import { autoRefreshFromEnvironment } from "./app/auto-refresh.ts";
 import { systemClock } from "./app/clock.ts";
 import type { Clients } from "./app/effects.ts";
 import { useStoryBrowser } from "./app/runtime.ts";
+import { noStartupCache } from "./app/store.ts";
+import { openStartupCache, startupListLocation } from "./cache/startup-list.ts";
 import { createGitHubClient } from "./github/client.ts";
 import { createFakeGitHubClient } from "./github/fake.ts";
 import { createShortcutClient } from "./shortcut/client.ts";
@@ -50,6 +53,13 @@ const main = async () => {
           shortcut: createShortcutClient({ token: tokenResult.token }),
           github: createGitHubClient(),
         };
+  const startupCache =
+    tokenResult === null
+      ? noStartupCache
+      : await openStartupCache(
+          startupListLocation(tokenResult.token, process.env, homedir()),
+          systemClock.now(),
+        );
   const renderer = await createCliRenderer({ exitOnCtrlC: false });
   const copyText = (text: string) => {
     const sent = renderer.copyToClipboardOSC52(text);
@@ -60,6 +70,7 @@ const main = async () => {
     const { model, dispatch, now } = useStoryBrowser(clients, {
       clock: systemClock,
       autoRefresh: refresh.autoRefresh,
+      startupCache,
     });
     useEffect(() => {
       const focused = () => dispatch({ type: "terminalFocused", at: systemClock.now() });

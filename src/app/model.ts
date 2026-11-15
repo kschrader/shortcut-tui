@@ -35,7 +35,17 @@ export type CalendarDay = string & { readonly brand: "CalendarDay" };
 
 export type Question = { view: View; movedOnOrBefore: CalendarDay | null };
 
-export type SearchResults = { question: Question; stories: readonly StorySummary[] };
+export type SearchResults = {
+  question: Question;
+  stories: readonly StorySummary[];
+  cachedAt: Date | null;
+};
+
+export type StartupList = {
+  mentionName: string;
+  savedAt: Date;
+  stories: readonly StorySummary[];
+};
 
 export type PullRequestView = LinkedPullRequest & {
   state: PullRequestState;
@@ -130,9 +140,11 @@ export type Msg =
 
 export type Step = [Model, Effect[]];
 
-export type Effect =
+export type RemoteRequest =
   | { type: "loadWorkspace"; requestId: RequestId }
   | { type: "searchStories"; requestId: RequestId; queries: readonly string[] }
   | { type: "getStory"; requestId: RequestId; storyId: StoryId }
   | { type: "loadPullRequests"; requestId: RequestId; storyIds: readonly StoryId[] }
   | { type: "moveStory"; requestId: RequestId; storyId: StoryId; stateId: WorkflowStateId };
+
+export type Effect = RemoteRequest | { type: "saveStartupList"; list: StartupList };

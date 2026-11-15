@@ -97,6 +97,7 @@ test("b in a workspace with no branch name format copies nothing and says why", 
       results: loaded({
         question: queryQuestion("owner:me"),
         stories: [summary(102, { branchName: null })],
+        cachedAt: null,
       }),
       selectedStoryId: stories[1].id,
     }),

@@ -1,7 +1,7 @@
 import { systemClock } from "../src/app/clock.ts";
 import type { Model } from "../src/app/model.ts";
 import { awaited, inFlight } from "../src/app/remote.ts";
-import { createStoryStore } from "../src/app/store.ts";
+import { createStoryStore, noStartupCache } from "../src/app/store.ts";
 import { createGitHubClient } from "../src/github/client.ts";
 import { storyMergeStatus } from "../src/github/pull-request-state.ts";
 import { createShortcutClient } from "../src/shortcut/client.ts";
@@ -71,7 +71,7 @@ if (tokenResult.ok) {
       shortcut: createShortcutClient({ token: tokenResult.token }),
       github: createGitHubClient(),
     },
-    { clock: systemClock, autoRefresh: { mode: "off" } },
+    { clock: systemClock, autoRefresh: { mode: "off" }, startupCache: noStartupCache },
   );
   const model = await new Promise<Model>((resolve) => {
     const unsubscribe = store.subscribe(() => {

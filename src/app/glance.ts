@@ -60,7 +60,10 @@ export const unseenChanges = (model: Model): ReadonlyMap<StoryId, readonly Chang
   );
 
 const answersNewQuestion = (before: Model, after: Model): boolean =>
-  before.results.status === "firstLoad" && after.results.status === "loaded";
+  after.results.status === "loaded" &&
+  after.results.value.cachedAt === null &&
+  (before.results.status === "firstLoad" ||
+    (before.results.status === "loaded" && before.results.value.cachedAt !== null));
 
 export const noticed = (before: Model, after: Model): Model["seen"] => {
   const seen = new Map(after.seen);

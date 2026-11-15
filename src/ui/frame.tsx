@@ -16,6 +16,7 @@ import { glanceOf } from "../app/glance.ts";
 import { createFakeClock } from "../app/fake-clock.ts";
 import { idle } from "../app/remote.ts";
 import { useStoryBrowser } from "../app/runtime.ts";
+import { noStartupCache } from "../app/store.ts";
 import { createFakeGitHubClient } from "../github/fake.ts";
 import { createFakeShortcutClient } from "../shortcut/fake.ts";
 import type {
@@ -119,7 +120,11 @@ const seenAsShown = (model: Model): Model["seen"] =>
 const defaultsWith = (overrides: Partial<Model>): Model => ({
   workspace: loaded(workspace),
   question: queryQuestion("owner:me"),
-  results: loaded<SearchResults>({ question: queryQuestion("owner:me"), stories: [] }),
+  results: loaded<SearchResults>({
+    question: queryQuestion("owner:me"),
+    stories: [],
+    cachedAt: null,
+  }),
   loadedAt: null,
   selectedStoryId: null,
   details: new Map(),
@@ -170,7 +175,7 @@ export const detail: StoryDetail = {
 
 export const browsing = (overrides: Partial<Model> = {}) =>
   modelWith({
-    results: loaded({ question: queryQuestion("owner:me"), stories }),
+    results: loaded({ question: queryQuestion("owner:me"), stories, cachedAt: null }),
     selectedStoryId: stories[1].id,
     details: new Map([[detail.id, loaded(detail)]]),
     ...overrides,
@@ -237,6 +242,7 @@ export const launchDemo = async ({ width = 80, height = 24 } = {}) => {
     const { model, dispatch, now } = useStoryBrowser(clients, {
       clock,
       autoRefresh: { mode: "off" },
+      startupCache: noStartupCache,
     });
     return (
       <App

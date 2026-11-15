@@ -1,7 +1,8 @@
 import { expect } from "bun:test";
 import type { StorySummary } from "../shortcut/types.ts";
 import { workspaceFor } from "./fixtures.ts";
-import type { Effect, Model, Msg } from "./model.ts";
+import type { Effect, Model, Msg, RemoteRequest } from "./model.ts";
+import { requestsIn } from "./remote.ts";
 import { init, update } from "./update.ts";
 
 export const myStartedQuery = "owner:kurt is:started !is:archived";
@@ -17,8 +18,8 @@ export const first = <K extends Effect["type"]>(effects: Effect[], type: K): Eff
   return effect;
 };
 
-export const only = <K extends Effect["type"]>(effects: Effect[], type: K): EffectOf<K> => {
-  expect(effects.map((effect) => effect.type)).toEqual([type]);
+export const only = <K extends RemoteRequest["type"]>(effects: Effect[], type: K): EffectOf<K> => {
+  expect(requestsIn(effects).map((effect) => effect.type)).toEqual([type]);
   return first(effects, type);
 };
 

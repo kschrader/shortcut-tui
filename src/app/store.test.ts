@@ -1,11 +1,21 @@
 import { expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  openStartupCache,
+  readStartupList,
+  startupListLocation,
+  writeStartupList,
+} from "../cache/startup-list.ts";
 import { createFakeGitHubClient } from "../github/fake.ts";
 import { createFakeShortcutClient } from "../shortcut/fake.ts";
 import type { AutoRefresh } from "./auto-refresh.ts";
 import { createFakeClock } from "./fake-clock.ts";
+import { summary } from "./fixtures.ts";
 import type { Model } from "./model.ts";
 import { awaited, inFlight } from "./remote.ts";
-import { createStoryStore } from "./store.ts";
+import { createStoryStore, noStartupCache } from "./store.ts";
 
 const MINUTE = 60_000;
 const every5Minutes: AutoRefresh = { mode: "every", ms: 5 * MINUTE };
@@ -31,7 +41,7 @@ const started = async (autoRefresh: AutoRefresh = every5Minutes) => {
       },
       github: createFakeGitHubClient(),
     },
-    { clock, autoRefresh },
+    { clock, autoRefresh, startupCache: noStartupCache },
   );
   const settle = async () => {
     for (let turn = 0; turn < 100 && loading(store.getModel()); turn += 1) {
@@ -113,4 +123,41 @@ test("with auto-refresh off the store never starts a timer", async () => {
   clock.advance(24 * 60 * MINUTE);
   expect(searches.length).toBe(1);
   stop();
+});
+
+test("the store starts on the saved startup list and saves the first answer over it", async () => {
+  const cacheHome = mkdtempSync(join(tmpdir(), "shortcut-tui-store-"));
+  const location = startupListLocation("sct_rw_store_test", { XDG_CACHE_HOME: cacheHome }, "/");
+  const savedAt = new Date("2026-11-02T08:00:00Z");
+  await writeStartupList(location, { mentionName: "demo", savedAt, stories: [summary(901)] });
+  const clock = createFakeClock(new Date("2026-11-02T09:00:00Z"));
+  const store = createStoryStore(
+    { shortcut: createFakeShortcutClient(), github: createFakeGitHubClient() },
+    {
+      clock,
+      autoRefresh: { mode: "off" },
+      startupCache: await openStartupCache(location, clock.now()),
+    },
+  );
+  expect(store.getModel().results).toMatchObject({ value: { cachedAt: savedAt } });
+  const stop = store.start();
+  for (let turn = 0; turn < 100 && loading(store.getModel()); turn += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  const { results } = store.getModel();
+  if (results.status !== "loaded") throw new Error("the first search did not answer");
+  expect(results.value.cachedAt).toBeNull();
+  const savedAgain = async () => {
+    for (let turn = 0; turn < 100; turn += 1) {
+      const list = await readStartupList(location.file, clock.now());
+      if (list?.savedAt.getTime() === clock.now().getTime()) return list;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    return null;
+  };
+  const fresh = await savedAgain();
+  expect(fresh?.stories.length).toBeGreaterThan(0);
+  expect(fresh?.stories).toEqual(results.value.stories);
+  stop();
+  rmSync(cacheHome, { recursive: true, force: true });
 });

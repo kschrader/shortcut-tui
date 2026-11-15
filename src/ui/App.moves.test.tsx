@@ -57,7 +57,7 @@ test("a long workflow scrolls the picker to keep the cursor visible inside 80x24
   const { frame } = await show(
     browsing({
       workspace: loaded({ ...workspace.value, workflowStates: many }),
-      results: loaded({ question: queryQuestion("owner:me"), stories: [story] }),
+      results: loaded({ question: queryQuestion("owner:me"), stories: [story], cachedAt: null }),
       selectedStoryId: story.id,
       details: new Map(),
       focus: { mode: "picking", storyId: story.id, cursor: 39 },

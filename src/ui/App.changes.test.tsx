@@ -99,7 +99,7 @@ test("at 80 columns a long query gives way to the story and updated counts", asy
   );
   const model = afterRefresh();
   const { frame } = await show(
-    { ...model, question, results: loaded({ question, stories }) },
+    { ...model, question, results: loaded({ question, stories, cachedAt: null }) },
     { width: 80, height: 24 },
   );
   const header = frame().split("\n")[0] ?? "";

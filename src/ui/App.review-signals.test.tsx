@@ -92,7 +92,7 @@ const showing = (
   show(
     modelWith({
       question,
-      results: loaded({ question, stories: reviewStories }),
+      results: loaded({ question, stories: reviewStories, cachedAt: null }),
       selectedStoryId: storyId(301),
       details: new Map(),
       pullRequests,
@@ -145,7 +145,7 @@ test("the detail pane lists submitted reviews, and says when nobody was asked", 
   const { frame } = await show(
     modelWith({
       question: reviewView,
-      results: loaded({ question: reviewView, stories: reviewStories }),
+      results: loaded({ question: reviewView, stories: reviewStories, cachedAt: null }),
       selectedStoryId: storyId(302),
       details: new Map(),
       pullRequests: cached(answered),

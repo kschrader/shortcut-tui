@@ -41,7 +41,11 @@ test("a long shared-owner divider keeps its count at 80 columns", async () => {
   const { frame } = await show(
     browsing({
       question: withoutFloor({ kind: "inReview" }),
-      results: loaded({ question: withoutFloor({ kind: "inReview" }), stories: [shared] }),
+      results: loaded({
+        question: withoutFloor({ kind: "inReview" }),
+        stories: [shared],
+        cachedAt: null,
+      }),
       selectedStoryId: shared.id,
     }),
     { width: 80 },
@@ -149,7 +153,7 @@ test("keeps the selected row visible in a short window", async () => {
   const last = many[59];
   const { screen, frame } = await show(
     modelWith({
-      results: loaded({ question: queryQuestion(""), stories: many }),
+      results: loaded({ question: queryQuestion(""), stories: many, cachedAt: null }),
       selectedStoryId: last.id,
     }),
     { height: 12 },
@@ -207,6 +211,7 @@ test("an 80-column terminal shows enough of each story name to read it", async (
       results: loaded({
         question: queryQuestion("owner:me"),
         stories: [summary(316665, { name: longName })],
+        cachedAt: null,
       }),
       selectedStoryId: storyId(316665),
       details: new Map(),
@@ -266,7 +271,10 @@ test("the load time of the shown results stays while they reload", async () => {
   const { frame } = await show(
     browsing({
       loadedAt,
-      results: loaded({ question: queryQuestion("owner:me"), stories }, reloading(requestId(2))),
+      results: loaded(
+        { question: queryQuestion("owner:me"), stories, cachedAt: null },
+        reloading(requestId(2)),
+      ),
     }),
     { width: 120, now: new Date("2026-11-02T09:02:00Z") },
   );

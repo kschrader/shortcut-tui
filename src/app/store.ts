@@ -1,7 +1,7 @@
 import type { AutoRefresh } from "./auto-refresh.ts";
 import type { Clock } from "./clock.ts";
 import { runEffect, type Clients } from "./effects.ts";
-import type { Effect, Model, Msg } from "./model.ts";
+import type { Effect, Model, Msg, StartupList } from "./model.ts";
 import { init, update } from "./update.ts";
 
 export type StoryStore = {
@@ -11,13 +11,20 @@ export type StoryStore = {
   start: () => () => void;
 };
 
-export type StoreOptions = { clock: Clock; autoRefresh: AutoRefresh };
+export type StartupCache = {
+  list: StartupList | null;
+  save: (list: StartupList) => Promise<void>;
+};
+
+export const noStartupCache: StartupCache = { list: null, save: () => Promise.resolve() };
+
+export type StoreOptions = { clock: Clock; autoRefresh: AutoRefresh; startupCache: StartupCache };
 
 export const createStoryStore = (
   clients: Clients,
-  { clock, autoRefresh }: StoreOptions,
+  { clock, autoRefresh, startupCache }: StoreOptions,
 ): StoryStore => {
-  const [initialModel, initialEffects] = init();
+  const [initialModel, initialEffects] = init(startupCache.list);
   let model = initialModel;
   let alive = true;
   let stopAutoRefresh: (() => void) | null = null;
@@ -34,7 +41,19 @@ export const createStoryStore = (
       restartAutoRefresh();
     }
     for (const effect of effects) {
-      void runEffect(clients, effect, clock.now).then((msg) => (alive ? dispatch(msg) : undefined));
+      switch (effect.type) {
+        case "saveStartupList":
+          void startupCache.save(effect.list);
+          break;
+        case "loadWorkspace":
+        case "searchStories":
+        case "getStory":
+        case "loadPullRequests":
+        case "moveStory":
+          void runEffect(clients, effect, clock.now).then((msg) =>
+            alive ? dispatch(msg) : undefined,
+          );
+      }
     }
   };
 

@@ -23,8 +23,9 @@ import {
   storyName,
 } from "./interleaving.remotes.ts";
 import { changesOf, unseenChanges } from "./glance.ts";
-import type { Effect, Model, Msg, PullRequestView } from "./model.ts";
+import type { RemoteRequest, Model, Msg, PullRequestView } from "./model.ts";
 import { orderFor } from "./order.ts";
+import { requestsIn } from "./remote.ts";
 import { shownStories } from "./rows.ts";
 import { init, update } from "./update.ts";
 
@@ -87,7 +88,7 @@ const pullRequestAnswer = (
 
 const respond = (
   random: Random,
-  effect: Effect,
+  effect: RemoteRequest,
   succeed: boolean,
   world: World,
   model: Model,
@@ -224,7 +225,7 @@ const glanceViolations = (before: Model, after: Model): string[] => {
   return found;
 };
 
-const violations = (model: Model, issued: readonly Effect[], world: World): string[] => {
+const violations = (model: Model, issued: readonly RemoteRequest[], world: World): string[] => {
   const found: string[] = [];
   if (new Set(issued.map((effect) => effect.requestId)).size !== issued.length) {
     found.push("two effects share a request id");
@@ -257,9 +258,11 @@ const explore = (seed: number): string[] => {
     intents: new Map(),
     applied: new Map(),
   };
-  let [model, issued] = init();
+  const [initialModel, initEffects] = init();
+  let model = initialModel;
+  let issued = requestsIn(initEffects);
   const trail: string[] = [];
-  const recordApplied = (answered: Effect): string[] => {
+  const recordApplied = (answered: RemoteRequest): string[] => {
     const slot = slotOf(answered);
     if (slot === null || awaitedBy(model, answered) !== answered.requestId) return [];
     const previous = world.applied.get(slot);
@@ -268,7 +271,7 @@ const explore = (seed: number): string[] => {
       ? [`${slot} applied request ${String(answered.requestId)} after ${String(previous)}`]
       : [];
   };
-  const apply = (msg: Msg, answered: Effect | null, succeeded: boolean) => {
+  const apply = (msg: Msg, answered: RemoteRequest | null, succeeded: boolean) => {
     if (msg.type === "movePickerConfirmed") {
       const picked = pickedTarget(model);
       if (picked !== null) world.intents.set(picked[0], picked[1]);
@@ -277,7 +280,8 @@ const explore = (seed: number): string[] => {
     if (isResponse && "requestId" in msg) world.delivered.add(msg.requestId);
     const outOfOrder = answered !== null && succeeded ? recordApplied(answered) : [];
     const before = model;
-    const [next, effects] = update(model, msg);
+    const [next, emitted] = update(model, msg);
+    const effects = requestsIn(emitted);
     model = next;
     issued = [...issued, ...effects];
     for (const effect of effects) {
