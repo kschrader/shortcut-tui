@@ -54,7 +54,17 @@ export const WhoamiSchema = z
     canWrite: canMoveStoriesWith(entity.authorization?.scopes),
   }));
 
-export const WORKFLOW_STATE_FIELDS = "id,name,type,position,workflow";
+const fieldsOf = (shape: Record<string, unknown>): string => Object.keys(shape).join(",");
+
+const workflowStateFields = {
+  id: workflowStateId,
+  name: z.string(),
+  type: z.enum(["backlog", "unstarted", "started", "done"]),
+  position: z.number(),
+  workflow: z.object({ id: workflowId, name: z.string() }),
+};
+
+export const WORKFLOW_STATE_FIELDS = fieldsOf(workflowStateFields);
 
 const progressOfStateType: Record<"backlog" | "unstarted" | "started" | "done", Progress> = {
   backlog: "unstarted",
@@ -64,13 +74,7 @@ const progressOfStateType: Record<"backlog" | "unstarted" | "started" | "done", 
 };
 
 export const WorkflowStateSchema = z
-  .object({
-    id: workflowStateId,
-    name: z.string(),
-    type: z.enum(["backlog", "unstarted", "started", "done"]),
-    position: z.number(),
-    workflow: z.object({ id: workflowId, name: z.string() }),
-  })
+  .object(workflowStateFields)
   .transform((raw): WorkflowState => ({
     id: raw.id,
     name: raw.name,
@@ -80,11 +84,6 @@ export const WorkflowStateSchema = z
   }));
 
 export type WorkflowStates = ReadonlyMap<WorkflowStateId, WorkflowState>;
-
-export const SUMMARY_FIELDS =
-  "id,name,story_type,workflow_state,estimate,owners,epic,app_url,updated_at,moved_at,created_at,pull_requests,parent_story,sub_task_stories,formatted_vcs_branch_name";
-export const DETAIL_FIELDS = `${SUMMARY_FIELDS},description,labels`;
-export const COMMENT_FIELDS = "id,author,text,created_at,deleted";
 
 const storyRef = z
   .object({ id: storyId, name: z.string(), app_url: z.string() })
@@ -107,6 +106,8 @@ const summaryFields = {
   sub_task_stories: z.object({ total_items: z.number() }),
   formatted_vcs_branch_name: z.string().nullable(),
 };
+
+export const SUMMARY_FIELDS = fieldsOf(summaryFields);
 
 const summarySchema = z.object(summaryFields);
 
@@ -145,36 +146,39 @@ const toSummary = (raw: z.infer<typeof summarySchema>): UnplacedSummary => ({
 
 export const StorySummarySchema = summarySchema.transform(toSummary);
 
+const detailFields = {
+  ...summaryFields,
+  description: z.string(),
+  labels: nestedList(z.object({ name: z.string() })),
+};
+
+export const DETAIL_FIELDS = fieldsOf(detailFields);
+
 export const StoryBodySchema = z
-  .object({
-    ...summaryFields,
-    description: z.string(),
-    labels: nestedList(z.object({ name: z.string() })),
-  })
+  .object(detailFields)
   .transform((raw): Omit<StoryDetail, "comments" | "subTasks" | "state"> & UnplacedSummary => ({
     ...toSummary(raw),
     description: raw.description,
     labels: raw.labels.map((label) => label.name),
   }));
 
+const commentFields = {
+  deleted: z.literal(false),
+  id: z.number().nullable(),
+  author: memberRef.nullable(),
+  text: z.string().nullable(),
+  created_at: timestamp,
+};
+
+export const COMMENT_FIELDS = fieldsOf(commentFields);
+
 export const StoryCommentSchema = z
-  .discriminatedUnion("deleted", [
-    z.object({ deleted: z.literal(true) }),
-    z.object({
-      deleted: z.literal(false),
-      id: z.number().nullable(),
-      author: memberRef.nullable(),
-      text: z.string().nullable(),
-      created_at: timestamp,
-    }),
-  ])
+  .discriminatedUnion("deleted", [z.object({ deleted: z.literal(true) }), z.object(commentFields)])
   .transform((raw): StoryComment | null =>
     raw.deleted || raw.id === null
       ? null
       : { id: raw.id, author: raw.author, text: raw.text ?? "", createdAt: raw.created_at },
   );
-
-export const PULL_REQUEST_FIELDS = "id,title,closed,draft,external_url";
 
 const GITHUB_PULL_REQUEST_URL = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)\/?$/;
 
@@ -184,14 +188,18 @@ export const gitHubPullRequestRef = (url: string): PullRequestRef | null => {
   return { owner, repo, number: Number(number) };
 };
 
+const pullRequestFields = {
+  id: pullRequestId,
+  title: z.string(),
+  closed: z.boolean(),
+  draft: z.boolean(),
+  external_url: z.string(),
+};
+
+export const PULL_REQUEST_FIELDS = fieldsOf(pullRequestFields);
+
 export const LinkedPullRequestSchema = z
-  .object({
-    id: pullRequestId,
-    title: z.string(),
-    closed: z.boolean(),
-    draft: z.boolean(),
-    external_url: z.string(),
-  })
+  .object(pullRequestFields)
   .transform((raw): LinkedPullRequest => ({
     id: raw.id,
     title: raw.title,

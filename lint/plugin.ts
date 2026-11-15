@@ -7,6 +7,7 @@ import { paginateV4Lists } from "./paginate-v4-lists.ts";
 import { classifyEveryRawEnumValue } from "./classify-every-raw-enum-value.ts";
 import { boundFanOut } from "./bound-fan-out.ts";
 import { parseShortcutResponses } from "./parse-shortcut-responses.ts";
+import { fieldsFromSchemas } from "./fields-from-schemas.ts";
 
 export type Rule = Parameters<RuleTester["run"]>[1];
 
@@ -19,6 +20,7 @@ export const rules = {
   "classify-every-raw-enum-value": classifyEveryRawEnumValue,
   "bound-fan-out": boundFanOut,
   "parse-shortcut-responses": parseShortcutResponses,
+  "fields-from-schemas": fieldsFromSchemas,
 } satisfies Record<string, Rule>;
 
 export default {
