@@ -7,6 +7,7 @@ import type {
   StorySummary,
 } from "../shortcut/types.ts";
 import type { Msg, RemoteRequest, Settled, StoryPullRequests } from "./model.ts";
+import { verdictOnRead } from "./moves.ts";
 
 export type Clients = { shortcut: ShortcutClient; github: GitHubClient };
 
@@ -109,15 +110,18 @@ const runEffectUnsafe = async (
         pullRequests: await pullRequestsOf(clients, effect.storyIds),
       };
     case "moveStory": {
-      const { requestId, storyId, stateId, knownStateId } = effect;
+      const { requestId, storyId, stateId } = effect;
       const held = await clients.shortcut.getStorySummary(storyId);
-      if (held.state.id === stateId)
-        return { type: "moveSucceeded", requestId, storyId, story: held };
-      if (held.state.id !== knownStateId) {
-        return { type: "moveConflicted", requestId, storyId, story: held };
+      switch (verdictOnRead(held.state.id, effect)) {
+        case "alreadyThere":
+          return { type: "moveSucceeded", requestId, storyId, story: held };
+        case "conflict":
+          return { type: "moveConflicted", requestId, storyId, story: held };
+        case "write": {
+          const story = await clients.shortcut.moveStory(storyId, stateId);
+          return { type: "moveSucceeded", requestId, storyId, story };
+        }
       }
-      const story = await clients.shortcut.moveStory(storyId, stateId);
-      return { type: "moveSucceeded", requestId, storyId, story };
     }
   }
 };

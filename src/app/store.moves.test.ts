@@ -4,7 +4,7 @@ import { createFakeShortcutClient } from "../shortcut/fake.ts";
 import type { StoryId } from "../shortcut/types.ts";
 import { createFakeClock } from "./fake-clock.ts";
 import { shownStories } from "./rows.ts";
-import { createStoryStore } from "./store.ts";
+import { createStoryStore, noStartupCache } from "./store.ts";
 
 const until = async (settled: () => boolean) => {
   for (let turn = 0; turn < 100 && !settled(); turn += 1) {
@@ -17,7 +17,11 @@ const started = async () => {
   const shortcut = createFakeShortcutClient();
   const store = createStoryStore(
     { shortcut, github: createFakeGitHubClient() },
-    { clock: createFakeClock(new Date("2026-11-02T09:00:00Z")), autoRefresh: { mode: "off" } },
+    {
+      clock: createFakeClock(new Date("2026-11-02T09:00:00Z")),
+      autoRefresh: { mode: "off" },
+      startupCache: noStartupCache,
+    },
   );
   const stop = store.start();
   await until(() => store.getModel().selectedStoryId !== null);

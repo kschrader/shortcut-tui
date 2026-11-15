@@ -1,8 +1,8 @@
 import type { PullRequestState } from "../github/types.ts";
 import type { StoryId, StorySummary, WorkflowState, WorkflowStateId } from "../shortcut/types.ts";
 import { toDo, workflowStates } from "./fixtures.ts";
-import type { RemoteRequest, Model, Question, RequestId } from "./model.ts";
-import { pickerStates } from "./moves.ts";
+import type { Effect, Model, Msg, Question, RemoteRequest, RequestId } from "./model.ts";
+import { pickerStates, verdictOnRead } from "./moves.ts";
 
 export const stateById = (id: WorkflowStateId): WorkflowState => {
   const state = workflowStates.find((candidate) => candidate.id === id);
@@ -12,18 +12,105 @@ export const stateById = (id: WorkflowStateId): WorkflowState => {
 
 type ServerStates = ReadonlyMap<StoryId, WorkflowState>;
 
+export type MoveEffect = Extract<Effect, { type: "moveStory" }>;
+
+export type MoveAnswer =
+  | { kind: "refused" }
+  | { kind: "moved"; state: WorkflowState }
+  | { kind: "conflict"; found: WorkflowState };
+
 export type World = {
   canWrite: boolean;
   server: Map<StoryId, WorkflowState>;
   snapshots: Map<RequestId, ServerStates>;
   delivered: Set<RequestId>;
-  moveOutcomes: Map<RequestId, boolean>;
+  moveReads: Map<RequestId, WorkflowState>;
+  moveAnswers: Map<RequestId, MoveAnswer>;
+  teammates: boolean;
+  teammateMoved: Set<StoryId>;
+  unseenTeammateMoveAt: Map<StoryId, number>;
+  searchSentAt: Map<RequestId, number>;
+  clock: number;
+  unreadOverwrites: string[];
   intents: Map<StoryId, WorkflowStateId>;
   applied: Map<string, RequestId>;
 };
 
+export const newWorld = (canWrite: boolean, teammates: boolean): World => ({
+  canWrite,
+  teammates,
+  server: new Map(),
+  snapshots: new Map(),
+  delivered: new Set(),
+  moveReads: new Map(),
+  moveAnswers: new Map(),
+  teammateMoved: new Set(),
+  unseenTeammateMoveAt: new Map(),
+  searchSentAt: new Map(),
+  clock: 0,
+  unreadOverwrites: [],
+  intents: new Map(),
+  applied: new Map(),
+});
+
 export const serverState = (states: ServerStates, id: StoryId): WorkflowState =>
   states.get(id) ?? toDo;
+
+export const teammateMoves = (world: World, storyId: StoryId, state: WorkflowState): void => {
+  if (serverState(world.server, storyId).id === state.id) return;
+  world.server.set(storyId, state);
+  world.teammateMoved.add(storyId);
+  world.clock += 1;
+  world.unseenTeammateMoveAt.set(storyId, world.clock);
+};
+
+export const searchSent = (world: World, requestId: RequestId): void => {
+  world.clock += 1;
+  world.snapshots.set(requestId, new Map(world.server));
+  world.searchSentAt.set(requestId, world.clock);
+};
+
+export const searchApplied = (world: World, model: Model, requestId: RequestId): void => {
+  const sentAt = world.searchSentAt.get(requestId) ?? 0;
+  for (const [storyId, movedAt] of world.unseenTeammateMoveAt) {
+    if (sentAt > movedAt && !model.moves.has(storyId)) world.unseenTeammateMoveAt.delete(storyId);
+  }
+};
+
+export const shortcutReads = (world: World, effect: MoveEffect): WorkflowState => {
+  const read = world.moveReads.get(effect.requestId) ?? serverState(world.server, effect.storyId);
+  world.moveReads.set(effect.requestId, read);
+  return read;
+};
+
+const shortcutAnswers = (world: World, effect: MoveEffect, succeed: boolean): MoveAnswer => {
+  if (!succeed) return { kind: "refused" };
+  const read = shortcutReads(world, effect);
+  switch (verdictOnRead(read.id, effect)) {
+    case "alreadyThere":
+      return { kind: "moved", state: read };
+    case "conflict":
+      return { kind: "conflict", found: read };
+    case "write": {
+      const replaced = serverState(world.server, effect.storyId);
+      const overAMove = replaced.id !== effect.knownStateId && replaced.id !== effect.stateId;
+      if (overAMove && read.id !== effect.knownStateId) {
+        world.unreadOverwrites.push(
+          `move ${String(effect.requestId)} read ${read.name}, not the state the app believed, and wrote over ${replaced.name}`,
+        );
+      }
+      const state = stateById(effect.stateId);
+      world.server.set(effect.storyId, state);
+      return { kind: "moved", state };
+    }
+  }
+};
+
+export const answerMove = (world: World, effect: MoveEffect, succeed: boolean): MoveAnswer => {
+  const answer = world.moveAnswers.get(effect.requestId) ?? shortcutAnswers(world, effect, succeed);
+  world.moveAnswers.set(effect.requestId, answer);
+  return answer;
+};
 
 export const searchedStories = (model: Model) =>
   model.results.status === "loaded" ? model.results.value.stories : [];
@@ -74,7 +161,14 @@ export const moveViolations = (
   issued: readonly RemoteRequest[],
   world: World,
 ): string[] => {
-  const found: string[] = [];
+  const found: string[] = [...world.unreadOverwrites];
+  for (const effect of issued) {
+    if (effect.type !== "moveStory") continue;
+    const conflicted = world.moveAnswers.get(effect.requestId)?.kind === "conflict";
+    if (conflicted && !world.teammateMoved.has(effect.storyId)) {
+      found.push(`move ${String(effect.requestId)} conflicted though nobody else moved its story`);
+    }
+  }
   const unanswered = issued.filter(
     (effect) => effect.type === "moveStory" && !world.delivered.has(effect.requestId),
   );
@@ -94,7 +188,7 @@ export const moveViolations = (
       }
     } else {
       const server = serverState(world.server, story.id);
-      if (story.state.id !== server.id) {
+      if (story.state.id !== server.id && !world.unseenTeammateMoveAt.has(story.id)) {
         found.push(
           `story ${String(story.id)} shows ${story.state.name} but the server has ${server.name}`,
         );
@@ -125,6 +219,24 @@ export const moveViolations = (
     if (model.workspace.status === "loaded" && !model.workspace.value.canWrite) {
       found.push("the picker is open with a read-only token");
     }
+  }
+  return found;
+};
+
+export const conflictViolations = (
+  before: Model,
+  after: Model,
+  msg: Msg,
+  effects: readonly Effect[],
+): string[] => {
+  if (msg.type !== "moveConflicted") return [];
+  const found: string[] = effects.length > 0 ? ["a conflict sent a request"] : [];
+  const was = before.moves.get(msg.storyId);
+  if (was?.status !== "saving" || was.requestId !== msg.requestId) return found;
+  if (after.moves.get(msg.storyId)?.status !== "failed") found.push("a conflict did not fail");
+  const shown = searchedStories(after).find((story) => story.id === msg.storyId);
+  if (shown !== undefined && shown.state.id !== msg.story.state.id) {
+    found.push(`a conflict that read ${msg.story.state.name} shows ${shown.state.name}`);
   }
   return found;
 };

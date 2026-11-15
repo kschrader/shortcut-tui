@@ -3,14 +3,21 @@ import { z } from "zod";
 import type { PullRequestState } from "../github/types.ts";
 import type { PullRequestId, StorySummary } from "../shortcut/types.ts";
 import { groupingOf } from "./filters.ts";
-import { detail, ownedBy, summary, workspaceFor } from "./fixtures.ts";
+import { detail, doing, finished, ownedBy, summary, toDo, workspaceFor } from "./fixtures.ts";
 import {
+  answerMove,
+  conflictViolations,
   listedStories,
   moveViolations,
+  newWorld,
   pickedTarget,
+  searchApplied,
+  searchSent,
   serverState,
   searchedStories,
-  stateById,
+  shortcutReads,
+  teammateMoves,
+  type MoveEffect,
   type World,
 } from "./interleaving.moves.ts";
 import {
@@ -41,6 +48,7 @@ const answeredStates: readonly PullRequestState[] = [
   "closed",
 ];
 const storyPool = [1, 2, 3, 4];
+const teammateStates = [toDo, doing, finished];
 const ownersInPool: Record<number, readonly string[]> = {
   1: ["Zed"],
   2: ["Zed", "Ann"],
@@ -148,31 +156,23 @@ const respond = (
           }
         : { type: "pullRequestsFailed", requestId, message: answerMark(requestId) };
     case "moveStory": {
-      const executed = world.moveOutcomes.get(requestId);
-      const outcome = executed ?? succeed;
-      world.moveOutcomes.set(requestId, outcome);
-      if (!outcome) {
-        return {
-          type: "moveFailed",
-          requestId,
-          storyId: effect.storyId,
-          message: answerMark(requestId),
-        };
+      const { storyId } = effect;
+      const answer = answerMove(world, effect, succeed);
+      const shown = searchedStories(model).find((story) => story.id === storyId);
+      const held = (state: StorySummary["state"]): StorySummary => ({
+        ...(shown ?? pooled(storyId)),
+        state,
+        updatedAt: new Date(1_000 * requestId),
+        movedAt: new Date(1_000 * requestId),
+      });
+      switch (answer.kind) {
+        case "refused":
+          return { type: "moveFailed", requestId, storyId, message: answerMark(requestId) };
+        case "conflict":
+          return { type: "moveConflicted", requestId, storyId, story: held(answer.found) };
+        case "moved":
+          return { type: "moveSucceeded", requestId, storyId, story: held(answer.state) };
       }
-      const state = stateById(effect.stateId);
-      if (executed === undefined) world.server.set(effect.storyId, state);
-      const shown = searchedStories(model).find((story) => story.id === effect.storyId);
-      return {
-        type: "moveSucceeded",
-        requestId,
-        storyId: effect.storyId,
-        story: {
-          ...(shown ?? pooled(effect.storyId)),
-          state,
-          updatedAt: new Date(1_000 * requestId),
-          movedAt: new Date(1_000 * requestId),
-        },
-      };
     }
   }
 };
@@ -200,6 +200,12 @@ const userMsg = (random: Random, model: Model): Msg => {
     { type: "readOnlyNoticeClosed" },
   ]);
 };
+
+const pickingMsgs = (random: Random): Msg[] => [
+  { type: "movePickerOpened" },
+  { type: "movePickerMoved", delta: pick(random, [-2, -1, 1, 2]) },
+  { type: "movePickerConfirmed" },
+];
 
 const glanceViolations = (before: Model, after: Model): string[] => {
   const found: string[] = [];
@@ -247,17 +253,9 @@ const violations = (model: Model, issued: readonly RemoteRequest[], world: World
   return found;
 };
 
-const explore = (seed: number): string[] => {
+const explore = (seed: number, teammates: boolean): string[] => {
   const random = mulberry32(seed);
-  const world: World = {
-    canWrite: seed % 5 !== 0,
-    server: new Map(),
-    snapshots: new Map(),
-    delivered: new Set(),
-    moveOutcomes: new Map(),
-    intents: new Map(),
-    applied: new Map(),
-  };
+  const world = newWorld(seed % 5 !== 0, teammates);
   const [initialModel, initEffects] = init();
   let model = initialModel;
   let issued = requestsIn(initEffects);
@@ -278,6 +276,10 @@ const explore = (seed: number): string[] => {
     }
     const isResponse = answered !== null;
     if (isResponse && "requestId" in msg) world.delivered.add(msg.requestId);
+    const appliesSearch =
+      answered?.type === "searchStories" &&
+      succeeded &&
+      awaitedBy(model, answered) === answered.requestId;
     const outOfOrder = answered !== null && succeeded ? recordApplied(answered) : [];
     const before = model;
     const [next, emitted] = update(model, msg);
@@ -285,16 +287,16 @@ const explore = (seed: number): string[] => {
     model = next;
     issued = [...issued, ...effects];
     for (const effect of effects) {
-      if (effect.type === "searchStories") {
-        world.snapshots.set(effect.requestId, new Map(world.server));
-      }
+      if (effect.type === "searchStories") searchSent(world, effect.requestId);
     }
     trail.push(msg.type);
     const [redelivered, redeliveryEffects] = update(model, msg);
     const redeliveryChanged =
       isResponse && (redeliveryEffects.length > 0 || !Bun.deepEquals(redelivered, model));
+    if (appliesSearch) searchApplied(world, model, answered.requestId);
     const problems = [
       ...outOfOrder,
+      ...conflictViolations(before, model, msg, effects),
       ...hiddenShownData(before, model),
       ...glanceViolations(before, model),
       ...violations(model, issued, world),
@@ -305,8 +307,48 @@ const explore = (seed: number): string[] => {
     );
   };
 
+  const shortcutMovesOn = () => {
+    const unread = issued.filter(
+      (effect): effect is MoveEffect =>
+        effect.type === "moveStory" &&
+        !world.moveReads.has(effect.requestId) &&
+        !world.moveAnswers.has(effect.requestId),
+    );
+    if (unread.length > 0 && random() < 0.5) shortcutReads(world, pick(random, unread));
+    else teammateMoves(world, summary(pick(random, storyPool)).id, pick(random, teammateStates));
+  };
+  const deliverEverything = (): string[] => {
+    for (let round = 0; round < 10; round++) {
+      const awaited = awaitedRequests(model);
+      if (awaited.length === 0) break;
+      for (const requestId of awaited) {
+        const effect = issued.find((candidate) => candidate.requestId === requestId);
+        if (effect === undefined) return [`seed ${String(seed)}: awaited request never sent`];
+        const problems = apply(respond(random, effect, true, world, model), effect, true);
+        if (problems.length > 0) return problems;
+      }
+    }
+    return awaitedRequests(model).length > 0
+      ? [`seed ${String(seed)}: requests still loading after every response was delivered`]
+      : [];
+  };
+  const unsettled = (stories: readonly StorySummary[]) =>
+    stories
+      .filter((story) => story.state.id !== serverState(world.server, story.id).id)
+      .map(
+        (story) =>
+          `seed ${String(seed)} settled with story ${String(story.id)} showing ${story.state.name} while the server has ${serverState(world.server, story.id).name}`,
+      );
+
   for (let step = 0; step < stepsPerSeed; step++) {
-    if (random() < 0.55) {
+    if (world.teammates && random() < 0.08) {
+      shortcutMovesOn();
+    } else if (world.teammates && random() < 0.1) {
+      for (const msg of pickingMsgs(random)) {
+        const problems = apply(msg, null, false);
+        if (problems.length > 0) return problems;
+      }
+    } else if (random() < 0.55) {
       const awaited = awaitedRequests(model);
       const target = awaited.length > 0 && random() < 0.5 ? pick(random, awaited) : null;
       const effect =
@@ -323,29 +365,24 @@ const explore = (seed: number): string[] => {
     }
   }
 
-  for (let round = 0; round < 10; round++) {
-    const awaited = awaitedRequests(model);
-    if (awaited.length === 0) break;
-    for (const requestId of awaited) {
-      const effect = issued.find((candidate) => candidate.requestId === requestId);
-      if (effect === undefined) return [`seed ${String(seed)}: awaited request never sent`];
-      const problems = apply(respond(random, effect, true, world, model), effect, true);
-      if (problems.length > 0) return problems;
-    }
-  }
-  if (awaitedRequests(model).length > 0) {
-    return [`seed ${String(seed)}: requests still loading after every response was delivered`];
-  }
-  const unsettled = searchedStories(model).filter(
-    (story) => story.state.id !== serverState(world.server, story.id).id,
+  const undelivered = deliverEverything();
+  if (undelivered.length > 0) return undelivered;
+  const stale = unsettled(
+    searchedStories(model).filter((story) => !world.unseenTeammateMoveAt.has(story.id)),
   );
-  return unsettled.map(
-    (story) =>
-      `seed ${String(seed)} settled with story ${String(story.id)} showing ${story.state.name} while the server has ${serverState(world.server, story.id).name}`,
-  );
+  if (stale.length > 0) return stale;
+  const refreshProblems = apply({ type: "refreshRequested" }, null, false);
+  if (refreshProblems.length > 0) return refreshProblems;
+  const unanswered = deliverEverything();
+  return unanswered.length > 0 ? unanswered : unsettled(searchedStories(model));
 };
 
 test("random interleavings of user input, moves and reordered, duplicated responses keep the invariants", () => {
-  const problems = Array.from({ length: seeds }, (_, seed) => explore(seed)).flat();
+  const problems = Array.from({ length: seeds }, (_, seed) => explore(seed, false)).flat();
+  expect(problems).toEqual([]);
+});
+
+test("the invariants hold while a teammate moves stories and Shortcut reads a move before it writes it", () => {
+  const problems = Array.from({ length: seeds }, (_, seed) => explore(seed, true)).flat();
   expect(problems).toEqual([]);
 });

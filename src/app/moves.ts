@@ -1,4 +1,10 @@
-import type { StoryId, StorySummary, WorkflowState, Workspace } from "../shortcut/types.ts";
+import type {
+  StoryId,
+  StorySummary,
+  WorkflowState,
+  WorkflowStateId,
+  Workspace,
+} from "../shortcut/types.ts";
 import type { Model, RequestId, Step, StoryMove } from "./model.ts";
 import { groupingOf } from "./filters.ts";
 import { orderFor } from "./order.ts";
@@ -109,6 +115,16 @@ export const nextMove = (
       return saving === null ? null : refused(saving, event.message, nextRequestId);
     }
   }
+};
+
+export type ReadVerdict = "write" | "alreadyThere" | "conflict";
+
+export const verdictOnRead = (
+  held: WorkflowStateId,
+  move: { stateId: WorkflowStateId; knownStateId: WorkflowStateId },
+): ReadVerdict => {
+  if (held === move.stateId) return "alreadyThere";
+  return held === move.knownStateId ? "write" : "conflict";
 };
 
 export const shownAfterRefresh = (
