@@ -142,9 +142,24 @@ describe("a saved startup list", () => {
     expect(after.focus.mode).toBe("picking");
   });
 
-  test("a different member's workspace drops it for a first load", () => {
+  test("a different member's workspace drops it, and its selection, for a first load", () => {
     const { model } = loggedIn("grace");
     expect(model.results.status).toBe("firstLoad");
+    expect(model.selectedStoryId).toBeNull();
+  });
+
+  test("a new query drops it and its selection, so no cached row waits on a detail", () => {
+    const { model } = loggedIn();
+    const [moved] = update(model, { type: "selectionMoved", delta: 1 });
+    const [searching, effects] = submitQuery(moved, "label:urgent");
+    expect(searching.results.status).toBe("firstLoad");
+    expect(searching.selectedStoryId).toBeNull();
+    const [shown, answerEffects] = answer(searching, first(effects, "searchStories"), [
+      summary(2),
+      summary(6),
+    ]);
+    expect(shown.selectedStoryId).toBe(storyId(2));
+    expect(first(answerEffects, "getStory").storyId).toBe(storyId(2));
   });
 });
 

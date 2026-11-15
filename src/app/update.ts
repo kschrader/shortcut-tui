@@ -61,6 +61,7 @@ const search = (model: Model, workspace: Workspace, question: Question): Step =>
       ...model,
       question,
       results: same ? refetch(model.results, requestId) : firstLoad(requestId),
+      selectedStoryId: same || !showsCachedList(model) ? model.selectedStoryId : null,
       pullRequests: same ? model.pullRequests : noPullRequests,
       focus: model.focus.mode === "picking" ? browsing : model.focus,
       nextRequestId: requestIdAfter(requestId),

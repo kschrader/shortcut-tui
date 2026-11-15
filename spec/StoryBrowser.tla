@@ -6,7 +6,8 @@
 (* A remote either has nothing to show (absent, firstLoad, failed) or holds *)
 (* a value ("loaded") whose reload is idle, in flight, or failed. rid is    *)
 (* the one request the remote waits on; answer is the request whose answer *)
-(* it last applied.                                                         *)
+(* it last applied. cached marks results read from the startup cache file  *)
+(* rather than from a search answer.                                        *)
 EXTENDS Integers, FiniteSets
 
 CONSTANTS
@@ -24,7 +25,10 @@ CONSTANTS
     IdleChecksRequests,
     MergedQueries,
     SelectFromShownRows,
-    FollowLeavingRow
+    FollowLeavingRow,
+    StartsWithoutCache,
+    CachedLists,
+    RefuseMovesOnCache
 
 NoStory == 0
 NoQuery == ""
@@ -41,12 +45,13 @@ RequestIds == 0..MaxRequestId
 Request(kind, rid, q, s) == [kind |-> kind, rid |-> rid, query |-> q, story |-> s, stories |-> {}]
 PullRequestsRequest(rid, S) == [kind |-> "prs", rid |-> rid, query |-> NoQuery, story |-> NoStory, stories |-> S]
 
-Absent == [status |-> "absent", reload |-> "idle", rid |-> 0, query |-> NoQuery, stories |-> {}, merged |-> {}, story |-> NoStory, answer |-> 0]
+Absent == [status |-> "absent", reload |-> "idle", rid |-> 0, query |-> NoQuery, stories |-> {}, merged |-> {}, story |-> NoStory, answer |-> 0, cached |-> FALSE]
 FirstLoad(rid) == [Absent EXCEPT !.status = "firstLoad", !.rid = rid]
 Failed(rid) == [Absent EXCEPT !.status = "failed", !.answer = rid]
 NoPullRequests == [Absent EXCEPT !.status = "loaded"]
 
 HasValue(remote) == remote.status = "loaded"
+ShowsCachedList(model) == HasValue(model.results) /\ model.results.cached
 Awaited(remote) ==
     IF remote.status = "firstLoad" \/ (HasValue(remote) /\ remote.reload = "inFlight")
     THEN remote.rid ELSE 0
@@ -104,14 +109,18 @@ Search(model, q) ==
         same == HasValue(model.results) /\ model.results.query = q
     IN << [model EXCEPT !.query = q,
                         !.results = IF same THEN Refetch(model.results, rid) ELSE FirstLoad(rid),
+                        !.selected = IF same \/ ~ShowsCachedList(model)
+                                     THEN model.selected ELSE NoStory,
                         !.prs = IF same /\ KeepOnRefresh THEN model.prs ELSE NoPullRequests,
                         !.nextRid = rid + 1],
           {Request("search", rid, q, NoStory)} >>
 
+(* A cached row's id may be stale, so no detail is fetched for it. *)
 FetchDetail(model, s) ==
     LET rid == model.nextRid
-    IN << [model EXCEPT !.details[s] = Refetch(model.details[s], rid), !.nextRid = rid + 1],
-          {Request("detail", rid, NoQuery, s)} >>
+    IN IF ShowsCachedList(model) THEN <<model, {}>>
+       ELSE << [model EXCEPT !.details[s] = Refetch(model.details[s], rid), !.nextRid = rid + 1],
+               {Request("detail", rid, NoQuery, s)} >>
 
 LoadPullRequests(model, found) ==
     LET linking == found \cap StoriesWithPullRequests
@@ -254,16 +263,35 @@ OnHelpClosed(model) ==
     IF model.focus.mode # "help" THEN <<model, {}>>
     ELSE <<[model EXCEPT !.focus = [mode |-> "browsing", draft |-> NoQuery]], {}>>
 
+(* RefuseMovesOnCache is TRUE in every faithful configuration. FALSE lets *)
+(* m open the picker once the workspace loads, before the first search    *)
+(* replaces the cached list.                                              *)
+CanMove(model) ==
+    /\ model.workspace.status = "loaded"
+    /\ RefuseMovesOnCache => ~ShowsCachedList(model)
+
+EmptyStart ==
+    [ workspace |-> FirstLoad(1),
+      query |-> NoQuery,
+      results |-> [Absent EXCEPT !.status = "loaded"],
+      selected |-> NoStory,
+      details |-> [s \in Stories |-> Absent],
+      prs |-> NoPullRequests,
+      left |-> [s \in Stories |-> 0],
+      focus |-> [mode |-> "browsing", draft |-> NoQuery],
+      nextRid |-> 2 ]
+
+(* The cache file holds the last answer to the startup query. *)
+CachedStart(S) ==
+    [EmptyStart EXCEPT
+        !.query = DefaultQuery,
+        !.results = [Absent EXCEPT !.status = "loaded", !.query = DefaultQuery, !.stories = S,
+                                   !.cached = TRUE],
+        !.selected = FirstOf(S)]
+
 Init ==
-    /\ m = [ workspace |-> FirstLoad(1),
-             query |-> NoQuery,
-             results |-> [Absent EXCEPT !.status = "loaded"],
-             selected |-> NoStory,
-             details |-> [s \in Stories |-> Absent],
-             prs |-> NoPullRequests,
-             left |-> [s \in Stories |-> 0],
-             focus |-> [mode |-> "browsing", draft |-> NoQuery],
-             nextRid |-> 2 ]
+    /\ \/ StartsWithoutCache /\ m = EmptyStart
+       \/ \E S \in CachedLists : m = CachedStart(S)
     /\ network = {Request("workspace", 1, NoQuery, NoStory)}
     /\ userRequests = 0
 
@@ -291,6 +319,7 @@ UserActs ==
     \/ UserSends(OnHelpOpened(m))
     \/ UserSends(OnHelpClosed(m))
     \/ /\ userRequests < MaxUserRequests
+       /\ CanMove(m)
        /\ \E s \in ShownRows(m) : Apply(OnMoveLeaves(m, s))
        /\ userRequests' = userRequests + 1
 
@@ -326,7 +355,7 @@ Spec == Init /\ [][Next]_vars /\ \A rid \in RequestIds : WF_vars(NetworkAnswers(
 Remote == [status : Statuses, reload : Reloads, rid : RequestIds \cup {MaxRequestId + 1},
            query : AllQueries, stories : SUBSET Stories, merged : SUBSET Stories,
            story : Stories \cup {NoStory},
-           answer : RequestIds \cup {MaxRequestId + 1}]
+           answer : RequestIds \cup {MaxRequestId + 1}, cached : BOOLEAN]
 
 TypeOK ==
     /\ m.workspace \in Remote
@@ -357,7 +386,9 @@ ResultsComeFromLatestSearch ==
     Answered(m.results) => m.results.answer = LatestRid("search", NoStory)
 
 QueryEditingNeedsWorkspace ==
-    m.workspace.status # "loaded" => m.query = NoQuery /\ m.focus.mode # "editing"
+    m.workspace.status # "loaded" =>
+        /\ m.query = NoQuery \/ ShowsCachedList(m)
+        /\ m.focus.mode # "editing"
 
 OnlyEditingHoldsADraft ==
     m.focus.mode # "editing" => m.focus.draft = NoQuery
@@ -368,7 +399,13 @@ SelectionIsShown ==
         /\ ShownRows(m) # {} => m.selected # NoStory
 
 SelectedStoryHasDetail ==
-    m.selected # NoStory => m.details[m.selected].status # "absent"
+    m.selected # NoStory /\ ~ShowsCachedList(m) => m.details[m.selected].status # "absent"
+
+(* A cached list is only ever replaced: it never gets a badge or a detail. *)
+CachedListFetchesNothing ==
+    ShowsCachedList(m) =>
+        /\ \A s \in Stories : m.details[s] = Absent
+        /\ m.prs = NoPullRequests
 
 RequestIdsAreUnique ==
     \A a, b \in network : a.rid = b.rid => a = b
@@ -417,7 +454,7 @@ AutoRefreshWaitsForIdle ==
             (m.focus.mode = "browsing" /\ ~InFlight(m.results) /\ ~InFlight(m.prs))]_vars
 
 SelectedDetailArrives ==
-    <>[](m.selected # NoStory => Answered(m.details[m.selected]))
+    <>[](m.selected # NoStory /\ ~ShowsCachedList(m) => Answered(m.details[m.selected]))
 
 HasBadge(model, s) == HasValue(model.prs) /\ s \in model.prs.stories
 
@@ -434,5 +471,9 @@ RefreshNeverHidesShownData ==
          /\ \A s \in ShownRows(m) :
                 Shows(m', s) /\ m'.prs.answer = m.prs.answer /\ ~LeavesNow(s) =>
                     s \in ShownRows(m')]_vars
+
+
+CachedListNeverAcceptsAMove ==
+    [][ShowsCachedList(m) => \A s \in Stories : ~LeavesNow(s)]_vars
 
 =============================================================================

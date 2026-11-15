@@ -29,6 +29,20 @@ const suites: Record<string, readonly ModelCheck[]> = {
       timeoutSeconds: HANG_TIMEOUT_SECONDS,
     },
     {
+      cfg: "CachedStartup.cfg",
+      tla: "StoryBrowser.tla",
+      expect: "pass",
+      maxDistinctStates: 230_000,
+      timeoutSeconds: HANG_TIMEOUT_SECONDS,
+    },
+    {
+      cfg: "MovesOnCache.cfg",
+      tla: "StoryBrowser.tla",
+      expect: "violation of CachedListNeverAcceptsAMove",
+      maxDistinctStates: MUTANT_MAX_DISTINCT_STATES,
+      timeoutSeconds: HANG_TIMEOUT_SECONDS,
+    },
+    {
       cfg: "Naive.cfg",
       tla: "StoryBrowser.tla",
       expect: "violation of ResultsComeFromLatestSearch",
