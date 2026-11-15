@@ -19,6 +19,7 @@ export type KeyBinding = {
   label: string;
   description: string;
   hint?: string;
+  needsLiveList?: true;
   action: KeyAction;
 };
 
@@ -105,6 +106,7 @@ export const keyBindings: readonly KeyBinding[] = [
     label: "p",
     description: "Open its pull request",
     hint: "p PR",
+    needsLiveList: true,
     action: { type: "openPullRequest" },
   },
   {
@@ -113,6 +115,7 @@ export const keyBindings: readonly KeyBinding[] = [
     label: "m",
     description: "Move to another state",
     hint: "m move",
+    needsLiveList: true,
     action: dispatch({ type: "movePickerOpened" }),
   },
   {
@@ -216,9 +219,9 @@ export const bindingFor = (
       ),
   );
 
-export const hintFor = (mode: Focus["mode"]): string =>
+export const hintFor = (mode: Focus["mode"], cached = false): string =>
   keyBindings
-    .filter((binding) => appliesTo(binding, mode))
+    .filter((binding) => appliesTo(binding, mode) && !(cached && binding.needsLiveList))
     .flatMap((binding) => (binding.hint === undefined ? [] : [binding.hint]))
     .join("  ");
 

@@ -32,7 +32,7 @@ const withChecklist = (overrides: Partial<StoryDetail> = {}): StoryDetail => ({
 const opened = (shown: StoryDetail) =>
   show(
     browsing({
-      results: loaded({ question: queryQuestion("owner:me"), stories: [story] }),
+      results: loaded({ question: queryQuestion("owner:me"), stories: [story], cachedAt: null }),
       selectedStoryId: story.id,
       details: new Map([[story.id, loaded(shown)]]),
     }),
@@ -64,7 +64,7 @@ test("the detail pane counts done checklist items and lists every item in order 
 test("the checklist follows the sub-tasks", async () => {
   const { frame } = await show(
     browsing({
-      results: loaded({ question: queryQuestion("owner:me"), stories: [story] }),
+      results: loaded({ question: queryQuestion("owner:me"), stories: [story], cachedAt: null }),
       selectedStoryId: story.id,
       details: new Map([
         [

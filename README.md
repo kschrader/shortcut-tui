@@ -120,7 +120,7 @@ The app starts on the list it last showed for your started stories, so you see s
 
 While the cached list shows, the app treats it as out of date:
 
-- `m` does nothing, so no move is sent for a story whose state may have changed.
+- `m` does nothing, so no move is sent for a story whose state may have changed. The bottom bar leaves out `m move` and `p PR` until the list is live.
 - The detail pane shows only the fields the list holds, such as type, state, owners, and epic, and says `Details load when Shortcut answers`. The app fetches no details for cached rows, because a row's story may be gone.
 - Rows have no pull request badges, and the detail pane has no pull request section. Pull request status loads after the first search.
 - `/`, `f`, and `a` wait for the workspace to load, as they always do. A new query replaces the cached list with the loading screen.

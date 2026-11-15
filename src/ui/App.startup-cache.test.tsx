@@ -113,3 +113,21 @@ test("without a saved list, startup still shows the connecting screen", async ()
   expect(frame()).toContain("Connecting to Shortcut");
   expect(frame()).not.toContain("cached");
 });
+
+test("the bottom bar offers m and p only once the cached list is replaced", async () => {
+  const { model, search } = loggedIn();
+  const cached = await show(model, size);
+  expect(bottom(cached.frame())).not.toContain("m move");
+  expect(bottom(cached.frame())).not.toContain("p PR");
+  expect(bottom(cached.frame())).toContain("o open");
+  cleanup();
+  const [answered] = run(model, {
+    type: "searchSucceeded",
+    requestId: search.requestId,
+    stories,
+    loadedAt: now,
+  });
+  const live = await show(answered, size);
+  expect(bottom(live.frame())).toContain("m move");
+  expect(bottom(live.frame())).toContain("p PR");
+});

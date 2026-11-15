@@ -39,7 +39,7 @@ const rows = [plain, blocked, blocker, both, longBlocked];
 
 const showing = (stories: readonly StorySummary[], selected = stories[0]) =>
   browsing({
-    results: loaded({ question: queryQuestion("owner:me"), stories }),
+    results: loaded({ question: queryQuestion("owner:me"), stories, cachedAt: null }),
     selectedStoryId: selected?.id ?? null,
     details: new Map(),
   });

@@ -7,7 +7,7 @@ import { AGE_FLOOR_LABEL, filters, isReviewView, viewLabel } from "../app/filter
 import { pickerStates } from "../app/moves.ts";
 import { awaited, reloadFailure } from "../app/remote.ts";
 import { rowsOf, shownStories } from "../app/rows.ts";
-import { cachedAt } from "../app/startup.ts";
+import { cachedAt, showsCachedList } from "../app/startup.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
 import { Body } from "./Body.tsx";
 import { ageLabel, storyCount } from "./format.ts";
@@ -155,7 +155,7 @@ const bottomBar = (
     text:
       model.focus.mode === "editingQuery"
         ? "enter search  ·  esc cancel"
-        : hintFor(model.focus.mode),
+        : hintFor(model.focus.mode, showsCachedList(model)),
     color: colors.dim,
   };
 };

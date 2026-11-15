@@ -44,6 +44,8 @@ const storySummary = z.object({
   pullRequestCount: z.number().int().nonnegative(),
   parent: storyRef.nullable(),
   subTaskCount: z.number().int().nonnegative(),
+  blocked: z.boolean(),
+  blocker: z.boolean(),
 }) satisfies z.ZodType<StorySummary>;
 
 const StartupListFile = z.object({
