@@ -12,38 +12,14 @@ import {
   workspaceFor,
 } from "./fixtures.ts";
 import type { Effect, Model } from "./model.ts";
-import { answer, browsing, first, only, type EffectOf } from "./steps.ts";
+import { answer, browsing, first, only, pick, shown, stateOf, type EffectOf } from "./steps.ts";
 import { pickerStates } from "./moves.ts";
 import { init, update } from "./update.ts";
-
-const shown = (model: Model): readonly StorySummary[] => {
-  if (model.results.status !== "loaded") throw new Error("results not loaded");
-  return model.results.value.stories;
-};
-
-const stateOf = (model: Model, id: number): string | undefined =>
-  shown(model).find((story) => story.id === storyId(id))?.state.name;
 
 const stateById = (id: WorkflowStateId): WorkflowState => {
   const state = workflowStates.find((candidate) => candidate.id === id);
   if (state === undefined) throw new Error(`no fixture state ${String(id)}`);
   return state;
-};
-
-const pick = (model: Model, stateName: string): [Model, Effect[]] => {
-  const [open, openEffects] = update(model, { type: "movePickerOpened" });
-  expect(openEffects).toEqual([]);
-  const { focus } = open;
-  if (focus.mode !== "picking" || open.workspace.status !== "loaded") {
-    throw new Error(`picker did not open (focus ${focus.mode})`);
-  }
-  const story = shown(open).find((candidate) => candidate.id === focus.storyId);
-  if (story === undefined) throw new Error("picker story is not shown");
-  const index = pickerStates(open.workspace.value, story).findIndex(
-    (state) => state.name === stateName,
-  );
-  const [moved] = update(open, { type: "movePickerMoved", delta: index - focus.cursor });
-  return update(moved, { type: "movePickerConfirmed" });
 };
 
 const serverStory = (move: EffectOf<"moveStory">, name = `Story ${String(move.storyId)}`) => ({

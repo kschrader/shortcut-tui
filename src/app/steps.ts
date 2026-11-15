@@ -1,7 +1,8 @@
 import { expect } from "bun:test";
 import type { StorySummary } from "../shortcut/types.ts";
-import { workspaceFor } from "./fixtures.ts";
+import { storyId, workspaceFor } from "./fixtures.ts";
 import type { Effect, Model, Msg, RemoteRequest } from "./model.ts";
+import { pickerStates } from "./moves.ts";
 import { requestsIn } from "./remote.ts";
 import { init, update } from "./update.ts";
 
@@ -61,4 +62,28 @@ export const submitQuery = (model: Model, draft: string): [Model, Effect[]] => {
     effects.push(...emitted);
   }
   return [current, effects];
+};
+
+export const shown = (model: Model): readonly StorySummary[] => {
+  if (model.results.status !== "loaded") throw new Error("results not loaded");
+  return model.results.value.stories;
+};
+
+export const stateOf = (model: Model, id: number): string | undefined =>
+  shown(model).find((story) => story.id === storyId(id))?.state.name;
+
+export const pick = (model: Model, stateName: string): [Model, Effect[]] => {
+  const [open, openEffects] = update(model, { type: "movePickerOpened" });
+  expect(openEffects).toEqual([]);
+  const { focus } = open;
+  if (focus.mode !== "picking" || open.workspace.status !== "loaded") {
+    throw new Error(`picker did not open (focus ${focus.mode})`);
+  }
+  const story = shown(open).find((candidate) => candidate.id === focus.storyId);
+  if (story === undefined) throw new Error("picker story is not shown");
+  const index = pickerStates(open.workspace.value, story).findIndex(
+    (state) => state.name === stateName,
+  );
+  const [moved] = update(open, { type: "movePickerMoved", delta: index - focus.cursor });
+  return update(moved, { type: "movePickerConfirmed" });
 };
