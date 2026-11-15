@@ -9,13 +9,14 @@ Built on [OpenTUI](https://github.com/anomalyco/opentui) 0.8 and the Shortcut RE
 
 ## Project rules
 
-The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `opentui-text-placement` guards a documented OpenTUI pitfall. `parse-shortcut-responses` is preventive: no defect led to it, but the generated client types leave out fields Shortcut sends, such as `formatted_vcs_branch_name`, so only a schema says what a response holds. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
+The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `fields-from-schemas` came from a nested field name, `sub_task_stories.workflow_state`, that Shortcut rejected with a 400. `opentui-text-placement` guards a documented OpenTUI pitfall. `parse-shortcut-responses` is preventive: no defect led to it, but the generated client types leave out fields Shortcut sends, such as `formatted_vcs_branch_name`, so only a schema says what a response holds. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
 
 | Rule | Enforced by |
 | --- | --- |
 | No comments. Use a better name or a test | `shortcut-tui/no-comments` |
 | Branch on a union with a `switch`, so new variants fail type-check | `shortcut-tui/switch-on-discriminant` |
 | Read every page of a v4 list | `shortcut-tui/paginate-v4-lists` |
+| Ask Shortcut for exactly the fields a schema parses. Each field list is built by `fieldsOf` from its schema's shape in `src/shortcut/schemas.ts`, never written out by hand | `shortcut-tui/fields-from-schemas` |
 | Read keys through `keyBindings` in `src/ui/keys.ts`, so help and the hint bar match the handler | `shortcut-tui/keys-from-table` |
 | Put text only inside `<text>` | `shortcut-tui/opentui-text-placement` |
 | Compare every value a raw API schema allows outside the schema, so no pull request state falls through to unknown | `shortcut-tui/classify-every-raw-enum-value` |
