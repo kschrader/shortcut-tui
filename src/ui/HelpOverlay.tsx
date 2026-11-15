@@ -42,9 +42,7 @@ export const HelpOverlay = () => (
               {`  ${binding.description}`}
             </text>
           ))}
-          <text marginTop={1} fg={colors.dim}>
-            Mouse
-          </text>
+          <text fg={colors.dim}>Mouse</text>
           {mouseActions.map((action) => (
             <text key={action.label}>
               <span fg={colors.accent}>{action.label.padEnd(KEY_LABEL_WIDTH)}</span>

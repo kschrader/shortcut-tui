@@ -98,6 +98,7 @@ test("searchStories reads every page and maps embedded names", async () => {
           [
             storyJson(1, {
               name: "Fix login redirect",
+              formatted_vcs_branch_name: "kurt/sc-1/fix-login-redirect",
               story_type: "bug",
               workflow_state: inProgress,
               started: true,
@@ -153,6 +154,7 @@ test("searchStories reads every page and maps embedded names", async () => {
     owners: [meRef, samRef],
     epic: { id: epicId.parse(90), name: "Auth hardening" },
     appUrl: "https://app.shortcut.com/acme/story/1",
+    branchName: "kurt/sc-1/fix-login-redirect",
     updatedAt: new Date("2026-10-30T12:30:00.123Z"),
     movedAt: new Date("2026-10-29T09:15:00Z"),
     pullRequestCount: 2,
@@ -197,6 +199,17 @@ test("a story Shortcut never moved has waited in its state since it was created"
   const { client } = stub(whoamiRoute, searchReturning(storyJson(1, { moved_at: null })));
   const [story] = await client.searchStories(QUERY);
   expect(story?.movedAt).toEqual(new Date("2026-10-20T08:00:00Z"));
+});
+
+test("a story in a workspace with no branch name format has no branch name", async () => {
+  const { client, calls } = stub(
+    whoamiRoute,
+    searchReturning(storyJson(1, { formatted_vcs_branch_name: null })),
+  );
+  const [story] = await client.searchStories(QUERY);
+  expect(story?.branchName).toBeNull();
+  const search = calls.find((call) => call.url.pathname === "/api/v4/acme/stories/search");
+  expect(search?.url.searchParams.get("fields")?.split(",")).toContain("formatted_vcs_branch_name");
 });
 
 test("workflow state positions are loaded once and reused across searches", async () => {

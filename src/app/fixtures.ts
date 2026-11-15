@@ -86,6 +86,7 @@ export const summary = (id: number, name = `Story ${String(id)}`): StorySummary 
   owners: [{ id: memberId("me"), name: "Me" }],
   epic: null,
   appUrl: `https://app.shortcut.com/story/${String(id)}`,
+  branchName: `me/sc-${String(id)}/story-${String(id)}`,
   updatedAt: new Date(0),
   movedAt: new Date(0),
   pullRequestCount: 0,

@@ -29,8 +29,9 @@ type Props = {
 };
 
 type CopyNotice =
-  | { kind: "copied"; storyId: StoryId; url: string }
-  | { kind: "copyFailed"; storyId: StoryId };
+  | { kind: "copied"; storyId: StoryId; text: string }
+  | { kind: "copyFailed"; storyId: StoryId }
+  | { kind: "noBranchName"; storyId: StoryId };
 
 const STATUS_BAR_PADDING = 2;
 const STATUS_BAR_GAP = 2;
@@ -98,10 +99,15 @@ const queryLabel = ({ workspace, question }: Model): string => {
 const copyNoticeBar = (notice: CopyNotice): { text: string; color: string } => {
   switch (notice.kind) {
     case "copied":
-      return { text: `✓ Copied ${notice.url}`, color: colors.ok };
+      return { text: `✓ Copied ${notice.text}`, color: colors.ok };
     case "copyFailed":
       return {
         text: "✗ Could not copy: this terminal has no clipboard access",
+        color: colors.warning,
+      };
+    case "noBranchName":
+      return {
+        text: "✗ No branch name: this workspace has no branch name format in Shortcut",
         color: colors.warning,
       };
   }
@@ -179,6 +185,9 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
 
   const selectedStory = shownStories(model).find((story) => story.id === model.selectedStoryId);
 
+  const copy = (storyId: StoryId, text: string): CopyNotice =>
+    copyText(text) ? { kind: "copied", storyId, text } : { kind: "copyFailed", storyId };
+
   useKeyboard((key) => {
     setCopyNotice(null);
     const action = bindingFor(model.focus.mode, key)?.action;
@@ -195,11 +204,14 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
       case "openStory":
         if (selectedStory) openUrl(selectedStory.appUrl);
         return;
-      case "copyStoryLink": {
+      case "copyStoryLink":
+        if (selectedStory) setCopyNotice(copy(selectedStory.id, selectedStory.appUrl));
+        return;
+      case "copyBranchName": {
         if (!selectedStory) return;
-        const { id: storyId, appUrl: url } = selectedStory;
+        const { id: storyId, branchName } = selectedStory;
         setCopyNotice(
-          copyText(url) ? { kind: "copied", storyId, url } : { kind: "copyFailed", storyId },
+          branchName === null ? { kind: "noBranchName", storyId } : copy(storyId, branchName),
         );
         return;
       }

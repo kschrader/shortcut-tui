@@ -38,6 +38,7 @@ export type StorySummary = {
   owners: readonly MemberRef[];
   epic: { id: EpicId; name: string } | null;
   appUrl: string;
+  branchName: string | null;
   updatedAt: Date;
   movedAt: Date;
   pullRequestCount: number;

@@ -82,7 +82,7 @@ export const WorkflowStateSchema = z
 export type WorkflowStates = ReadonlyMap<WorkflowStateId, WorkflowState>;
 
 export const SUMMARY_FIELDS =
-  "id,name,story_type,workflow_state,estimate,owners,epic,app_url,updated_at,moved_at,created_at,pull_requests,parent_story,sub_task_stories";
+  "id,name,story_type,workflow_state,estimate,owners,epic,app_url,updated_at,moved_at,created_at,pull_requests,parent_story,sub_task_stories,formatted_vcs_branch_name";
 export const DETAIL_FIELDS = `${SUMMARY_FIELDS},description,labels`;
 export const COMMENT_FIELDS = "id,author,text,created_at,deleted";
 
@@ -105,6 +105,7 @@ const summaryFields = {
   pull_requests: z.object({ total_items: z.number() }),
   parent_story: storyRef.nullable(),
   sub_task_stories: z.object({ total_items: z.number() }),
+  formatted_vcs_branch_name: z.string().nullable(),
 };
 
 const summarySchema = z.object(summaryFields);
@@ -134,6 +135,7 @@ const toSummary = (raw: z.infer<typeof summarySchema>): UnplacedSummary => ({
   owners: raw.owners,
   epic: raw.epic,
   appUrl: raw.app_url,
+  branchName: raw.formatted_vcs_branch_name,
   updatedAt: raw.updated_at,
   movedAt: raw.moved_at ?? raw.created_at,
   pullRequestCount: raw.pull_requests.total_items,

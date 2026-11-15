@@ -7,6 +7,7 @@ export type KeyAction =
   | { type: "scrollDetail"; viewports: number }
   | { type: "openStory" }
   | { type: "copyStoryLink" }
+  | { type: "copyBranchName" }
   | { type: "toggleAgeFloor" }
   | { type: "openPullRequest" };
 
@@ -90,6 +91,13 @@ export const keyBindings: readonly KeyBinding[] = [
     label: "y",
     description: "Copy story link",
     action: { type: "copyStoryLink" },
+  },
+  {
+    modes: ["browsing"],
+    keys: [{ name: "b" }],
+    label: "b",
+    description: "Copy git branch name",
+    action: { type: "copyBranchName" },
   },
   {
     modes: ["browsing"],

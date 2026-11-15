@@ -1,5 +1,15 @@
 import { afterEach, expect, test } from "bun:test";
-import { browsing, cached, cleanup, reloadFailed, show, stories } from "./frame.tsx";
+import { queryQuestion } from "../app/filters.ts";
+import {
+  browsing,
+  cached,
+  cleanup,
+  loaded,
+  reloadFailed,
+  show,
+  stories,
+  summary,
+} from "./frame.tsx";
 import { hintFor } from "./keys.ts";
 
 afterEach(cleanup);
@@ -73,7 +83,42 @@ test("the copy notice shows over pull request trouble until the next key", async
   expect(statusBar(frame())).toContain(trouble);
 });
 
-test("help lists y at 80x24", async () => {
+test("b copies the selected story's git branch name from Shortcut and says so", async () => {
+  const { screen, calls, frame } = await show(browsing(), { width: 80 });
+  screen.mockInput.pressKey("b");
+  await screen.renderOnce();
+  expect(calls.copied).toEqual(["ada/sc-102/story-number-102"]);
+  expect(statusBar(frame())).toContain("✓ Copied ada/sc-102/story-number-102");
+});
+
+test("b in a workspace with no branch name format copies nothing and says why", async () => {
+  const { screen, calls, frame } = await show(
+    browsing({
+      results: loaded({
+        question: queryQuestion("owner:me"),
+        stories: [summary(102, { branchName: null })],
+      }),
+      selectedStoryId: stories[1].id,
+    }),
+    { width: 80 },
+  );
+  screen.mockInput.pressKey("b");
+  await screen.renderOnce();
+  expect(calls.copied).toEqual([]);
+  expect(statusBar(frame())).toContain("✗ No branch name: this workspace has no branch name");
+});
+
+test("b in a terminal without clipboard access says it could not copy", async () => {
+  const { screen, calls, frame } = await show(browsing(), { width: 80, clipboard: "missing" });
+  screen.mockInput.pressKey("b");
+  await screen.renderOnce();
+  expect(calls.copied).toEqual([]);
+  expect(statusBar(frame())).toContain(noClipboard);
+});
+
+test("help lists y and b at 80x24", async () => {
   const { frame } = await show(browsing({ focus: { mode: "help" } }), { width: 80, height: 24 });
-  expect(frame().replace(/ +/g, " ")).toContain("y Copy story link");
+  const help = frame().replace(/ +/g, " ");
+  expect(help).toContain("y Copy story link");
+  expect(help).toContain("b Copy git branch name");
 });

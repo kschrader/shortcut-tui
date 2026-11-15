@@ -366,6 +366,12 @@ export type SeededStory = Omit<StoryDetail, "subTasks">;
 
 const appUrlOf = (id: number) => `https://app.shortcut.com/demo/story/${id}`;
 
+const branchNameOf = ({ id, name }: StorySeed): string =>
+  `demo/sc-${id}/${name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")}`;
+
 const parentOf = ({ parentId }: StorySeed): StoryRef | null => {
   const parent = seeds.find((seed) => seed.id === parentId);
   return parent === undefined
@@ -382,6 +388,7 @@ export const seededStories: readonly SeededStory[] = seeds.map((seed) => ({
   owners: seed.owners,
   epic: seed.epic ?? null,
   appUrl: appUrlOf(seed.id),
+  branchName: branchNameOf(seed),
   updatedAt: new Date(seed.updatedAt),
   movedAt: new Date(seed.movedAt ?? seed.updatedAt),
   pullRequestCount: seed.pullRequests?.length ?? 0,
