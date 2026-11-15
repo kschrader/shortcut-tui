@@ -1,4 +1,5 @@
 import { blockingOf } from "./demo-blocks.ts";
+import { checklistOf } from "./demo-checklists.ts";
 import { seeds, type StorySeed } from "./demo-seeds.ts";
 import { storyId } from "./schemas.ts";
 import type { StoryDetail, StoryRef } from "./types.ts";
@@ -43,4 +44,5 @@ export const seededStories: readonly SeededStory[] = seeds.map((seed) => ({
   description: seed.description,
   labels: seed.labels,
   comments: seed.comments,
+  checklist: checklistOf(seed.id),
 }));

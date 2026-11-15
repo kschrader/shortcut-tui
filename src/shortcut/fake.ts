@@ -16,6 +16,7 @@ const summaryOf = ({
   description: _description,
   labels: _labels,
   comments: _comments,
+  checklist: _checklist,
   ...summary
 }: SeededStory): StorySummary => summary;
 

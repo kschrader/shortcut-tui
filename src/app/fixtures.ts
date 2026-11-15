@@ -126,4 +126,5 @@ export const detail = (id: number): StoryDetail => ({
   labels: [],
   comments: [],
   subTasks: [],
+  checklist: [],
 });

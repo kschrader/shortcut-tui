@@ -55,11 +55,18 @@ export type StoryComment = {
   createdAt: Date;
 };
 
+export type ChecklistItem = {
+  id: number;
+  description: string;
+  completed: boolean;
+};
+
 export type StoryDetail = StorySummary & {
   description: string;
   labels: readonly string[];
   comments: readonly StoryComment[];
   subTasks: readonly StorySummary[];
+  checklist: readonly ChecklistItem[];
 };
 
 export type LinkedPullRequest = {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PullRequestRef } from "../github/types.ts";
 import type {
+  ChecklistItem,
   EpicId,
   LinkedPullRequest,
   MemberId,
@@ -154,17 +155,38 @@ const detailFields = {
   ...summaryFields,
   description: z.string(),
   labels: nestedList(z.object({ name: z.string() })),
+  checklist_items: z.object({ total_items: z.number() }),
 };
 
 export const DETAIL_FIELDS = fieldsOf(detailFields);
 
-export const StoryBodySchema = z
-  .object(detailFields)
-  .transform((raw): Omit<StoryDetail, "comments" | "subTasks" | "state"> & UnplacedSummary => ({
-    ...toSummary(raw),
-    description: raw.description,
-    labels: raw.labels.map((label) => label.name),
-  }));
+type StoryBody = Omit<StoryDetail, "comments" | "subTasks" | "checklist" | "state"> &
+  UnplacedSummary & { checklistItemCount: number };
+
+export const StoryBodySchema = z.object(detailFields).transform((raw): StoryBody => ({
+  ...toSummary(raw),
+  description: raw.description,
+  labels: raw.labels.map((label) => label.name),
+  checklistItemCount: raw.checklist_items.total_items,
+}));
+
+const checklistItemFields = {
+  id: z.number(),
+  description: z.string(),
+  completed: z.boolean(),
+  position: z.number(),
+};
+
+export const CHECKLIST_ITEM_FIELDS = fieldsOf(checklistItemFields);
+
+export const ChecklistItemSchema = z.object(checklistItemFields);
+
+export const inPositionOrder = (
+  items: readonly z.infer<typeof ChecklistItemSchema>[],
+): ChecklistItem[] =>
+  items
+    .toSorted((a, b) => a.position - b.position)
+    .map(({ id, description, completed }) => ({ id, description, completed }));
 
 const commentFields = {
   deleted: z.literal(false),

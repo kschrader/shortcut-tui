@@ -63,6 +63,7 @@ test("summaries do not carry detail fields and getStory returns them", async () 
   const [first] = await client.searchStories("owner:me");
   if (first === undefined) throw new Error("expected a story");
   expect("comments" in first).toBe(false);
+  expect("checklist" in first).toBe(false);
   const detail = await client.getStory(first.id);
   expect(detail.name).toBe(first.name);
   expect(detail.description.length).toBeGreaterThan(0);

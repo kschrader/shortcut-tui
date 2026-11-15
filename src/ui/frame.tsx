@@ -165,6 +165,7 @@ export const detail: StoryDetail = {
     },
   ],
   subTasks: [],
+  checklist: [],
 };
 
 export const browsing = (overrides: Partial<Model> = {}) =>

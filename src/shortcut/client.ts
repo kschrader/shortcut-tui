@@ -5,8 +5,11 @@ import {
 } from "@shortcut/client/v4";
 import { z } from "zod";
 import {
+  CHECKLIST_ITEM_FIELDS,
+  ChecklistItemSchema,
   COMMENT_FIELDS,
   DETAIL_FIELDS,
+  inPositionOrder,
   LinkedPullRequestSchema,
   StoryBodySchema,
   StoryCommentSchema,
@@ -143,10 +146,24 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
     return subTasks;
   };
 
-  const loadBodyAndSubTasks = async (api: ShortcutWorkspaceApi, id: StoryId) => {
+  const listChecklist = async (api: ShortcutWorkspaceApi, id: StoryId) => {
+    const items: z.infer<typeof ChecklistItemSchema>[] = [];
+    for await (const raw of client.paginate(
+      api.listStoryChecklistItems(id, { fields: CHECKLIST_ITEM_FIELDS, limit: PAGE_SIZE }),
+    )) {
+      items.push(ChecklistItemSchema.parse(raw));
+    }
+    return inPositionOrder(items);
+  };
+
+  const loadBodyAndLists = async (api: ShortcutWorkspaceApi, id: StoryId) => {
     const { entity } = await api.getStory(id, { fields: DETAIL_FIELDS });
-    const body = StoryBodySchema.parse(entity);
-    return { body, subTasks: body.subTaskCount > 0 ? await listSubTasks(api, id) : [] };
+    const { checklistItemCount, ...body } = StoryBodySchema.parse(entity);
+    const [subTasks, checklist] = await Promise.all([
+      body.subTaskCount > 0 ? listSubTasks(api, id) : [],
+      checklistItemCount > 0 ? listChecklist(api, id) : [],
+    ]);
+    return { body, subTasks, checklist };
   };
 
   return {
@@ -171,8 +188,8 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
       attempt(async () => {
         const current = await connect();
         const { api } = current;
-        const [{ body, subTasks }, comments] = await Promise.all([
-          loadBodyAndSubTasks(api, id),
+        const [{ body, subTasks, checklist }, comments] = await Promise.all([
+          loadBodyAndLists(api, id),
           listComments(api, id),
         ]);
         const states = await statesCovering(current, [body, ...subTasks]);
@@ -180,6 +197,7 @@ export const createShortcutClient = ({ token, baseUrl, fetch }: ClientOptions): 
           ...placeInWorkflow(body, states),
           comments,
           subTasks: subTasks.map((subTask) => placeInWorkflow(subTask, states)),
+          checklist,
         };
       }),
 
