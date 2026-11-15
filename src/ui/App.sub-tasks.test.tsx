@@ -77,9 +77,10 @@ test("rows stay the same length at every width", async () => {
 
 test("a name column too narrow for the mark keeps its width", () => {
   for (const width of [1, 2, 3, 4]) {
-    const { mark, name } = nameCell(both, width);
-    expect(`${mark}${name}`).toHaveLength(width);
-    expect(`${mark}${name}`.endsWith("…")).toBe(true);
+    const { marks, name } = nameCell(both, width);
+    const cell = `${marks.map((mark) => mark.text).join("")}${name}`;
+    expect(cell).toHaveLength(width);
+    expect(cell.endsWith("…")).toBe(true);
   }
 });
 
@@ -171,7 +172,7 @@ test("a story without a parent shows no Parent field", async () => {
 test("the demo shows a parent's sub-tasks, one of which is also a row in the list", async () => {
   const { frame, until, press } = await launchDemo({ height: 50 });
   await until(() => frame().includes(" 1016 ▸4 "));
-  expect(frame()).toContain(" 1018 ↳ ");
+  expect(frame()).toContain(" 1018 ▲ ↳ ");
   for (let step = 0; step < 20 && !frame().includes("▌●   1016"); step += 1) await press("j");
   await until(() => frame().includes("Sub-tasks (1/4 done)"));
   const text = detailText(frame());

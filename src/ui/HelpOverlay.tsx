@@ -1,4 +1,4 @@
-import { PARENT_MARK, SUB_TASK_MARK } from "./format.ts";
+import { BLOCKED_MARK, BLOCKER_MARK, PARENT_MARK, SUB_TASK_MARK } from "./format.ts";
 import { bindingsUsableIn } from "./keys.ts";
 import { BADGE_LABEL_WIDTH, badgeStyle } from "./pull-requests.ts";
 import { YOUR_REVIEW_MARK } from "./reviews.ts";
@@ -70,10 +70,14 @@ export const HelpOverlay = () => (
             {" asks for your review"}
           </text>
           <text>
-            <span fg={colors.dim}>{SUB_TASK_MARK}</span>
-            {" is a sub-task"}
+            <span fg={colors.error}>{BLOCKED_MARK}</span>
+            {" is blocked  "}
+            <span fg={colors.caution}>{BLOCKER_MARK}</span>
+            {" blocks another story"}
           </text>
           <text>
+            <span fg={colors.dim}>{SUB_TASK_MARK}</span>
+            {" is a sub-task  "}
             <span fg={colors.dim}>{`${PARENT_MARK}5`}</span>
             {" has 5 sub-tasks"}
           </text>

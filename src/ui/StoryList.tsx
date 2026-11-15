@@ -4,7 +4,15 @@ import type { Grouping } from "../app/filters.ts";
 import type { Cached, Change, StoryMove, StoryPullRequests } from "../app/model.ts";
 import { ownerGroupLabel } from "../app/order.ts";
 import type { StoryId, StorySummary } from "../shortcut/types.ts";
-import { estimateLabel, fit, nameCell, typeStyle, WAITED_WIDTH, waitedLabel } from "./format.ts";
+import {
+  estimateLabel,
+  fit,
+  nameCell,
+  typeStyle,
+  WAITED_WIDTH,
+  waitedLabel,
+  type NameMark,
+} from "./format.ts";
 import { badgeStyle, BADGE_LABEL_WIDTH, storyBadge, type Badge } from "./pull-requests.ts";
 import { awaitsYourReview, YOUR_REVIEW_MARK } from "./reviews.ts";
 import { colors } from "./theme.ts";
@@ -112,6 +120,12 @@ const gutter = (selected: boolean, changed: boolean): string => {
   return changed ? "•" : " ";
 };
 
+const nameMarkColor: Record<NameMark["kind"], string> = {
+  blocked: colors.error,
+  blocker: colors.caution,
+  family: colors.dim,
+};
+
 const reviewMarkWidth = (yours: boolean | null) => (yours === null ? 0 : YOUR_REVIEW_MARK.length);
 
 const StoryRow = ({
@@ -164,7 +178,11 @@ const StoryRow = ({
         {yours === null ? null : <span fg={colors.accent}>{yours ? YOUR_REVIEW_MARK : " "}</span>}
         <span fg={color}>{glyph}</span>
         <span fg={colors.dim}>{` ${idLabel} `}</span>
-        <span fg={colors.dim}>{cell.mark}</span>
+        {cell.marks.map((nameMark) => (
+          <span key={nameMark.kind} fg={nameMarkColor[nameMark.kind]}>
+            {nameMark.text}
+          </span>
+        ))}
         {selected ? <b>{cell.name}</b> : cell.name}
         <span fg={colors.dim}>{` ${waited.padStart(WAITED_WIDTH)}`}</span>
         <span fg={mark?.color ?? colors.dim}>

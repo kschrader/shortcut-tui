@@ -6,6 +6,8 @@ import { orderFor } from "../app/order.ts";
 import { reloadFailure } from "../app/remote.ts";
 import type { Progress, StoryDetail, StorySummary } from "../shortcut/types.ts";
 import {
+  BLOCKED_MARK,
+  BLOCKER_MARK,
   dateLabel,
   epicName,
   estimateLabel,
@@ -48,6 +50,22 @@ const Field = ({ label, value }: { label: string; value: string }) => (
     {value}
   </text>
 );
+
+const BlockingField = ({ story }: { story: StorySummary }) => {
+  if (!story.blocked && !story.blocker) return null;
+  return (
+    <text wrapMode="word">
+      <span fg={colors.dim}>{"Blocking".padEnd(10)}</span>
+      {story.blocked ? (
+        <span fg={colors.error}>{`${BLOCKED_MARK} blocked by another story`}</span>
+      ) : null}
+      {story.blocked && story.blocker ? " · " : null}
+      {story.blocker ? (
+        <span fg={colors.caution}>{`${BLOCKER_MARK} blocks another story`}</span>
+      ) : null}
+    </text>
+  );
+};
 
 const optionalFailingLabel = (names: readonly string[]) =>
   `optional ${names.length === 1 ? "check" : "checks"} failing: ${names.join(", ")}`;
@@ -243,6 +261,7 @@ export const StoryDetailPane = ({
           label="State"
           value={`${summary.state.name} for ${waitedPhrase(summary.movedAt, now)}`}
         />
+        <BlockingField story={summary} />
         <Field label="Estimate" value={estimateLabel(summary.estimate)} />
         <Field label="Owners" value={ownerNames(summary.owners)} />
         <Field label="Epic" value={epicName(summary.epic)} />

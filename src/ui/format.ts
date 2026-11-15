@@ -12,19 +12,37 @@ export const typeStyle: Record<StoryType, { glyph: string; color: string }> = {
   chore: { glyph: "■", color: "#7aa2f7" },
 };
 
+export const BLOCKED_MARK = "⊗";
+export const BLOCKER_MARK = "▲";
 export const SUB_TASK_MARK = "↳";
 export const PARENT_MARK = "▸";
 
-const familyMark = ({ parent, subTaskCount }: StorySummary): string => {
+export type NameMark = { kind: "blocked" | "blocker" | "family"; text: string };
+
+const marksOf = ({ blocked, blocker, parent, subTaskCount }: StorySummary): NameMark[] => {
   const asChild = parent === null ? "" : `${SUB_TASK_MARK} `;
   const asParent = subTaskCount > 0 ? `${PARENT_MARK}${String(subTaskCount)} ` : "";
-  return `${asChild}${asParent}`;
+  const marks: NameMark[] = [
+    { kind: "blocked", text: blocked ? `${BLOCKED_MARK} ` : "" },
+    { kind: "blocker", text: blocker ? `${BLOCKER_MARK} ` : "" },
+    { kind: "family", text: `${asChild}${asParent}` },
+  ];
+  return marks.filter((mark) => mark.text !== "");
 };
 
-export const nameCell = (story: StorySummary, width: number): { mark: string; name: string } => {
-  const mark = familyMark(story);
-  const cell = fit(`${mark}${story.name}`, width);
-  return { mark: cell.slice(0, mark.length), name: cell.slice(mark.length) };
+export const nameCell = (
+  story: StorySummary,
+  width: number,
+): { marks: NameMark[]; name: string } => {
+  const marks = marksOf(story);
+  const cell = fit(`${marks.map((mark) => mark.text).join("")}${story.name}`, width);
+  const shown: NameMark[] = [];
+  let start = 0;
+  for (const { kind, text } of marks) {
+    shown.push({ kind, text: cell.slice(start, start + text.length) });
+    start += text.length;
+  }
+  return { marks: shown, name: cell.slice(start) };
 };
 
 export const ownerNames = (owners: readonly MemberRef[]): string =>
