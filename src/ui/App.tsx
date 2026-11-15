@@ -113,14 +113,19 @@ const copyNoticeBar = (notice: CopyNotice): { text: string; color: string } => {
   }
 };
 
+export const READ_ONLY_STARTUP_NOTICE =
+  "Read-only token: you can browse, but moving stories needs a read-write token";
+
 const bottomBar = (
   model: Model,
   selectedStory: StorySummary | undefined,
   copyNotice: CopyNotice | null,
+  readOnlyNotice: boolean,
 ): { text: string; color: string } => {
   if (copyNotice !== null && copyNotice.storyId === selectedStory?.id) {
     return copyNoticeBar(copyNotice);
   }
+  if (readOnlyNotice) return { text: `! ${READ_ONLY_STARTUP_NOTICE}`, color: colors.warning };
   const move = selectedStory === undefined ? undefined : model.moves.get(selectedStory.id);
   if (model.focus.mode === "browsing" && move?.status === "failed") {
     return { text: `✗ Move failed  ·  m to retry  ·  ${move.message}`, color: colors.error };
@@ -180,6 +185,12 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
   const { width, height } = useTerminalDimensions();
   const detailScroll = useRef<ScrollBoxRenderable>(null);
   const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
+  const [readOnlyNoticeDismissed, setReadOnlyNoticeDismissed] = useState(false);
+  const readOnlyNotice =
+    !readOnlyNoticeDismissed &&
+    model.focus.mode === "browsing" &&
+    model.workspace.status === "loaded" &&
+    !model.workspace.value.canWrite;
   const [draggedListWidth, setDraggedListWidth] = useState<number | null>(null);
   const listWidth = listWidthFor(width, draggedListWidth);
 
@@ -190,6 +201,7 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
 
   useKeyboard((key) => {
     setCopyNotice(null);
+    if (readOnlyNotice) setReadOnlyNoticeDismissed(true);
     const action = bindingFor(model.focus.mode, key)?.action;
     if (action === undefined) return;
     switch (action.type) {
@@ -228,7 +240,7 @@ export const App = ({ model, now, dispatch, quit, openUrl, copyText }: Props) =>
   const { text, color } = status(model);
   const unseen = unseenChanges(model);
   const forYou = yourReviewCount(model);
-  const bottom = bottomBar(model, selectedStory, copyNotice);
+  const bottom = bottomBar(model, selectedStory, copyNotice, readOnlyNotice);
   const age = freshness(model, now, width - STATUS_BAR_PADDING - bottom.text.length);
   return (
     <box flexDirection="column" width="100%" height="100%" backgroundColor={colors.background}>
