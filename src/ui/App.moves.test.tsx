@@ -1,18 +1,21 @@
 import { afterEach, expect, test } from "bun:test";
 import type { StoryMove } from "../app/model.ts";
 import { queryQuestion } from "../app/filters.ts";
+import { createFakeShortcutClient } from "../shortcut/fake.ts";
 import type { StoryId } from "../shortcut/types.ts";
 import {
   browsing,
   cleanup,
   done,
   inProgress,
+  launchDemo,
   loaded,
   ready,
   requestId,
   show,
   stateId,
   stories,
+  storyId,
   summary,
 } from "./frame.tsx";
 import { update } from "../app/update.ts";
@@ -202,4 +205,30 @@ test("the read-only notice says what to do and esc closes it, at 80x24", async (
   screen.mockInput.pressEscape();
   await Bun.sleep(100);
   expect(dispatched).toEqual([{ type: "readOnlyNoticeClosed" }]);
+});
+
+test("in the demo, a pick on a story a teammate just moved writes nothing and says where the story went", async () => {
+  const shortcut = createFakeShortcutClient();
+  const { frame, until, press, screen } = await launchDemo({ shortcut });
+  const selected = /▌\S*\s+(\d+) /.exec(frame())?.[1];
+  const id = storyId(Number(selected));
+  const { workflowStates } = await shortcut.loadWorkspace();
+  const teammatesPick = workflowStates.find((state) => state.name === "In Progress");
+  if (teammatesPick === undefined) throw new Error("the demo workspace changed");
+  await shortcut.moveStory(id, teammatesPick.id);
+
+  await press("m");
+  await until(() => /In Review\s+current/.test(frame()));
+  await press("j");
+  screen.mockInput.pressEnter();
+  await until(() => frame().includes("Move failed"));
+
+  const lines = frame().split("\n");
+  const row = lines.findIndex((line) => line.includes(` ${String(id)} `));
+  expect(lines[row]).toContain("✗ failed");
+  expect(lines.slice(0, row).findLast((line) => line.startsWith("──"))).toContain("In Progress");
+  expect(lines.find((line) => line.includes("Move failed"))).toContain(
+    "✗ Move failed  ·  m to retry  ·  it was moved to In Progress first",
+  );
+  expect((await shortcut.getStorySummary(id)).state.name).toBe("In Progress");
 });

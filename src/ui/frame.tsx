@@ -232,12 +232,13 @@ export const show = async (
   return { screen, dispatched, calls, rerender, frame: () => screen.captureCharFrame() };
 };
 
-export const launchDemo = async ({ width = 80, height = 24 } = {}) => {
+export const launchDemo = async ({
+  width = 80,
+  height = 24,
+  shortcut = createFakeShortcutClient({ teammateMovesOnRefresh: true }),
+} = {}) => {
   const clock = createFakeClock(new Date("2026-11-02T09:00:00Z"));
-  const clients = {
-    shortcut: createFakeShortcutClient({ teammateMovesOnRefresh: true }),
-    github: createFakeGitHubClient(),
-  };
+  const clients = { shortcut, github: createFakeGitHubClient() };
   const Root = () => {
     const { model, dispatch, now } = useStoryBrowser(clients, {
       clock,
