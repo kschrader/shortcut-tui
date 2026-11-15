@@ -14,6 +14,18 @@
     "shortcut-tui/keys-from-table": "error",
     "shortcut-tui/classify-every-raw-enum-value": "error",
     "shortcut-tui/bound-fan-out": "error",
+    "shortcut-tui/parse-shortcut-responses": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["@shortcut/client", "@shortcut/client/*"],
+            "message": "Only src/shortcut/client.ts talks to Shortcut, so every response is parsed in one place. Add a method to ShortcutClient there."
+          }
+        ]
+      }
+    ],
 
     "no-console": "error",
     "unicorn/no-process-exit": "error",
@@ -52,5 +64,11 @@
       }
     ]
   },
+  "overrides": [
+    {
+      "files": ["src/shortcut/client.ts", "lint/fixtures/**"],
+      "rules": { "no-restricted-imports": "off" }
+    }
+  ],
   "ignorePatterns": ["node_modules"]
 }

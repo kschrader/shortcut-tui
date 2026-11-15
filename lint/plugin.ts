@@ -6,6 +6,7 @@ import { keysFromTable } from "./keys-from-table.ts";
 import { paginateV4Lists } from "./paginate-v4-lists.ts";
 import { classifyEveryRawEnumValue } from "./classify-every-raw-enum-value.ts";
 import { boundFanOut } from "./bound-fan-out.ts";
+import { parseShortcutResponses } from "./parse-shortcut-responses.ts";
 
 export type Rule = Parameters<RuleTester["run"]>[1];
 
@@ -17,6 +18,7 @@ export const rules = {
   "keys-from-table": keysFromTable,
   "classify-every-raw-enum-value": classifyEveryRawEnumValue,
   "bound-fan-out": boundFanOut,
+  "parse-shortcut-responses": parseShortcutResponses,
 } satisfies Record<string, Rule>;
 
 export default {
