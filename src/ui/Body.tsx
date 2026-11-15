@@ -45,6 +45,7 @@ const Browser = ({
   onResize: (column: number) => void;
 }) => {
   const selected = stories.find((story) => story.id === model.selectedStoryId) ?? null;
+  const cached = showsCachedList(model);
   return (
     <box flexGrow={1} flexDirection="row">
       <box width={listWidth} flexDirection="column" backgroundColor={colors.background}>
@@ -69,8 +70,8 @@ const Browser = ({
           <StoryDetailPane
             summary={selected}
             detail={model.details.get(selected.id)}
-            cached={showsCachedList(model)}
-            pullRequests={storyPullRequests(selected, model.pullRequests)}
+            cached={cached}
+            pullRequests={cached ? null : storyPullRequests(selected, model.pullRequests)}
             changes={changesOf(model, selected.id)}
             now={now}
             scrollRef={scrollRef}

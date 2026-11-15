@@ -53,6 +53,14 @@ test("a selected cached row shows its cached fields and says details wait for Sh
   expect(frame()).not.toContain("Loading details…");
 });
 
+test("a cached row that links pull requests shows no badge and no empty pull request list", async () => {
+  const linked = { ...stories[0], pullRequestCount: 2 };
+  const [model] = init({ ...saved, stories: [linked] });
+  const { frame } = await show(model, size);
+  expect(frame()).not.toContain("Pull requests");
+  expect(frame()).not.toContain("checking");
+});
+
 test("the marker stays while the first search is out after the workspace loads", async () => {
   const { frame } = await show(loggedIn().model, size);
   expect(header(frame())).toContain("cached 3h ago  ·  loading…");
