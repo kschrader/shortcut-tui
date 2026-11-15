@@ -108,6 +108,7 @@ Selecting a story clears its mark. While it stays selected, the detail pane says
 | `r` | Refresh the results, the selected story, and pull request status. The shown list stays until the answer arrives. Also restarts the auto-refresh countdown |
 | `o` | Open the selected story in the browser |
 | `y` | Copy the selected story's link. The bottom bar says whether it was copied |
+| `b` | Copy the selected story's git branch name, such as `kurt/sc-123/fix-login-redirect`. Shortcut builds the name from the workspace's branch name format, and its GitHub integration links a branch with that name to the story. If the workspace has no format, the bottom bar says so and nothing is copied |
 | `p` | Open the pull request that sets the story's badge: the least ready open one, otherwise the newest merged or closed one. Does nothing until pull request status has loaded |
 | `m` | Move the selected story to another state. `j` / `k` choose, `enter` moves, `esc` cancels |
 | `?` | Show every key, the mouse actions, and the badge legend. `?` or `esc` closes it |
@@ -116,7 +117,7 @@ Selecting a story clears its mark. While it stays selected, the detail pane says
 | Click a story | Select it, the same as moving the selection onto it with `j` / `k` |
 | Drag the line between the panes | Resize the list and the detail pane. Each keeps at least 30 columns when the terminal has room. The width lasts until you quit |
 
-The story URL and each pull request URL in the detail pane are terminal hyperlinks. In a terminal that supports OSC 8, cmd-click or ctrl-click one to open it. The app captures the mouse, so you cannot select the URL to copy it; press `y` instead. On macOS, `y` copies with `pbcopy`, and the bottom bar reports whether `pbcopy` succeeded. `y` also sends the link through OSC 52, so copying works over SSH in terminals that allow it. Elsewhere `y` relies on OSC 52 alone, and the bottom bar says the terminal has no clipboard access only when the terminal reports that it does not support OSC 52.
+The story URL and each pull request URL in the detail pane are terminal hyperlinks. In a terminal that supports OSC 8, cmd-click or ctrl-click one to open it. The app captures the mouse, so you cannot select the URL to copy it; press `y` instead. `y` and `b` copy the same way. On macOS they copy with `pbcopy`, and the bottom bar reports whether `pbcopy` succeeded. They also send the text through OSC 52, so copying works over SSH in terminals that allow it. Elsewhere they rely on OSC 52 alone, and the bottom bar says the terminal has no clipboard access only when the terminal reports that it does not support OSC 52.
 
 The default query is `owner:<you> is:started !is:archived`, which shows your in-progress stories. Press `/` to change it, for example to `owner:<you> !is:done` to include unstarted stories. Stories are sorted by workflow state, with states further right in the workflow at the top. Started states come before unstarted ones, which keeps stories from different workflows in a sensible order. Stories in the same state are sorted with the most recently updated first. A divider above each group shows the state, its story count, and its workflow. The query uses Shortcut's [search operators](https://help.shortcut.com/hc/en-us/articles/360000046646-Search-Operators).
 
