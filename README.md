@@ -273,7 +273,7 @@ Five configs check `spec/StoryMoves.tla`:
 
 `ReadWriteWindow.cfg` is not broken on purpose. It states the gap that the read leaves open, and `bun run tlc` fails on it if a change to the spec ever closes that gap. `src/app/effects.moves.test.ts` replays its trace against the code.
 
-`StoryMoves.cfg` answers a move in one step, without the read. With the read as its own step it explores 57,408 distinct states, past its budget of 50,000. `TeammateMoves.cfg` checks that until a teammate moves a story, the read changes nothing: no move conflicts, and the rules of `StoryMoves.cfg` hold.
+`StoryMoves.cfg` checks the read and the write as separate steps, with no teammate, at 2 stories and 3 picks. `TeammateMoves.cfg` adds a teammate at smaller bounds, and checks that until the teammate moves a story, the read changes nothing: no move conflicts, and the rules of `StoryMoves.cfg` hold.
 
 To draw the chart again after you change the spec, run the pstack `statechart` skill's script from `spec/charts/`:
 

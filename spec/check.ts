@@ -102,7 +102,7 @@ const suites: Record<string, readonly ModelCheck[]> = {
       cfg: "StoryMoves.cfg",
       tla: "StoryMoves.tla",
       expect: "pass",
-      maxDistinctStates: 50_000,
+      maxDistinctStates: 75_000,
       timeoutSeconds: HANG_TIMEOUT_SECONDS,
     },
     {
