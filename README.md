@@ -1,7 +1,7 @@
 # shortcut-tui
 
 > [!IMPORTANT]
-> This is an **experimental** Shortcut TUI. It was built with agents to test building against a set of defined [project rules](#project-rules), with verification done in [TLA+](#checks). A lint rule enforces each project rule, and a violation fails CI. The build process was inspired by the one [Poteto describes here](https://x.com/poteto/status/2117043478140276847).
+> This is an **experimental** Shortcut TUI, not an official Shortcut product. It was built with agents to test building against a set of defined [project rules](#project-rules), with verification done in [TLA+](#checks). A lint rule enforces each project rule, and a violation fails CI. The build process was inspired by the one [Poteto describes here](https://x.com/poteto/status/2117043478140276847).
 
 A terminal client for [Shortcut](https://www.shortcut.com). It lists your open stories and shows the selected story's details, comments, and labels.
 
