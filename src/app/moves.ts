@@ -140,6 +140,18 @@ export const restate = (
   return { ...model, results: { ...model.results, value: { ...model.results.value, stories } } };
 };
 
+export const withSubTask = (details: Model["details"], story: StorySummary): Model["details"] => {
+  const next = new Map(details);
+  for (const [id, detail] of details) {
+    if (detail.status !== "loaded") continue;
+    const { subTasks } = detail.value;
+    if (!subTasks.some((subTask) => subTask.id === story.id)) continue;
+    const replaced = subTasks.map((subTask) => (subTask.id === story.id ? story : subTask));
+    next.set(id, { ...detail, value: { ...detail.value, subTasks: replaced } });
+  }
+  return next;
+};
+
 export const carryMoves = (
   model: Model,
   requestId: RequestId,

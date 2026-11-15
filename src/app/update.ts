@@ -10,7 +10,14 @@ import type {
   Step,
   StoryPullRequests,
 } from "./model.ts";
-import { carryMoves, nextMove, pickerStates, restate, type MoveStep } from "./moves.ts";
+import {
+  carryMoves,
+  nextMove,
+  pickerStates,
+  restate,
+  withSubTask,
+  type MoveStep,
+} from "./moves.ts";
 import {
   ageFloorFrom,
   defaultQueryFor,
@@ -277,7 +284,8 @@ const transition = (model: Model, msg: Msg): Step => {
         model.nextRequestId,
       );
       if (step === null) return [model, []];
-      const applied = applyMove(model, storyId, step, story);
+      const details = withSubTask(model.details, story);
+      const applied = applyMove({ ...model, details }, storyId, step, story);
       return step.kind === "hold" ? followLeavingRow(model, applied[0]) : applied;
     }
     case "moveFailed": {
