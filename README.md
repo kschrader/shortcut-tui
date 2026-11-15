@@ -114,6 +114,33 @@ The value must be a whole number of seconds from 0 to 2147483, about 24 days. An
 
 The status bar ends with how long ago the results loaded, such as `↻ 2m ago`. The age updates once a minute. It stays while a refresh is out, because it describes the list still on screen. It is hidden until the first results load, and in a terminal too narrow to show it after every key hint.
 
+## Startup cache
+
+The app starts on the list it last showed for your started stories, so you see stories at once instead of a loading screen. The header says how old that list is, such as `cached 3h ago  ·  loading…`, in the warning color. When the first search answers, its results replace the cached list the same way a refresh does, and the marker goes away. If the workspace or the first search fails, the cached list stays, still marked, and the bottom bar shows the error with `r to retry`.
+
+While the cached list shows, the app treats it as out of date:
+
+- `m` does nothing, so no move is sent for a story whose state may have changed.
+- The detail pane shows only the fields the list holds, such as type, state, owners, and epic, and says `Details load when Shortcut answers`. The app fetches no details for cached rows, because a row's story may be gone.
+- Rows have no pull request badges, and the detail pane has no pull request section. Pull request status loads after the first search.
+- `/`, `f`, and `a` wait for the workspace to load, as they always do. A new query replaces the cached list with the loading screen.
+
+After each answer to the startup search, `owner:<you> is:started !is:archived`, the app saves the list in the background. Other queries and filters, and the `a` age floor, are not saved, because the app always starts on the startup search. A save that fails is ignored. The app ignores a cache file that is missing, cannot be parsed, has another format version, or is more than 7 days old. Started stories move every few days, so a list older than a week is likely to mislead more than it helps, and the live answer replaces it within seconds anyway.
+
+The cache holds story names, states, and owners from your workspace, so it is private. It is stored in:
+
+```
+$XDG_CACHE_HOME/shortcut-tui/story-list-<key>.json
+```
+
+If `XDG_CACHE_HOME` is unset, empty, or not an absolute path, the directory is `~/.cache/shortcut-tui/`. `<key>` is the first 16 hex characters of the SHA-256 hash of your API token, so a different token never reads another token's list. The file never holds the token. The file has mode `0600` and the directory has mode `0700`. `--demo` does not read or write the cache.
+
+To delete the cache, quit the app and remove the directory:
+
+```sh
+rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/shortcut-tui"
+```
+
 ## Changed stories
 
 After a refresh, a story that changed since you last looked at it gets an accent `•` in the left gutter of its row, and the header adds a count, such as `4 stories  ·  1 updated`. A story counts as changed when it is new to the list, its workflow state changed, its pull request status changed, or its Shortcut update time moved for another reason, such as a rename, an owner or description edit, or possibly a comment. A pull request status counts only when GitHub answered both times. A status that is still loading, a failed load, and `? unknown` are not changes. A move you make yourself is not a change.
@@ -167,7 +194,7 @@ Press `a` to show only stories that have been in their current state for 4 weeks
 | `bun run lint` | oxlint (type-aware) and oxfmt, including the project rules in `lint/` |
 | `bun run type-check` | TypeScript 7 |
 | `bun test` | Unit, frame, and interleaving tests, plus a fixture test for each project lint rule |
-| `bun run tlc` | TLA+ model checks in `spec/`: the story-browser state machine with its auto-refresh guard, its rule that a refresh never hides shown data, and the selection when a confirmed move takes a row out (`StoryBrowser.tla`), and the story-move protocol (`StoryMoves.tla`), each with deliberately broken configurations that TLC must reject |
+| `bun run tlc` | TLA+ model checks in `spec/`: the story-browser state machine with its auto-refresh guard, its rule that a refresh never hides shown data, the selection when a confirmed move takes a row out, and a cached startup list that fetches nothing and refuses moves until a search replaces it (`StoryBrowser.tla`), and the story-move protocol (`StoryMoves.tla`), each with deliberately broken configurations that TLC must reject |
 | `bun run tlc:big` | A larger TLA+ model, with no pull request links so it stays at about 18 minutes |
 | `bun run smoke` | Read-only calls to the live API with your token |
 
