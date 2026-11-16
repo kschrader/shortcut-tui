@@ -15,6 +15,7 @@ import { HelpOverlay } from "./HelpOverlay.tsx";
 import { bindingFor, hintFor } from "./keys.ts";
 import { MovePicker } from "./MovePicker.tsx";
 import { pullRequestToOpen, pullRequestTrouble } from "./pull-requests.ts";
+import { QuitConfirm } from "./QuitConfirm.tsx";
 import { ReadOnlyNotice } from "./ReadOnlyNotice.tsx";
 import { awaitsYourReview } from "./reviews.ts";
 import { listWidthFor } from "./Splitter.tsx";
@@ -181,6 +182,10 @@ const Overlay = ({ model, height }: { model: Model; height: number }) => {
       return <HelpOverlay />;
     case "readOnly":
       return <ReadOnlyNotice />;
+    case "confirmingQuit": {
+      const saving = [...model.moves.values()].filter((move) => move.status === "saving");
+      return <QuitConfirm saving={saving.length} />;
+    }
     case "picking": {
       const story = shownStories(model).find((candidate) => candidate.id === focus.storyId);
       if (story === undefined || model.workspace.status !== "loaded") return null;

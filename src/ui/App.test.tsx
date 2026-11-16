@@ -183,9 +183,10 @@ test("navigation, query, refresh, open and quit keys", async () => {
     { type: "selectionMoved", delta: -1 },
     { type: "queryEditStarted" },
     { type: "refreshRequested" },
+    { type: "quitRequested" },
   ]);
   expect(calls.opened).toEqual(["https://app.shortcut.com/acme/story/102"]);
-  expect(calls.quit).toBe(2);
+  expect(calls.quit).toBe(1);
 });
 
 test("while editing the query, typing edits the draft and does not trigger shortcuts", async () => {

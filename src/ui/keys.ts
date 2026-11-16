@@ -193,7 +193,23 @@ export const keyBindings: readonly KeyBinding[] = [
     label: "q",
     description: "Quit",
     hint: "q quit",
+    action: dispatch({ type: "quitRequested" }),
+  },
+  {
+    modes: ["confirmingQuit"],
+    keys: [{ name: "y" }, { name: "q" }, { name: "return" }],
+    label: "y / q / enter",
+    description: "Confirm quitting",
+    hint: "y quit",
     action: { type: "quit" },
+  },
+  {
+    modes: ["confirmingQuit"],
+    keys: [{ name: "n" }, { name: "escape" }],
+    label: "n / esc",
+    description: "Go back to the list",
+    hint: "n stay",
+    action: dispatch({ type: "quitCancelled" }),
   },
   {
     modes: "all",

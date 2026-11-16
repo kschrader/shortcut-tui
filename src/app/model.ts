@@ -72,7 +72,8 @@ export type Focus =
   | { mode: "editingQuery"; draft: string }
   | { mode: "help" }
   | { mode: "picking"; storyId: StoryId; cursor: number }
-  | { mode: "readOnly" };
+  | { mode: "readOnly" }
+  | { mode: "confirmingQuit" };
 
 export type ServerKnown = {
   known: WorkflowState;
@@ -137,7 +138,9 @@ export type Msg =
   | { type: "movePickerMoved"; delta: number }
   | { type: "movePickerConfirmed" }
   | { type: "movePickerClosed" }
-  | { type: "readOnlyNoticeClosed" };
+  | { type: "readOnlyNoticeClosed" }
+  | { type: "quitRequested" }
+  | { type: "quitCancelled" };
 
 export type Step = [Model, Effect[]];
 

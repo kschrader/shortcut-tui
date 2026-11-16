@@ -2,7 +2,14 @@ import { expect, test } from "bun:test";
 import type { Focus } from "../app/model.ts";
 import { appliesTo, bindingFor, keyBindings } from "./keys.ts";
 
-const modes: readonly Focus["mode"][] = ["browsing", "editingQuery", "help", "picking", "readOnly"];
+const modes: readonly Focus["mode"][] = [
+  "browsing",
+  "editingQuery",
+  "help",
+  "picking",
+  "readOnly",
+  "confirmingQuit",
+];
 
 test("ctrl-c quits from every focus mode", () => {
   for (const mode of modes) {

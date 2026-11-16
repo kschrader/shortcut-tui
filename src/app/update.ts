@@ -392,6 +392,14 @@ const transition = (model: Model, msg: Msg): Step => {
       if (model.focus.mode !== "readOnly") return [model, []];
       return [{ ...model, focus: browsing }, []];
     }
+    case "quitRequested": {
+      if (model.focus.mode !== "browsing") return [model, []];
+      return [{ ...model, focus: { mode: "confirmingQuit" } }, []];
+    }
+    case "quitCancelled": {
+      if (model.focus.mode !== "confirmingQuit") return [model, []];
+      return [{ ...model, focus: browsing }, []];
+    }
   }
 };
 

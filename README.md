@@ -168,7 +168,8 @@ Selecting a story clears its mark. While it stays selected, the detail pane says
 | `m` | Move the selected story to another state. `j` / `k` choose, `enter` moves, `esc` cancels |
 | `?` | Show every key, the mouse actions, and the badge legend. `?` or `esc` closes it |
 | `pgup` / `pgdn` | Scroll the detail pane |
-| `q`, `ctrl-c` | Quit. `ctrl-c` also quits from the query editor and the help overlay |
+| `q` | Ask before quitting. In the dialog, `y`, `q` or `enter` quits and `n` or `esc` goes back. The dialog warns when a move is still saving, because quitting can stop it before it reaches Shortcut |
+| `ctrl-c` | Quit at once, from anywhere, without asking |
 | Click a story | Select it, the same as moving the selection onto it with `j` / `k` |
 | Drag the line between the panes | Resize the list and the detail pane. Each keeps at least 30 columns when the terminal has room. The width lasts until you quit |
 

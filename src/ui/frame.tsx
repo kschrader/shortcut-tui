@@ -239,6 +239,7 @@ export const launchDemo = async ({
 } = {}) => {
   const clock = createFakeClock(new Date("2026-11-02T09:00:00Z"));
   const clients = { shortcut, github: createFakeGitHubClient() };
+  const calls = { quit: 0 };
   const Root = () => {
     const { model, dispatch, now } = useStoryBrowser(clients, {
       clock,
@@ -250,7 +251,9 @@ export const launchDemo = async ({
         model={model}
         now={now}
         dispatch={dispatch}
-        quit={() => {}}
+        quit={() => {
+          calls.quit += 1;
+        }}
         openUrl={() => {}}
         copyText={() => true}
       />
@@ -272,5 +275,5 @@ export const launchDemo = async ({
     await screen.renderOnce();
   };
   await until(() => frame().includes("Login redirect drops the return"));
-  return { screen, frame, until, press };
+  return { screen, frame, until, press, calls };
 };
