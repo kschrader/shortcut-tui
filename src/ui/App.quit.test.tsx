@@ -40,6 +40,9 @@ test("the dialog asks whether to quit and the bar names the answers, at 80x24", 
   expect(text).toContain("Quit");
   expect(text).toContain("Are you sure you want to quit?");
   expect(text).not.toContain("still saving");
+  const lines = text.split("\n");
+  const question = lines.findIndex((line) => line.includes("Are you sure you want to quit?"));
+  expect(lines[question + 1]).toMatch(/│\s+y quit {2}n stay\s+│/);
   expect(bottomLine(text)).toContain("y quit  n stay");
 });
 

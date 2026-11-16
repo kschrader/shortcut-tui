@@ -1,3 +1,4 @@
+import { hintFor } from "./keys.ts";
 import { colors } from "./theme.ts";
 
 const unsavedLine = (saving: number): string =>
@@ -27,6 +28,7 @@ export const QuitConfirm = ({ saving }: { saving: number }) => (
     >
       <text>Are you sure you want to quit?</text>
       {saving === 0 ? null : <text fg={colors.warning}>{unsavedLine(saving)}</text>}
+      <text fg={colors.dim}>{hintFor("confirmingQuit")}</text>
     </box>
   </box>
 );
