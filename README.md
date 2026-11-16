@@ -9,7 +9,7 @@ Built on [OpenTUI](https://github.com/anomalyco/opentui) 0.9 and the Shortcut RE
 
 ## Project rules
 
-The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `fields-from-schemas` came from a nested field name, `sub_task_stories.workflow_state`, that Shortcut rejected with a 400. `opentui-text-placement` guards a documented OpenTUI pitfall. `parse-shortcut-responses` is preventive: no defect led to it, but the generated client types leave out fields Shortcut sends, such as `formatted_vcs_branch_name`, so only a schema says what a response holds. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
+The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `fields-from-schemas` came from a nested field name, `sub_task_stories.workflow_state`, that Shortcut rejected with a 400. `opentui-text-placement` guards a documented OpenTUI pitfall. `parse-shortcut-responses` is preventive: no defect led to it, but the generated client types leave out fields Shortcut sends, such as `formatted_vcs_branch_name`, so only a schema says what a response holds. `writes-from-the-list` is preventive too: the token can write to a production workspace, so each write the app makes must be listed. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
 
 | Rule | Enforced by |
 | --- | --- |
@@ -21,6 +21,7 @@ The lint config enforces these rules. `no-comments` is the founding rule. `switc
 | Put text only inside `<text>` | `shortcut-tui/opentui-text-placement` |
 | Compare every value a raw API schema allows outside the schema, so no pull request state falls through to unknown | `shortcut-tui/classify-every-raw-enum-value` |
 | Cap concurrent requests with `settleLimited` instead of `Promise.all` over a mapped array | `shortcut-tui/bound-fan-out` |
+| Make only approved writes. A v4 call that changes Shortcut must come from a `ShortcutClient` method paired with it in `APPROVED_WRITES` in `lint/writes-from-the-list.ts`, today only `moveStory` with `updateStory`. GitHub mutations are flagged too | `shortcut-tui/writes-from-the-list` |
 | No `console` output. It corrupts the screen | `no-console` |
 | No `process.exit`. Destroy the renderer so the terminal is restored | `unicorn/no-process-exit` |
 | Parse API data at the boundary. A Shortcut response goes straight to a schema's `.parse`, and only `src/shortcut/client.ts` imports the Shortcut client. `gh` output arrives as `unknown`, so it cannot be used before a schema parses it | `shortcut-tui/parse-shortcut-responses`, `no-restricted-imports`, and `typescript/no-unsafe-*` |

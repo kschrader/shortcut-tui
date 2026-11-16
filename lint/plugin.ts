@@ -8,6 +8,7 @@ import { classifyEveryRawEnumValue } from "./classify-every-raw-enum-value.ts";
 import { boundFanOut } from "./bound-fan-out.ts";
 import { parseShortcutResponses } from "./parse-shortcut-responses.ts";
 import { fieldsFromSchemas } from "./fields-from-schemas.ts";
+import { writesFromTheList } from "./writes-from-the-list.ts";
 
 export type Rule = Parameters<RuleTester["run"]>[1];
 
@@ -21,6 +22,7 @@ export const rules = {
   "bound-fan-out": boundFanOut,
   "parse-shortcut-responses": parseShortcutResponses,
   "fields-from-schemas": fieldsFromSchemas,
+  "writes-from-the-list": writesFromTheList,
 } satisfies Record<string, Rule>;
 
 export default {
