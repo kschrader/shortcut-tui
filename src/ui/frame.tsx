@@ -195,6 +195,19 @@ export const show = async (
 ) => {
   const dispatched: Msg[] = [];
   const calls = { quit: 0, opened: [] as string[], copied: [] as string[] };
+  const waiters = new Set<{ holds: () => boolean; resolve: () => void }>();
+  const recorded = () => {
+    for (const waiter of waiters) {
+      if (!waiter.holds()) continue;
+      waiters.delete(waiter);
+      waiter.resolve();
+    }
+  };
+  const when = (holds: () => boolean) =>
+    new Promise<void>((resolve) => {
+      if (holds()) resolve();
+      else waiters.add({ holds, resolve });
+    });
   const shownModel: { replace?: (next: Model) => void } = {};
   const Harness = () => {
     const [shown, setShown] = useState(model);
@@ -205,14 +218,22 @@ export const show = async (
       <App
         model={shown}
         now={options.now ?? new Date("2026-11-02T09:00:00Z")}
-        dispatch={(msg) => dispatched.push(msg)}
+        dispatch={(msg) => {
+          dispatched.push(msg);
+          recorded();
+        }}
         quit={() => {
           calls.quit += 1;
+          recorded();
         }}
-        openUrl={(url) => calls.opened.push(url)}
+        openUrl={(url) => {
+          calls.opened.push(url);
+          recorded();
+        }}
         copyText={(text) => {
           if (options.clipboard === "missing") return false;
           calls.copied.push(text);
+          recorded();
           return true;
         }}
       />
@@ -229,7 +250,7 @@ export const show = async (
     shownModel.replace?.(next);
     await screen.renderOnce();
   };
-  return { screen, dispatched, calls, rerender, frame: () => screen.captureCharFrame() };
+  return { screen, dispatched, calls, when, rerender, frame: () => screen.captureCharFrame() };
 };
 
 export const launchDemo = async ({

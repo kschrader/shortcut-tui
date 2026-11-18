@@ -47,21 +47,21 @@ test("the dialog asks whether to quit and the bar names the answers, at 80x24", 
 });
 
 test("y, q and enter quit from the dialog", async () => {
-  const { screen, dispatched, calls } = await show(confirming);
+  const { screen, dispatched, calls, when } = await show(confirming);
   screen.mockInput.pressKey("y");
   screen.mockInput.pressKey("q");
   screen.mockInput.pressEnter();
-  await Bun.sleep(50);
+  await when(() => calls.quit === 3);
   expect(calls.quit).toBe(3);
   expect(dispatched).toEqual([]);
 });
 
 test("n and esc stay, and other keys do nothing while the dialog is open", async () => {
-  const { screen, dispatched, calls } = await show(confirming);
+  const { screen, dispatched, calls, when } = await show(confirming);
   for (const key of ["j", "/", "r", "m", "?"]) screen.mockInput.pressKey(key);
   screen.mockInput.pressKey("n");
   screen.mockInput.pressEscape();
-  await Bun.sleep(50);
+  await when(() => dispatched.length === 2);
   expect(dispatched).toEqual([{ type: "quitCancelled" }, { type: "quitCancelled" }]);
   expect(calls.quit).toBe(0);
 });

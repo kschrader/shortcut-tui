@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createGitHubClient, ghRunner, GH_SETUP_HINT } from "./client.ts";
+import { createGitHubClient, ghRunner, GH_SETUP_HINT, type GhRunner } from "./client.ts";
 import { fakeGitHub, flags, raw, ref } from "./gh-stub.ts";
 import { pullRequestKey, type GitHubClient, type PullRequestRef } from "./types.ts";
 
@@ -256,8 +256,15 @@ test("a hung gh process is killed at the timeout", async () => {
   writeFileSync(gh, `#!/bin/sh\necho $$ > '${pidFile}'\nexec sleep 30\n`);
   chmodSync(gh, 0o755);
   const slowMachineStartupMs = 2000;
-  const client = createGitHubClient({ run: ghRunner(gh), timeoutMs: slowMachineStartupMs });
+  const runs: Promise<unknown>[] = [];
+  const run: GhRunner = (args, signal) => {
+    const exited = ghRunner(gh)(args, signal);
+    runs.push(exited);
+    return exited;
+  };
+  const client = createGitHubClient({ run, timeoutMs: slowMachineStartupMs });
   await rejection(client.pullRequests([ref("storefront", 1)]));
+  await Promise.allSettled(runs);
   const pid = Number(readFileSync(pidFile, "utf8"));
   const alive = () => {
     try {
@@ -267,7 +274,6 @@ test("a hung gh process is killed at the timeout", async () => {
       return false;
     }
   };
-  for (let waited = 0; alive() && waited < 2000; waited += 20) await Bun.sleep(20);
   expect(alive()).toBe(false);
 });
 

@@ -17,6 +17,9 @@
     "shortcut-tui/parse-shortcut-responses": "error",
     "shortcut-tui/fields-from-schemas": "error",
     "shortcut-tui/writes-from-the-list": "error",
+    "shortcut-tui/no-fixed-sleep": "error",
+    "shortcut-tui/no-flake-masking": "error",
+    "shortcut-tui/colocated-tests": "error",
     "no-restricted-imports": [
       "error",
       {

@@ -9,7 +9,7 @@ Built on [OpenTUI](https://github.com/anomalyco/opentui) 0.9 and the Shortcut RE
 
 ## Project rules
 
-The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `fields-from-schemas` came from a nested field name, `sub_task_stories.workflow_state`, that Shortcut rejected with a 400. `opentui-text-placement` guards a documented OpenTUI pitfall. `parse-shortcut-responses` is preventive: no defect led to it, but the generated client types leave out fields Shortcut sends, such as `formatted_vcs_branch_name`, so only a schema says what a response holds. `writes-from-the-list` is preventive too: the token can write to a production workspace, so each write the app makes must be listed. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
+The lint config enforces these rules. `no-comments` is the founding rule. `switch-on-discriminant` and `paginate-v4-lists` came from defects found while building, and their fixtures in `lint/fixtures/<rule>/` reproduce those defects. `fields-from-schemas` came from a nested field name, `sub_task_stories.workflow_state`, that Shortcut rejected with a 400. `opentui-text-placement` guards a documented OpenTUI pitfall. `parse-shortcut-responses` is preventive: no defect led to it, but the generated client types leave out fields Shortcut sends, such as `formatted_vcs_branch_name`, so only a schema says what a response holds. `writes-from-the-list` is preventive too: the token can write to a production workspace, so each write the app makes must be listed. `no-fixed-sleep`, `no-flake-masking` and `colocated-tests` are our own versions of rules from [landmines](https://github.com/interfere-inc/landmines), written for Bun's test runner. `no-fixed-sleep` replaced ten sleeps in tests. Half of them waited out the delay OpenTUI needs before it reads a lone `esc` as a key press. Every rule below is set to `error`, and lint runs with `--deny-warnings`, so a violation fails `bun run check` and CI.
 
 | Rule | Enforced by |
 | --- | --- |
@@ -21,6 +21,9 @@ The lint config enforces these rules. `no-comments` is the founding rule. `switc
 | Put text only inside `<text>` | `shortcut-tui/opentui-text-placement` |
 | Compare every value a raw API schema allows outside the schema, so no pull request state falls through to unknown | `shortcut-tui/classify-every-raw-enum-value` |
 | Cap concurrent requests with `settleLimited` instead of `Promise.all` over a mapped array | `shortcut-tui/bound-fan-out` |
+| Wait for an event in a test, not a fixed time. UI tests use `await when(() => ...)` from `src/ui/frame.tsx`. To show that keys did nothing, end with a key that dispatches and wait for it | `shortcut-tui/no-fixed-sleep` |
+| No test retries, repeats or raised timeouts. Fix the flake instead | `shortcut-tui/no-flake-masking` |
+| Keep each test beside its subject. A test that imports project code imports a module from its own folder | `shortcut-tui/colocated-tests` |
 | Make only approved writes. A v4 call that changes Shortcut must come from a `ShortcutClient` method paired with it in `APPROVED_WRITES` in `lint/writes-from-the-list.ts`, today only `moveStory` with `updateStory`. GitHub mutations are flagged too | `shortcut-tui/writes-from-the-list` |
 | No `console` output. It corrupts the screen | `no-console` |
 | No `process.exit`. Destroy the renderer so the terminal is restored | `unicorn/no-process-exit` |

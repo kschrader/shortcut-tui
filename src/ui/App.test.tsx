@@ -190,14 +190,14 @@ test("navigation, query, refresh, open and quit keys", async () => {
 });
 
 test("while editing the query, typing edits the draft and does not trigger shortcuts", async () => {
-  const { screen, dispatched, calls, frame } = await show(
+  const { screen, dispatched, calls, frame, when } = await show(
     browsing({ focus: { mode: "editingQuery", draft: "owner:me" } }),
   );
   expect(frame()).toContain("enter search");
   await screen.mockInput.typeText("q");
   screen.mockInput.pressEnter();
   screen.mockInput.pressEscape();
-  await Bun.sleep(100);
+  await when(() => dispatched.some((msg) => msg.type === "queryEditCancelled"));
   expect(calls.quit).toBe(0);
   expect(dispatched).toContainEqual({ type: "querySubmitted" });
   expect(dispatched).toContainEqual({ type: "queryEditCancelled" });

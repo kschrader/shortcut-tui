@@ -72,22 +72,23 @@ test("? opens help and ? or esc close it", async () => {
   const { screen, dispatched } = await show(browsing());
   screen.mockInput.pressKey("?");
   expect(dispatched).toEqual([{ type: "helpOpened" }]);
-  const { screen: open, dispatched: whileOpen } = await show(helping());
+  const { screen: open, dispatched: whileOpen, when } = await show(helping());
   open.mockInput.pressKey("?");
   open.mockInput.pressEscape();
-  await Bun.sleep(100);
+  await when(() => whileOpen.length === 2);
   expect(whileOpen).toEqual([{ type: "helpClosed" }, { type: "helpClosed" }]);
 });
 
 test("other keys do nothing while help is open, and ctrl-c still quits", async () => {
-  const { screen, dispatched, calls } = await show(helping());
+  const { screen, dispatched, calls, when } = await show(helping());
   const { mockInput } = screen;
   for (const key of ["j", "k", "/", "r", "o", "p", "q", "x"]) mockInput.pressKey(key);
   mockInput.pressArrow("down");
   mockInput.pressArrow("up");
   mockInput.pressKey("PAGE_DOWN");
-  await Bun.sleep(100);
-  expect(dispatched).toEqual([]);
+  mockInput.pressEscape();
+  await when(() => dispatched.length > 0);
+  expect(dispatched).toEqual([{ type: "helpClosed" }]);
   expect(calls.opened).toEqual([]);
   expect(calls.quit).toBe(0);
   mockInput.pressCtrlC();
@@ -95,10 +96,11 @@ test("other keys do nothing while help is open, and ctrl-c still quits", async (
 });
 
 test("typing ? in the query editor does not open help", async () => {
-  const { screen, dispatched } = await show(
+  const { screen, dispatched, when } = await show(
     browsing({ focus: { mode: "editingQuery", draft: "" } }),
   );
   await screen.mockInput.typeText("?");
-  await Bun.sleep(100);
+  screen.mockInput.pressEscape();
+  await when(() => dispatched.some((msg) => msg.type === "queryEditCancelled"));
   expect(dispatched.some((msg) => msg.type === "helpOpened")).toBe(false);
 });

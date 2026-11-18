@@ -9,6 +9,9 @@ import { boundFanOut } from "./bound-fan-out.ts";
 import { parseShortcutResponses } from "./parse-shortcut-responses.ts";
 import { fieldsFromSchemas } from "./fields-from-schemas.ts";
 import { writesFromTheList } from "./writes-from-the-list.ts";
+import { noFixedSleep } from "./no-fixed-sleep.ts";
+import { noFlakeMasking } from "./no-flake-masking.ts";
+import { colocatedTests } from "./colocated-tests.ts";
 
 export type Rule = Parameters<RuleTester["run"]>[1];
 
@@ -23,6 +26,9 @@ export const rules = {
   "parse-shortcut-responses": parseShortcutResponses,
   "fields-from-schemas": fieldsFromSchemas,
   "writes-from-the-list": writesFromTheList,
+  "no-fixed-sleep": noFixedSleep,
+  "no-flake-masking": noFlakeMasking,
+  "colocated-tests": colocatedTests,
 } satisfies Record<string, Rule>;
 
 export default {
