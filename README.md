@@ -26,6 +26,7 @@ The lint config enforces these rules. `no-comments` is the founding rule. `switc
 | Keep each test beside its subject. A test that imports project code imports a module from its own folder | `shortcut-tui/colocated-tests` |
 | Make only approved writes. A v4 call that changes Shortcut must come from a `ShortcutClient` method paired with it in `APPROVED_WRITES` in `lint/writes-from-the-list.ts`, today only `moveStory` with `updateStory`. GitHub mutations are flagged too | `shortcut-tui/writes-from-the-list` |
 | No `console` output. It corrupts the screen | `no-console` |
+| Don't spread the accumulator inside `reduce` or a loop. Each step copies everything built so far, so the work grows with the square of the list | `oxc/no-accumulating-spread` |
 | No `process.exit`. Destroy the renderer so the terminal is restored | `unicorn/no-process-exit` |
 | Parse API data at the boundary. A Shortcut response goes straight to a schema's `.parse`, and only `src/shortcut/client.ts` imports the Shortcut client. `gh` output arrives as `unknown`, so it cannot be used before a schema parses it | `shortcut-tui/parse-shortcut-responses`, `no-restricted-imports`, and `typescript/no-unsafe-*` |
 
